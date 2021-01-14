@@ -21,6 +21,10 @@ def getHeader(filename):
     return header
 
 
+def saveTif(data,filename):
+    datatoStore = np.asarray(data, np.uint16)
+    tif.TifImage(data=datatoStore).write(filename)
+
 def saveTiff16bit(data, filename, minIm=0, maxIm=0, header=None):
     if (minIm == maxIm):
         minIm = np.amin(data)

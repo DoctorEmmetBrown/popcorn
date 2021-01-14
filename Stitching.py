@@ -1,11 +1,103 @@
 import numpy
 import glob
 #from scipy.signal import correlate
-from popcornIO import openSeq,save3D_Edf
+from popcornIO import openSeq,save3D_Edf,saveTif
+import os
+import shutil
 
 
 
+def stitchFolders(listOfFolders,outputFolderName,deltaZ,copyMode=0,securityBandSize=10,overlapMode=0,bandAverageSize=0,flipUD=0):
+    """
+    Function that stitches different folders into a unique one
+    The first and last folders are treated differently (correlation with other folders is looked only on one side)
+    Every other slices are moved or copied (depending on copy mode) in the ouptutFolder
+    For the rest of folders the slices are either moved or copied (depending on copy mode)
+    :param listOfFolders: a simple list of strings (expect to have images in each of those folders whatever the format)
+    :param outputFolderName: a string with the entire path
+    :param deltaZ: the supposed z discrete displacement in number of slices
+    :param copyMode: 0 files are simply moved (no backup) 1 files are copied in the outputfoldername
+    :param securityBandSize: the bandsize (int) in which we will look for the best matched slice between two z folders
+    :param overlapMode: 0 just copy or move files 1 standard average in the bandAverageSize 2 weighted average
+    :param bandAverageSize: If bandmode >0 size of the band for the (weighted) average
+    :param flipUD: 0 alphabetic filenames in a folder is in the right order 1 need to reverse the alphabetic order
+    :return:
+    """
+    print('Stitching ....')
+    numberOfFolders=len(listOfFolders)
+    cptFolder=0
+    listOfFolders.sort()
+    begToCopy=0
+    for folderName in listOfFolders:
+        print(folderName)
+        listOfImageFilenames=glob.glob(folderName+'/*.tif')+glob.glob(folderName+'/*.edf')+glob.glob(folderName+'/*.png')
+        if flipUD == 1:
+            listOfImageFilenames.sort(reverse=True)
+        else:
+            listOfImageFilenames.sort()
+        print(folderName)
+        nbSliceInAFolder=len(listOfImageFilenames)
+        middleSliceIndex = int(nbSliceInAFolder/2)
+        if (cptFolder<numberOfFolders-1):
+            listOfImageFilenamesUpperFolder = glob.glob(listOfFolders[cptFolder+1] + '/*.tif') + glob.glob(listOfFolders[cptFolder+1] + '/*.edf') + glob.glob(listOfFolders[cptFolder+1] + '/*.png')
+            suposedSliceOfOverlapDown=middleSliceIndex + int(deltaZ/2)
+            suposedSliceOfOverlapUp = middleSliceIndex - int(deltaZ / 2)
+            if securityBandSize>0:
+                imageDownFileNames=listOfImageFilenames[suposedSliceOfOverlapDown-int(securityBandSize):suposedSliceOfOverlapDown+int(securityBandSize)]
+                imageUpFileNames=listOfImageFilenamesUpperFolder[suposedSliceOfOverlapUp-int(securityBandSize):suposedSliceOfOverlapUp+int(securityBandSize)]
+                imageDown=openSeq(imageDownFileNames)
+                imageUp=openSeq(imageUpFileNames)
+                indexOfOverlap=lookForMaximumCorrelationBand(imageDown,imageUp,securityBandSize)
+                diffIndex=securityBandSize-indexOfOverlap
+                trueSliceOverlapIndex=suposedSliceOfOverlapDown-diffIndex
+                if overlapMode == 0:
+                    #elbourinos
+                    listToCopy=listOfImageFilenames[begToCopy:trueSliceOverlapIndex]
+                    for fileName in listToCopy:
+                        outputFilename=outputFolderName+'/'+os.path.basename(fileName)
+                        if copyMode == 0:
+                            os.rename(fileName,outputFilename)
+                        else:
+                            shutil.copy2(fileName,outputFilename)
+                    begToCopy = suposedSliceOfOverlapUp + diffIndex
 
+                else:
+                    listToCopy=listOfImageFilenames[begToCopy:trueSliceOverlapIndex-int(bandAverageSize/2)]
+                    for fileName in listToCopy:
+                        outputFilename = outputFolderName + '/' + os.path.basename(fileName)
+                        if copyMode == 0:
+                            os.rename(fileName, outputFilename)
+                        else:
+                            shutil.copy2(fileName, outputFilename)
+                    filenamesDownToAverage=listOfImageFilenames[trueSliceOverlapIndex-int(bandAverageSize/2):trueSliceOverlapIndex+int(bandAverageSize/2)]
+                    filenamesUpToAverage=listOfImageFilenamesUpperFolder[suposedSliceOfOverlapUp+diffIndex-int(bandAverageSize/2):suposedSliceOfOverlapUp+diffIndex+int(bandAverageSize/2)]
+                    averagedImage=averageImagesFromFilenames(filenamesDownToAverage,filenamesUpToAverage)
+                    listOfFakeNames=listOfImageFilenames[trueSliceOverlapIndex-int(bandAverageSize/2):trueSliceOverlapIndex+int(bandAverageSize/2)]
+                    for filename in listOfFakeNames:
+                        outputFilename=outputFolderName+os.path.basename(filename)
+                        for i in range(0:bandAverageSize):
+                            data=averagedImage[i,:,:].squeeze()
+                            saveTif(data.astype(numpy.uint16),outputFilename)
+
+                    begToCopy = suposedSliceOfOverlapUp + diffIndex+int(bandAverageSize/2)
+        else :
+            print('Last Folder')
+            listToCopy=listOfImageFilenames[begToCopy:-1]
+            for fileName in listToCopy:
+                outputFilename = outputFolderName + '/' + os.path.basename(fileName)
+                if copyMode == 0:
+                    os.rename(fileName, outputFilename)
+                else:
+                    shutil.copy2(fileName, outputFilename)
+
+        cptFolder+=1
+
+
+def averageImagesFromFilenames(filenameDown,fileNameUp,mode=0):
+    imageDown=openSeq(filenameDown)
+    imageUp = openSeq(fileNameUp)
+
+    return (imageDown+imageUp)/2
 
 
 def lookForMaximumCorrelation(imageA,imageB):
@@ -18,7 +110,7 @@ def lookForMaximumCorrelation(imageA,imageB):
     :return: the slice number with highest zero normalized cross correlation.
 
     """
-    nbSlicesA,widthA,heightA=imageA.shape
+    nbSlicesA, widthA, heightA=imageA.shape
     nbSlicesB, widthB, heightB = imageB.shape
     width=max(widthA,widthB)
     height=max(heightA,heightB)
