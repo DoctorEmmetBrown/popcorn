@@ -44,9 +44,9 @@ def stitchFolders(listOfFolders,outputFolderName,deltaZ,copyMode=0,securityBandS
         middleSliceIndex = int(nbSliceInAFolder/2)
         if (cptFolder<numberOfFolders-1):
             listOfImageFilenamesUpperFolder = glob.glob(listOfFolders[cptFolder+1] + '/*.tif') + glob.glob(listOfFolders[cptFolder+1] + '/*.edf') + glob.glob(listOfFolders[cptFolder+1] + '/*.png')
-            suposedSliceOfOverlapDown=middleSliceIndex + int(deltaZ/2)
+            suposedSliceOfOverlapDown = nbSliceInAFolder - int((nbSliceInAFolder - deltaZ)/2)
             print('suposedSliceOfOverlapDown'+str(suposedSliceOfOverlapDown))
-            suposedSliceOfOverlapUp = middleSliceIndex - int(deltaZ/2)
+            suposedSliceOfOverlapUp = int((nbSliceInAFolder - deltaZ)/2)
             print('suposedSliceOfOverlapUp' + str(suposedSliceOfOverlapUp))
 
             if securityBandSize>0:
@@ -233,8 +233,3 @@ if __name__ == "__main__" :
     imageB = openSeq(imageBFiles)
     lookForMaximumCorrelation(imageA,imageB)
     lookForMaximumCorrelationBand(imageA,imageB,10)
-
-
-
-
-
