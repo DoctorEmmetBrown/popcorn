@@ -25,11 +25,13 @@ def stitchFolders(listOfFolders,outputFolderName,deltaZ,copyMode=0,securityBandS
     :param flipUD: 0 alphabetic filenames in a folder is in the right order 1 need to reverse the alphabetic order
     :return:
     """
+
     print('Stitching ....')
     numberOfFolders=len(listOfFolders)
     cptFolder=0
     listOfFolders.sort()
     begToCopy=0
+
     for folderName in listOfFolders:
         print(folderName)
         listOfImageFilenames=glob.glob(folderName+'/*.tif')+glob.glob(folderName+'/*.edf')+glob.glob(folderName+'/*.png')
@@ -46,17 +48,23 @@ def stitchFolders(listOfFolders,outputFolderName,deltaZ,copyMode=0,securityBandS
             print('suposedSliceOfOverlapDown'+str(suposedSliceOfOverlapDown))
             suposedSliceOfOverlapUp = middleSliceIndex - int(deltaZ/2)
             print('suposedSliceOfOverlapUp' + str(suposedSliceOfOverlapUp))
+
             if securityBandSize>0:
                 imageDownFileNames=listOfImageFilenames[suposedSliceOfOverlapDown-int(securityBandSize):suposedSliceOfOverlapDown+int(securityBandSize)]
                 imageUpFileNames=listOfImageFilenamesUpperFolder[suposedSliceOfOverlapUp-int(securityBandSize):suposedSliceOfOverlapUp+int(securityBandSize)]
                 print('Band : ['+str(suposedSliceOfOverlapDown-int(securityBandSize))+','+str(suposedSliceOfOverlapDown+int(securityBandSize)))
                 imageDown=openSeq(imageDownFileNames)
                 imageUp=openSeq(imageUpFileNames)
+
                 indexOfOverlap = int(lookForMaximumCorrelation(imageDown, imageUp))
-                indexOfOverlap=int(lookForMaximumCorrelationBand(imageDown,imageUp,10,False))
+
+                indexOfOverlap=int(lookForMaximumCorrelationBand(imageDown, imageUp, 10, False))
+
                 #indexOfOverlap = int(lookForMaximumCorrelationBand(imageDown, imageUp, securityBandSize))
+
                 diffIndex=securityBandSize-indexOfOverlap
                 trueSliceOverlapIndex=suposedSliceOfOverlapDown-diffIndex
+
                 if overlapMode == 0:
                     #elbourinos
                     listToCopy=listOfImageFilenames[begToCopy:trueSliceOverlapIndex]
@@ -77,6 +85,7 @@ def stitchFolders(listOfFolders,outputFolderName,deltaZ,copyMode=0,securityBandS
                         else:
                             shutil.copy2(fileName, outputFilename)
                     filenamesDownToAverage=listOfImageFilenames[trueSliceOverlapIndex-int(bandAverageSize/2):trueSliceOverlapIndex+int(bandAverageSize/2)]
+
                     filenamesUpToAverage=listOfImageFilenamesUpperFolder[suposedSliceOfOverlapUp+diffIndex-int(bandAverageSize/2):suposedSliceOfOverlapUp+diffIndex+int(bandAverageSize/2)]
                     averagedImage=averageImagesFromFilenames(filenamesDownToAverage,filenamesUpToAverage)
                     listOfFakeNames=listOfImageFilenames[trueSliceOverlapIndex-int(bandAverageSize/2):trueSliceOverlapIndex+int(bandAverageSize/2)]
@@ -115,20 +124,21 @@ def lookForMaximumCorrelation(imageA,imageB):
     :param imageA:3D numpy array
     :param imageB:3D numpy array
     :return: the slice number with highest zero normalized cross correlation.
-
     """
-    nbSlicesA, widthA, heightA=imageA.shape
+    nbSlicesA, widthA, heightA = imageA.shape
     nbSlicesB, widthB, heightB = imageB.shape
-    width=max(widthA,widthB)
-    height=max(heightA,heightB)
+    width = max(widthA, widthB)
+    height = max(heightA, heightB)
 
-    middleSlice=int(nbSlicesA/2)
+
+    middleSlice = int(nbSlicesA/2)
     imageToMultiply = numpy.copy(imageA[middleSlice, :, :].squeeze())
     imageToMultiply = imageToMultiply - numpy.mean(imageToMultiply)
 
-    tmpB=numpy.copy(imageB)
+    tmpB = numpy.copy(imageB)
     stdMul = numpy.std(imageToMultiply)
-    corr=numpy.zeros(nbSlicesB)
+    corr = numpy.zeros(nbSlicesB)
+
     for slice in range(0, nbSlicesB):
         tmpB[slice, :, :] = tmpB[slice, :, :] - numpy.mean(tmpB[slice, :, :])
 
@@ -141,9 +151,10 @@ def lookForMaximumCorrelation(imageA,imageB):
         normcrosscorr = sumMultiplication / (stdMul * stdB)
         normcrosscorr /= (width * height)
         corr[slice]=normcrosscorr
-        print(normcrosscorr)
+        print("slice", slice, "cross-corr :", normcrosscorr)
 
     maxCorSlice=numpy.argmax(corr)
+    print("best slice", maxCorSlice, "cross-corr :", corr[maxCorSlice])
     print(maxCorSlice)
 
     return (maxCorSlice)
@@ -188,7 +199,7 @@ def lookForMaximumCorrelationBand(imageA,imageB,bandSize,segmented=False):
         imageToMultiply = tmpA[middleSlice+i, :, :].squeeze()
         imageToMultiply = imageToMultiply - numpy.mean(imageToMultiply)
         stdMul = numpy.std(imageToMultiply)
-        corr=numpy.zeros(nbSlicesB)
+        corr = numpy.zeros(nbSlicesB)
         imMultiplied = imageToMultiply * tmpB
 
         for slice in range(0,nbSlicesB):
@@ -198,10 +209,10 @@ def lookForMaximumCorrelationBand(imageA,imageB,bandSize,segmented=False):
             normcrosscorr = sumMultiplication / (stdMul * stdB)
             normcrosscorr /= (width * height)
             corr[slice]=normcrosscorr
-            print(normcrosscorr)
+            print("slice", slice, "cross-corr :", normcrosscorr)
 
         maxCorSlice=numpy.argmax(corr)-i
-        argMaxCoors[i] = maxCorSlice
+        argMaxCoors[i + int(bandSize/2)] = maxCorSlice
         print('maxCorSlice found for slice:'+str(i)+' is :'+str(maxCorSlice))
     medianValue=numpy.median(argMaxCoors)
     return (medianValue)
