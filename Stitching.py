@@ -4,6 +4,8 @@ import glob
 from popcornIO import openSeq,save3D_Edf,saveTif
 import os
 import shutil
+from skimage.filters import threshold_otsu
+
 
 
 
@@ -36,18 +38,23 @@ def stitchFolders(listOfFolders,outputFolderName,deltaZ,copyMode=0,securityBandS
         else:
             listOfImageFilenames.sort()
         print(folderName)
-        nbSliceInAFolder=len(listOfImageFilenames)
+        nbSliceInAFolder = len(listOfImageFilenames)
         middleSliceIndex = int(nbSliceInAFolder/2)
         if (cptFolder<numberOfFolders-1):
             listOfImageFilenamesUpperFolder = glob.glob(listOfFolders[cptFolder+1] + '/*.tif') + glob.glob(listOfFolders[cptFolder+1] + '/*.edf') + glob.glob(listOfFolders[cptFolder+1] + '/*.png')
             suposedSliceOfOverlapDown=middleSliceIndex + int(deltaZ/2)
-            suposedSliceOfOverlapUp = middleSliceIndex - int(deltaZ / 2)
+            print('suposedSliceOfOverlapDown'+str(suposedSliceOfOverlapDown))
+            suposedSliceOfOverlapUp = middleSliceIndex - int(deltaZ/2)
+            print('suposedSliceOfOverlapUp' + str(suposedSliceOfOverlapUp))
             if securityBandSize>0:
                 imageDownFileNames=listOfImageFilenames[suposedSliceOfOverlapDown-int(securityBandSize):suposedSliceOfOverlapDown+int(securityBandSize)]
                 imageUpFileNames=listOfImageFilenamesUpperFolder[suposedSliceOfOverlapUp-int(securityBandSize):suposedSliceOfOverlapUp+int(securityBandSize)]
+                print('Band : ['+str(suposedSliceOfOverlapDown-int(securityBandSize))+','+str(suposedSliceOfOverlapDown+int(securityBandSize)))
                 imageDown=openSeq(imageDownFileNames)
                 imageUp=openSeq(imageUpFileNames)
-                indexOfOverlap=lookForMaximumCorrelationBand(imageDown,imageUp,securityBandSize)
+                indexOfOverlap = int(lookForMaximumCorrelation(imageDown, imageUp))
+                indexOfOverlap=int(lookForMaximumCorrelationBand(imageDown,imageUp,10,False))
+                #indexOfOverlap = int(lookForMaximumCorrelationBand(imageDown, imageUp, securityBandSize))
                 diffIndex=securityBandSize-indexOfOverlap
                 trueSliceOverlapIndex=suposedSliceOfOverlapDown-diffIndex
                 if overlapMode == 0:
@@ -75,7 +82,7 @@ def stitchFolders(listOfFolders,outputFolderName,deltaZ,copyMode=0,securityBandS
                     listOfFakeNames=listOfImageFilenames[trueSliceOverlapIndex-int(bandAverageSize/2):trueSliceOverlapIndex+int(bandAverageSize/2)]
                     for filename in listOfFakeNames:
                         outputFilename=outputFolderName+os.path.basename(filename)
-                        for i in range(0:bandAverageSize):
+                        for i in range(0,bandAverageSize) :
                             data=averagedImage[i,:,:].squeeze()
                             saveTif(data.astype(numpy.uint16),outputFilename)
 
@@ -142,7 +149,7 @@ def lookForMaximumCorrelation(imageA,imageB):
     return (maxCorSlice)
 
 
-def lookForMaximumCorrelationBand(imageA,imageB,bandSize):
+def lookForMaximumCorrelationBand(imageA,imageB,bandSize,segmented=False):
     """
     Function to look for the maximum correlated slice between two different volumes
     Preparation for stitching 2 sets of images
@@ -150,6 +157,7 @@ def lookForMaximumCorrelationBand(imageA,imageB,bandSize):
     :param imageA:3D numpy array
     :param imageB:3D numpy array
     :param bandSize: Number of slice the zero normalized cross correlation is made on
+    :param segmented: True otsu thesholding is performed before correlation
     :return: the median value of all slices number with highest zero normalized cross correlation.
     """
     nbSlicesA,widthA,heightA=imageA.shape
@@ -158,7 +166,18 @@ def lookForMaximumCorrelationBand(imageA,imageB,bandSize):
     width=max(widthA,widthB)
     height=max(heightA,heightB)
     middleSlice = int(nbSlicesA / 2)
+
+    tmpA=numpy.copy(imageA)
+    if (segmented):
+        thresh = threshold_otsu(tmpA)
+        tmpA = tmpA > thresh
+
     tmpB = numpy.copy(imageB)
+    if(segmented):
+        thresh = threshold_otsu(tmpB)
+        tmpB=tmpB>thresh
+
+
 
     #Preparation for normalized cross correlation
     for slice in range(0, nbSlicesB):
@@ -166,7 +185,7 @@ def lookForMaximumCorrelationBand(imageA,imageB,bandSize):
 
     argMaxCoors=numpy.zeros(bandSize)
     for i in range(int(-bandSize/2),(int(bandSize/2))):
-        imageToMultiply = numpy.copy(imageA[middleSlice+i, :, :].squeeze())
+        imageToMultiply = tmpA[middleSlice+i, :, :].squeeze()
         imageToMultiply = imageToMultiply - numpy.mean(imageToMultiply)
         stdMul = numpy.std(imageToMultiply)
         corr=numpy.zeros(nbSlicesB)
@@ -175,9 +194,11 @@ def lookForMaximumCorrelationBand(imageA,imageB,bandSize):
         for slice in range(0,nbSlicesB):
             stdB = numpy.std(tmpB[slice, :, :])
             sumMultiplication = numpy.sum(imMultiplied[slice, :, :])
+
             normcrosscorr = sumMultiplication / (stdMul * stdB)
             normcrosscorr /= (width * height)
             corr[slice]=normcrosscorr
+            print(normcrosscorr)
 
         maxCorSlice=numpy.argmax(corr)-i
         argMaxCoors[i] = maxCorSlice

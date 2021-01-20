@@ -14,7 +14,7 @@ def conversionFromListOfFiles(listOfFiles, outputFolder, minValue, maxValue):
     for fileName in listOfFiles:
         baseName = os.path.basename(fileName).split(".")[0]
         data = openImage(fileName)
-        saveTiff16bit(data, outputFolder + baseName + ".tif", minValue, maxValue)
+        saveTiff16bit(data, outputFolder + '/'+baseName + ".tif", minValue, maxValue)
     print("16 bit conversion done.")
 
 if __name__ == "__main__" :
