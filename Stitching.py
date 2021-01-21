@@ -56,14 +56,14 @@ def stitchFolders(listOfFolders,outputFolderName,deltaZ,copyMode=0,securityBandS
                 imageDown=openSeq(imageDownFileNames)
                 imageUp=openSeq(imageUpFileNames)
 
-                indexOfOverlap = int(lookForMaximumCorrelation(imageDown, imageUp))
+                #indexOfOverlap = int(lookForMaximumCorrelation(imageDown, imageUp))
 
-                indexOfOverlap=int(lookForMaximumCorrelationBand(imageDown, imageUp, 10, False))
+                indexOfOverlap = int(lookForMaximumCorrelationBand(imageDown, imageUp, 10, False))
 
                 #indexOfOverlap = int(lookForMaximumCorrelationBand(imageDown, imageUp, securityBandSize))
 
-                diffIndex=securityBandSize-indexOfOverlap
-                trueSliceOverlapIndex=suposedSliceOfOverlapDown-diffIndex
+                diffIndex=securityBandSize - indexOfOverlap
+                trueSliceOverlapIndex=suposedSliceOfOverlapDown + diffIndex
 
                 if overlapMode == 0:
                     #elbourinos
@@ -74,7 +74,7 @@ def stitchFolders(listOfFolders,outputFolderName,deltaZ,copyMode=0,securityBandS
                             os.rename(fileName,outputFilename)
                         else:
                             shutil.copy2(fileName,outputFilename)
-                    begToCopy = suposedSliceOfOverlapUp + diffIndex
+                    begToCopy = suposedSliceOfOverlapUp
 
                 else:
                     listToCopy=listOfImageFilenames[begToCopy:trueSliceOverlapIndex-int(bandAverageSize/2)]
@@ -155,7 +155,6 @@ def lookForMaximumCorrelation(imageA,imageB):
 
     maxCorSlice=numpy.argmax(corr)
     print("best slice", maxCorSlice, "cross-corr :", corr[maxCorSlice])
-    print(maxCorSlice)
 
     return (maxCorSlice)
 
@@ -209,12 +208,14 @@ def lookForMaximumCorrelationBand(imageA,imageB,bandSize,segmented=False):
             normcrosscorr = sumMultiplication / (stdMul * stdB)
             normcrosscorr /= (width * height)
             corr[slice]=normcrosscorr
-            print("slice", slice, "cross-corr :", normcrosscorr)
+            #print("slice", slice, "cross-corr :", normcrosscorr)
 
-        maxCorSlice=numpy.argmax(corr)-i
+        maxCorSlice = numpy.argmax(corr)-i
+        #print('maxCorSlice found for slice:'+str(i)+' is :'+str(maxCorSlice))
         argMaxCoors[i + int(bandSize/2)] = maxCorSlice
-        print('maxCorSlice found for slice:'+str(i)+' is :'+str(maxCorSlice))
-    medianValue=numpy.median(argMaxCoors)
+        print("For imageA slice", middleSlice + i, "best fit is imageB slice", numpy.argmax(corr))
+    print(argMaxCoors)
+    medianValue = numpy.median(argMaxCoors)
     return (medianValue)
 
 
