@@ -11,8 +11,8 @@ def myMkdir(folderPath):
 
 if __name__ == "__main__" :
     #mainFolder='/data/visitor/md1217/id17/'
-    mainFolder = "C:\\Users\\ctavakol\\Desktop\\test_for_popcorn\\"
-    mainOutputFolder = "C:\\Users\\ctavakol\\Desktop\\test_for_popcorn\\voltif\\"
+    mainFolder = '/Users/embrun/TestStitching/'
+    mainOutputFolder = '/Users/embrun/TestStitching/voltif/'
 
 
     radix='11mPropagation_23um_33kev_026_CE_CT_GW_13'
