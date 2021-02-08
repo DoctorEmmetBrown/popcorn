@@ -9,7 +9,7 @@ from skimage.filters import threshold_otsu
 
 
 
-def stitchFolders(listOfFolders,outputFolderName,deltaZ,copyMode=0,securityBandSize=10,overlapMode=0,bandAverageSize=0,flipUD=0):
+def stitchFolders(listOfFolders,outputFolderName,deltaZ,lookForBestSlice=True,copyMode=0,securityBandSize=10,overlapMode=0,bandAverageSize=0,flipUD=0):
     """
     Function that stitches different folders into a unique one
     The first and last folders are treated differently (correlation with other folders is looked only on one side)
@@ -18,6 +18,7 @@ def stitchFolders(listOfFolders,outputFolderName,deltaZ,copyMode=0,securityBandS
     :param listOfFolders: a simple list of strings (expect to have images in each of those folders whatever the format)
     :param outputFolderName: a string with the entire path
     :param deltaZ: the supposed z discrete displacement in number of slices
+    :param lookForBestSlice: False : we don't look for best matched slice between folders, True : we do
     :param copyMode: 0 files are simply moved (no backup) 1 files are copied in the outputfoldername
     :param securityBandSize: the bandsize (int) in which we will look for the best matched slice between two z folders
     :param overlapMode: 0 just copy or move files 1 standard average in the bandAverageSize 2 weighted average
@@ -41,29 +42,29 @@ def stitchFolders(listOfFolders,outputFolderName,deltaZ,copyMode=0,securityBandS
             listOfImageFilenames.sort()
         print(folderName)
         nbSliceInAFolder = len(listOfImageFilenames)
-        middleSliceIndex = int(nbSliceInAFolder/2)
         if (cptFolder<numberOfFolders-1):
             listOfImageFilenamesUpperFolder = glob.glob(listOfFolders[cptFolder+1] + '/*.tif') + glob.glob(listOfFolders[cptFolder+1] + '/*.edf') + glob.glob(listOfFolders[cptFolder+1] + '/*.png')
+            listOfImageFilenamesUpperFolder.sort()
             suposedSliceOfOverlapDown = nbSliceInAFolder - int((nbSliceInAFolder - deltaZ)/2)
             print('suposedSliceOfOverlapDown'+str(suposedSliceOfOverlapDown))
             suposedSliceOfOverlapUp = int((nbSliceInAFolder - deltaZ)/2)
             print('suposedSliceOfOverlapUp' + str(suposedSliceOfOverlapUp))
 
             if securityBandSize>0:
-                imageDownFileNames=listOfImageFilenames[suposedSliceOfOverlapDown-int(securityBandSize):suposedSliceOfOverlapDown+int(securityBandSize)]
-                imageUpFileNames=listOfImageFilenamesUpperFolder[suposedSliceOfOverlapUp-int(securityBandSize):suposedSliceOfOverlapUp+int(securityBandSize)]
-                print('Band : ['+str(suposedSliceOfOverlapDown-int(securityBandSize))+','+str(suposedSliceOfOverlapDown+int(securityBandSize)))
-                imageDown=openSeq(imageDownFileNames)
-                imageUp=openSeq(imageUpFileNames)
+                if lookForBestSlice:
+                    imageDownFileNames=listOfImageFilenames[suposedSliceOfOverlapDown-int(securityBandSize):suposedSliceOfOverlapDown+int(securityBandSize)]
+                    imageUpFileNames=listOfImageFilenamesUpperFolder[suposedSliceOfOverlapUp-int(securityBandSize):suposedSliceOfOverlapUp+int(securityBandSize)]
+                    print('Band : ['+str(suposedSliceOfOverlapDown-int(securityBandSize))+','+str(suposedSliceOfOverlapDown+int(securityBandSize)))
+                    imageDown=openSeq(imageDownFileNames)
+                    imageUp=openSeq(imageUpFileNames)
 
-                #indexOfOverlap = int(lookForMaximumCorrelation(imageDown, imageUp))
+                    indexOfOverlap = int(lookForMaximumCorrelationBand(imageDown, imageUp, 10, False))
 
-                indexOfOverlap = int(lookForMaximumCorrelationBand(imageDown, imageUp, 10, False))
-
-                #indexOfOverlap = int(lookForMaximumCorrelationBand(imageDown, imageUp, securityBandSize))
-
-                diffIndex=securityBandSize - indexOfOverlap
+                    diffIndex=securityBandSize - indexOfOverlap
+                else:
+                    diffIndex = 0
                 trueSliceOverlapIndex=suposedSliceOfOverlapDown + diffIndex
+
 
                 if overlapMode == 0:
                     #elbourinos

@@ -38,11 +38,12 @@ if __name__ == "__main__" :
         outputFolder=mainOutputFolder+baseName+'/'
         listOf16bitFolder.append(outputFolder)
         myMkdir(outputFolder)
-        #conversionFromListOfFiles(imageFiles,outputFolder,minIm16Bit,maxIm16Bit)
+        conversionFromListOfFiles(imageFiles,outputFolder,minIm16Bit,maxIm16Bit)
 
     outpuRadixFolder=mainOutputFolder+'/'+radix+'_'+str(minIm16Bit)+'_'+str(maxIm16Bit)
     myMkdir(outpuRadixFolder)
-    stitchFolders(listOf16bitFolder, outpuRadixFolder, deltaZ, copyMode=1, securityBandSize=30, overlapMode=0,bandAverageSize=0, flipUD=0)
+    stitchFolders(listOf16bitFolder, outpuRadixFolder, deltaZ, lookForBestSlice=True, copyMode=1, securityBandSize=30, overlapMode=0,
+                  bandAverageSize=0, flipUD=0)
 
 
 
