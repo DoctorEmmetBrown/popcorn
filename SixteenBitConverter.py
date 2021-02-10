@@ -49,7 +49,6 @@ def conversionFromListOfFiles(listOfFiles, outputFolder, minValue=0., maxValue=1
     :return: None
     """
     for fileName in listOfFiles:
-        print(fileName)
         baseName = os.path.basename(fileName).split(".")[0]
         data = openImage(fileName)
         if paddingSize != 0 :
