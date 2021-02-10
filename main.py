@@ -23,10 +23,6 @@ if __name__ == "__main__" :
     mainOutputFolder = '/Users/embrun/TestStitching/voltif/'
     radix='11mPropagation_23um_33kev_026_CE_CT_GW_13'
 
-    mainFolder = 'C:\\Users\\ctavakol\\Desktop\\test_for_popcorn\\'
-    mainOutputFolder = 'C:\\Users\\ctavakol\\Desktop\\test_for_popcorn\\voltif\\'
-    radix='11mPropagation_23um_33kev_026_CE_CT_GW_13'
-
     speckleDone=False
     manualMinMax16bit = False
     multiThreading = True
@@ -46,7 +42,7 @@ if __name__ == "__main__" :
     else:
         minMaxList = []
         for inputFolder in reconstructedFolders:
-            with open(glob.glob(inputFolder+'\\histogram*')[0]) as f:
+            with open(glob.glob(inputFolder+'/histogram*')[0]) as f:
                 for line in f:
                     if "MaxVal" in line:
                         text1, text2, maxVal, text3 = line.split()
