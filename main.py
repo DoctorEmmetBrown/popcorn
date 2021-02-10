@@ -5,11 +5,45 @@ import math
 import numpy
 import random
 
+import fabio
 import multiprocessing
 
 from popcornIO import openImage, myMkdir
 from SixteenBitConverter import conversionFromListOfFiles, multiThreadingConversion
 from Stitching import stitchFolders
+
+
+def lookForMinMaxVal(listOfFolders, percentile):
+    """
+    looks for min and max value of all folders
+    :param listOfFolders: list of all input folders
+    :param percentile: percentile of pixel values we get rid of
+    :return: min and max values
+    """
+    minMaxList = []
+    for inputFolder in listOfFolders:
+        histo = fabio.open(glob.glob(inputFolder+'/histogram*')[0])
+        maxVal = float(histo.header["MaxVal"])
+        minVal = float(histo.header["MinVal"])
+        pas = (maxVal - minVal) / histo.data.size
+
+        sum_histo = 0
+        index = 1
+        histo.data = histo.data / numpy.sum(histo.data)
+        while sum_histo < percentile:
+            sum_histo = numpy.sum(histo.data[0:index])
+            index += 1
+        finalMinVal = minVal + index * pas
+
+        index = 2
+        while sum_histo < percentile:
+            sum_histo = numpy.sum(histo.data[-index:-1])
+            index += 1
+
+        finalMaxVal = maxVal - index * pas
+        minMaxList.append([finalMinVal, finalMaxVal])
+
+    return min(x[0] for x in minMaxList), max(x[1] for x in minMaxList)
 
 
 if __name__ == "__main__" :
@@ -34,20 +68,7 @@ if __name__ == "__main__" :
         minIm16Bit = 0.
         maxIm16Bit = 1.
     else:
-        minMaxList = []
-        for inputFolder in reconstructedFolders:
-            with open(glob.glob(inputFolder+'/histogram*')[0]) as f:
-                for line in f:
-                    if "MaxVal" in line:
-                        text1, text2, maxVal, text3 = line.split()
-                        maximum_value = float(maxVal)
-                    if "MinVal" in line:
-                        text1, text2, minVal, text3 = line.split()
-                        minimum_value = float(minVal)
-                        break
-                minMaxList.append([minimum_value, maximum_value])
-        minIm16Bit = min(x[0] for x in minMaxList)
-        maxIm16Bit = max(x[1] for x in minMaxList)
+        minIm16Bit, maxIm16Bit = lookForMinMaxVal (reconstructedFolders, 0.005)
 
     # PADDING : Checking if all images have the same size : Yes = we don't care, No = We pad (all image same size)
     imageWidthList = []
