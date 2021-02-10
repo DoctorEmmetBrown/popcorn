@@ -7,26 +7,20 @@ import random
 
 import multiprocessing
 
-from popcornIO import openImage
+from popcornIO import openImage, myMkdir
 from SixteenBitConverter import conversionFromListOfFiles, multiThreadingConversion
 from Stitching import stitchFolders
 
 
-def myMkdir(folderPath):
-    if not os.path.isdir(folderPath):
-        os.mkdir(folderPath)
-
-
-
 if __name__ == "__main__" :
-    mainFolder = '/Users/embrun/TestStitching/'
+    mainFolder       = '/Users/embrun/TestStitching/'
     mainOutputFolder = '/Users/embrun/TestStitching/voltif/'
-    radix='11mPropagation_23um_33kev_026_CE_CT_GW_13'
+    radix            = '11mPropagation_23um_33kev_026_CE_CT_GW_13'
 
-    speckleDone=False
+    speckleDone       = False
     manualMinMax16bit = False
-    multiThreading = True
-    deltaZ=234
+    multiThreading    = True
+    deltaZ            = 234
 
     # SPECKLE : Parsing all the reconstructed folders and putting them in a list
     if speckleDone:
@@ -78,13 +72,12 @@ if __name__ == "__main__" :
         currentImageWidth = imageWidthList.pop(0)
         paddingSize = maxImageWidth - currentImageWidth
 
-        print("paddingSize", paddingSize)
         if multiThreading:
             numCores = multiprocessing.cpu_count()
             print("Number of cores on cpu :", numCores)
             pool = multiprocessing.Pool(processes=numCores)
 
-            if len(imageFiles)>numCores:
+            if len(imageFiles) > numCores:
                 sizeOfSubList = math.ceil(len(imageFiles) / numCores)
             else:
                 sizeOfSubList = numCores

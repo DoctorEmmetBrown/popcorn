@@ -8,6 +8,10 @@ import glob
 import numpy as np
 
 
+def myMkdir(folderPath):
+    if not os.path.isdir(folderPath):
+        os.mkdir(folderPath)
+
 def openImage(filename):
     filename = str(filename)
     im = fabio.open(filename)
