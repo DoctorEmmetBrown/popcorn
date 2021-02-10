@@ -51,6 +51,10 @@ if __name__ == "__main__" :
     mainOutputFolder = '/Users/embrun/TestStitching/voltif/'
     radix            = '11mPropagation_23um_33kev_026_CE_CT_GW_13'
 
+    mainFolder       = 'C:\\Users\\ctavakol\\Desktop\\test_for_popcorn\\'
+    mainOutputFolder = 'C:\\Users\\ctavakol\\Desktop\\test_for_popcorn\\voltif\\'
+    radix            = '11mPropagation_23um_33kev_026_CE_CT_GW_13'
+
     speckleDone       = False
     manualMinMax16bit = False
     multiThreading    = True
@@ -68,7 +72,7 @@ if __name__ == "__main__" :
         minIm16Bit = 0.
         maxIm16Bit = 1.
     else:
-        minIm16Bit, maxIm16Bit = lookForMinMaxVal (reconstructedFolders, 0.005)
+        minIm16Bit, maxIm16Bit = lookForMinMaxVal(reconstructedFolders, 0.005)
 
     # PADDING : Checking if all images have the same size : Yes = we don't care, No = We pad (all image same size)
     imageWidthList = []
@@ -80,9 +84,10 @@ if __name__ == "__main__" :
 
     # CONVERSION : opening all files before converting them into uint16 and saving them as .tif files
     listOf16bitFolder=[]
+    folderNb = 1
     for inputFolder in reconstructedFolders:
-        print("Converting folder :", inputFolder)
-
+        print("Starting 16Bit conversion for folder ", str(folderNb) + "/" + str(len(reconstructedFolders)))
+        folderNb += 1
         baseName     = os.path.basename(inputFolder)
         imageFiles   = glob.glob(inputFolder+'/*.tif')+glob.glob(inputFolder+'/*.edf')
         outputFolder = mainOutputFolder+baseName+'/'
@@ -92,7 +97,6 @@ if __name__ == "__main__" :
 
         currentImageWidth = imageWidthList.pop(0)
         paddingSize = maxImageWidth - currentImageWidth
-
         if multiThreading:
             numCores = multiprocessing.cpu_count()
             print("Number of cores on cpu :", numCores)

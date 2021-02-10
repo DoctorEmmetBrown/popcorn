@@ -54,7 +54,6 @@ def conversionFromListOfFiles(listOfFiles, outputFolder, minValue=0., maxValue=1
         if paddingSize != 0 :
             data = paddingImage(data, paddingSize)
         saveTiff16bit(data, outputFolder + '/'+baseName + ".tif", minValue, maxValue)
-    print("16 bit conversion done.")
 
 if __name__ == "__main__" :
     print("Hello")
