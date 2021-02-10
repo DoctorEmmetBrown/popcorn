@@ -55,6 +55,7 @@ def stitchFolders(listOfFolders,outputFolderName,deltaZ,lookForBestSlice=True,co
                     imageDownFileNames=listOfImageFilenames[suposedSliceOfOverlapDown-int(securityBandSize):suposedSliceOfOverlapDown+int(securityBandSize)]
                     imageUpFileNames=listOfImageFilenamesUpperFolder[suposedSliceOfOverlapUp-int(securityBandSize):suposedSliceOfOverlapUp+int(securityBandSize)]
                     print('Band : ['+str(suposedSliceOfOverlapDown-int(securityBandSize))+','+str(suposedSliceOfOverlapDown+int(securityBandSize)))
+
                     imageDown=openSeq(imageDownFileNames)
                     imageUp=openSeq(imageUpFileNames)
 
@@ -90,6 +91,7 @@ def stitchFolders(listOfFolders,outputFolderName,deltaZ,lookForBestSlice=True,co
                     filenamesUpToAverage=listOfImageFilenamesUpperFolder[suposedSliceOfOverlapUp+diffIndex-int(bandAverageSize/2):suposedSliceOfOverlapUp+diffIndex+int(bandAverageSize/2)]
                     averagedImage=averageImagesFromFilenames(filenamesDownToAverage,filenamesUpToAverage)
                     listOfFakeNames=listOfImageFilenames[trueSliceOverlapIndex-int(bandAverageSize/2):trueSliceOverlapIndex+int(bandAverageSize/2)]
+
                     for filename in listOfFakeNames:
                         outputFilename=outputFolderName+os.path.basename(filename)
                         for i in range(0,bandAverageSize) :
