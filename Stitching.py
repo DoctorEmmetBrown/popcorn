@@ -1,10 +1,10 @@
 import numpy
 import glob
 #from scipy.signal import correlate
-from popcornIO import openSeq,save3D_Edf,saveTif
+from popcornIO import openSeq, save3D_Edf,saveTif
 import os
 import shutil
-from skimage.filters import threshold_otsu
+from skimage import filters
 
 
 
@@ -54,12 +54,12 @@ def stitchFolders(listOfFolders,outputFolderName,deltaZ,lookForBestSlice=True,co
                 if lookForBestSlice:
                     imageDownFileNames=listOfImageFilenames[suposedSliceOfOverlapDown-int(securityBandSize):suposedSliceOfOverlapDown+int(securityBandSize)]
                     imageUpFileNames=listOfImageFilenamesUpperFolder[suposedSliceOfOverlapUp-int(securityBandSize):suposedSliceOfOverlapUp+int(securityBandSize)]
-                    print('Band : ['+str(suposedSliceOfOverlapDown-int(securityBandSize))+','+str(suposedSliceOfOverlapDown+int(securityBandSize)))
+                    #print('Band : ['+str(suposedSliceOfOverlapDown-int(securityBandSize))+','+str(suposedSliceOfOverlapDown+int(securityBandSize)))
 
                     imageDown=openSeq(imageDownFileNames)
                     imageUp=openSeq(imageUpFileNames)
 
-                    indexOfOverlap = int(lookForMaximumCorrelationBand(imageDown, imageUp, 10, False))
+                    indexOfOverlap = int(lookForMaximumCorrelationBand(imageDown, imageUp, 10, True))
 
                     diffIndex=securityBandSize - indexOfOverlap
                 else:
@@ -133,7 +133,6 @@ def lookForMaximumCorrelation(imageA,imageB):
     width = max(widthA, widthB)
     height = max(heightA, heightB)
 
-
     middleSlice = int(nbSlicesA/2)
     imageToMultiply = numpy.copy(imageA[middleSlice, :, :].squeeze())
     imageToMultiply = imageToMultiply - numpy.mean(imageToMultiply)
@@ -154,7 +153,7 @@ def lookForMaximumCorrelation(imageA,imageB):
         normcrosscorr = sumMultiplication / (stdMul * stdB)
         normcrosscorr /= (width * height)
         corr[slice]=normcrosscorr
-        print("slice", slice, "cross-corr :", normcrosscorr)
+        #print("slice", slice, "cross-corr :", normcrosscorr)
 
     maxCorSlice=numpy.argmax(corr)
     print("best slice", maxCorSlice, "cross-corr :", corr[maxCorSlice])
@@ -173,38 +172,39 @@ def lookForMaximumCorrelationBand(imageA,imageB,bandSize,segmented=False):
     :param segmented: True otsu thesholding is performed before correlation
     :return: the median value of all slices number with highest zero normalized cross correlation.
     """
-    nbSlicesA,widthA,heightA=imageA.shape
-    nbSlicesB, widthB, heightB = imageB.shape
+    nbSlices, width, height = imageA.shape
 
-    width=max(widthA,widthB)
-    height=max(heightA,heightB)
-    middleSlice = int(nbSlicesA / 2)
+    middleSlice = int(nbSlices / 2)
 
-    tmpA=numpy.copy(imageA)
-    if (segmented):
-        thresh = threshold_otsu(tmpA)
-        tmpA = tmpA > thresh
-
+    tmpA = numpy.copy(imageA)
     tmpB = numpy.copy(imageB)
-    if(segmented):
-        thresh = threshold_otsu(tmpB)
-        tmpB=tmpB>thresh
 
-
+    if segmented:
+        thresh = filters.threshold_otsu(tmpA[tmpA > 0.15 * 65535])
+        mask   = tmpA > thresh
+        tmpA = mask * tmpA
+        tmpB = mask * tmpB
 
     #Preparation for normalized cross correlation
-    for slice in range(0, nbSlicesB):
-        tmpB[slice, :, :] = tmpB[slice, :, :] - numpy.mean(tmpB[slice, :, :])
+    for slice in range(0, nbSlices):
+        tmpBSlice = tmpB[slice, :, :]
+        if segmented:
+            tmpB[slice, :, :] = mask[slice, :, :] * (tmpBSlice - numpy.mean(tmpBSlice[tmpBSlice > 0.0]))
+        else:
+            tmpB[slice, :, :] = tmpB[slice, :, :] - numpy.mean(tmpB[slice, :, :])
 
-    argMaxCoors=numpy.zeros(bandSize)
+    argMaxCoors = numpy.zeros(bandSize)
     for i in range(int(-bandSize/2),(int(bandSize/2))):
         imageToMultiply = tmpA[middleSlice+i, :, :].squeeze()
-        imageToMultiply = imageToMultiply - numpy.mean(imageToMultiply)
+        if segmented:
+            imageToMultiply = mask[middleSlice+i, :, :] * (imageToMultiply - numpy.mean(imageToMultiply[imageToMultiply > 0.0]))
+        else:
+            imageToMultiply = imageToMultiply - numpy.mean(imageToMultiply)
         stdMul = numpy.std(imageToMultiply)
-        corr = numpy.zeros(nbSlicesB)
+        corr = numpy.zeros(nbSlices)
         imMultiplied = imageToMultiply * tmpB
 
-        for slice in range(0,nbSlicesB):
+        for slice in range(0,nbSlices):
             stdB = numpy.std(tmpB[slice, :, :])
             sumMultiplication = numpy.sum(imMultiplied[slice, :, :])
 
@@ -222,18 +222,13 @@ def lookForMaximumCorrelationBand(imageA,imageB,bandSize,segmented=False):
     return (medianValue)
 
 
-
-
-
-
-
 if __name__ == "__main__" :
     print("Hello")
-    imageAFolder = '/Users/embrun/TestStitching/Image2'
-    imageBFolder = '/Users/embrun/TestStitching/Image3'
-    imageAFiles = glob.glob(imageAFolder + '/*.edf')
-    imageBFiles = glob.glob(imageAFolder + '/*.edf')
+    imageAFolder = 'C:\\Users\\ctavakol\\Desktop\\test_for_popcorn\\voltif\\test1pag\\'
+    imageBFolder = 'C:\\Users\\ctavakol\\Desktop\\test_for_popcorn\\voltif\\test2pag\\'
+    imageAFiles = glob.glob(imageAFolder + '/*.tif')
+    imageBFiles = glob.glob(imageAFolder + '/*.tif')
     imageA = openSeq(imageAFiles)
     imageB = openSeq(imageBFiles)
-    lookForMaximumCorrelation(imageA,imageB)
-    lookForMaximumCorrelationBand(imageA,imageB,10)
+    #lookForMaximumCorrelation(imageA,imageB)
+    #lookForMaximumCorrelationBand(imageA,imageB,10)
