@@ -1,4 +1,4 @@
-import os
+import os, sys, getopt
 import glob
 
 import math
@@ -8,7 +8,7 @@ import random
 import fabio
 import multiprocessing
 
-from popcornIO import openImage, myMkdir
+from popcornIO import myMkdir, openImage
 from SixteenBitConverter import conversionFromListOfFiles, multiThreadingConversion
 from Stitching import stitchFolders
 
@@ -45,33 +45,71 @@ def lookForMinMaxVal(listOfFolders, percentile):
 
     return min(x[0] for x in minMaxList), max(x[1] for x in minMaxList)
 
+def usage():
+    print("""usage: python main.py [-i|-o|-r|-s|-m|-M|-t|-z]
+            -i, --ifolder:   input folder
+            -o, --ofolder:   output folder
+            -r, --radix:     regular expression 
+            -s, --speckle:   speckle?
+            -m, --min:,      forced min value
+            -M, --max::      forced max value
+            -t, --threading: multi threading?
+            -z, --deltaz:    delta Z value (nb of slices)""")
+
 
 if __name__ == "__main__" :
-    mainFolder       = '/Users/embrun/TestStitching/'
-    mainOutputFolder = '/Users/embrun/TestStitching/voltif/'
-    radix            = '11mPropagation_23um_33kev_026_CE_CT_GW_13'
-
-    mainFolder       = 'C:\\Users\\ctavakol\\Desktop\\test_for_popcorn\\'
-    mainOutputFolder = 'C:\\Users\\ctavakol\\Desktop\\test_for_popcorn\\voltif\\'
-    radix            = '11mPropagation_23um_33kev_026_CE_CT_GW_13'
+    inputFolder      = '/data/visitor/md1217/id17/'
+    mainOutputFolder = '/data/visitor/md1217/id17/voltif/'
+    radix            = 'HA750_6um_42kev_SP_023_PM'
 
     speckleDone       = False
     manualMinMax16bit = False
+    minIm16Bit        = -0.02
+    maxIm16Bit        = 0.8
     multiThreading    = True
     deltaZ            = 234
 
+    if sys.argv[1:]:
+        try:
+            opts, args = getopt.getopt(sys.argv[1:], "hi:o:r:s:m:M:t:z:", ["help", "ifolder=", "ofolder=", "radix=", "speckle=",
+                                                                   "min=", "max=", "threading=", "deltaz="])
+        except getopt.GetoptError as err:
+            print(err)
+            usage()
+            sys.exit(2)
+
+        for opt, arg in opts:
+            if opt in ("-h", "--help"):
+                usage()
+                sys.exit()
+            elif opt in ("-i", "--ifolder"):
+                inputFolder = arg
+            elif opt in("-o", "--ofolder"):
+                mainOutputFolder = arg
+            elif opt in("-r", "--radix"):
+                radix = arg
+            elif opt in("-s", "--speckle"):
+                speckleDone = arg
+            elif opt in("-m", "--min"):
+                minIm16Bit = arg
+                manualMinMax16bit = True
+            elif opt in("-M", "--max"):
+                maxIm16Bit = arg
+                manualMinMax16bit = True
+            elif opt in("-t", "--threading"):
+                multiThreading = arg
+            elif opt in("-z", "--deltaz"):
+                deltaZ = arg
+
     # SPECKLE : Parsing all the reconstructed folders and putting them in a list
     if speckleDone:
-        reconstructedFolders = glob.glob(mainFolder + '/volfloat/*' + radix + '*Propag_pag')
+        reconstructedFolders = glob.glob(inputFolder + '/volfloat/*' + radix + '*Propag_pag')
     else:
-        reconstructedFolders = glob.glob(mainFolder+'/volfloat/*'+radix+'*pag')
+        reconstructedFolders = glob.glob(inputFolder + '/volfloat/*' + radix + '*pag')
     reconstructedFolders.sort()
 
     # MIN-MAX : if not manual, parsing all floors histograms to determine min and max
-    if manualMinMax16bit:
-        minIm16Bit = 0.
-        maxIm16Bit = 1.
-    else:
+    if not manualMinMax16bit:
         minIm16Bit, maxIm16Bit = lookForMinMaxVal(reconstructedFolders, 0.005)
 
     # PADDING : Checking if all images have the same size : Yes = we don't care, No = We pad (all image same size)
@@ -83,14 +121,14 @@ if __name__ == "__main__" :
     maxImageWidth = max(imageWidthList)
 
     # CONVERSION : opening all files before converting them into uint16 and saving them as .tif files
-    listOf16bitFolder=[]
+    listOf16bitFolder = []
     folderNb = 1
     for inputFolder in reconstructedFolders:
         print("Starting 16Bit conversion for folder ", str(folderNb) + "/" + str(len(reconstructedFolders)))
         folderNb += 1
-        baseName     = os.path.basename(inputFolder)
-        imageFiles   = glob.glob(inputFolder+'/*.tif')+glob.glob(inputFolder+'/*.edf')
-        outputFolder = mainOutputFolder+baseName+'/'
+        baseName = os.path.basename(inputFolder)
+        imageFiles = glob.glob(inputFolder + '/*.tif') + glob.glob(inputFolder + '/*.edf')
+        outputFolder = mainOutputFolder + baseName + '/'
 
         listOf16bitFolder.append(outputFolder)
         myMkdir(outputFolder)
@@ -114,7 +152,8 @@ if __name__ == "__main__" :
         else:
             conversionFromListOfFiles(imageFiles, outputFolder, minIm16Bit, maxIm16Bit, paddingSize)
 
-    outputRadixFolder = mainOutputFolder + '/' + radix + '_' + str("%.2f" % minIm16Bit) + '_' + str("%.2f" % maxIm16Bit)
+    outputRadixFolder = mainOutputFolder + '/' + radix + '_' + str("%.2f" % minIm16Bit) + '_' + str(
+        "%.2f" % maxIm16Bit)
     myMkdir(outputRadixFolder)
 
     stitchFolders(listOf16bitFolder, outputRadixFolder, deltaZ, lookForBestSlice=True, copyMode=1, securityBandSize=30, overlapMode=0,
