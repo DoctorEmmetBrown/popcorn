@@ -44,7 +44,12 @@ def stitchFolders(listOfFolders,outputFolderName,deltaZ,lookForBestSlice=True,co
         nbSliceInAFolder = len(listOfImageFilenames)
         if (cptFolder<numberOfFolders-1):
             listOfImageFilenamesUpperFolder = glob.glob(listOfFolders[cptFolder+1] + '/*.tif') + glob.glob(listOfFolders[cptFolder+1] + '/*.edf') + glob.glob(listOfFolders[cptFolder+1] + '/*.png')
-            listOfImageFilenamesUpperFolder.sort()
+
+            if flipUD == 1:
+                listOfImageFilenamesUpperFolder.sort(reverse=True)
+            else:
+                listOfImageFilenamesUpperFolder.sort()
+
             suposedSliceOfOverlapDown = nbSliceInAFolder - int((nbSliceInAFolder - deltaZ)/2)
             print('suposedSliceOfOverlapDown'+str(suposedSliceOfOverlapDown))
             suposedSliceOfOverlapUp = int((nbSliceInAFolder - deltaZ)/2)
@@ -69,7 +74,10 @@ def stitchFolders(listOfFolders,outputFolderName,deltaZ,lookForBestSlice=True,co
 
                 if overlapMode == 0:
                     #elbourinos
-                    listToCopy=listOfImageFilenames[begToCopy:trueSliceOverlapIndex]
+                    if flipUD == 1:
+                        listToCopy=listOfImageFilenames[begToCopy:trueSliceOverlapIndex].reverse()
+                    else:
+                        listToCopy = listOfImageFilenames[begToCopy:trueSliceOverlapIndex]
                     for fileName in listToCopy:
                         outputFilename=outputFolderName+'/'+os.path.basename(fileName)
                         if copyMode == 0:
@@ -79,7 +87,11 @@ def stitchFolders(listOfFolders,outputFolderName,deltaZ,lookForBestSlice=True,co
                     begToCopy = suposedSliceOfOverlapUp
 
                 else:
-                    listToCopy=listOfImageFilenames[begToCopy:trueSliceOverlapIndex-int(bandAverageSize/2)]
+                    if flipUD == 1:
+                        listToCopy=listOfImageFilenames[begToCopy:trueSliceOverlapIndex-int(bandAverageSize/2)].reverse()
+                    else:
+                        listToCopy=listOfImageFilenames[begToCopy:trueSliceOverlapIndex-int(bandAverageSize/2)]
+
                     for fileName in listToCopy:
                         outputFilename = outputFolderName + '/' + os.path.basename(fileName)
                         if copyMode == 0:
@@ -90,7 +102,11 @@ def stitchFolders(listOfFolders,outputFolderName,deltaZ,lookForBestSlice=True,co
 
                     filenamesUpToAverage=listOfImageFilenamesUpperFolder[suposedSliceOfOverlapUp+diffIndex-int(bandAverageSize/2):suposedSliceOfOverlapUp+diffIndex+int(bandAverageSize/2)]
                     averagedImage=averageImagesFromFilenames(filenamesDownToAverage,filenamesUpToAverage)
-                    listOfFakeNames=listOfImageFilenames[trueSliceOverlapIndex-int(bandAverageSize/2):trueSliceOverlapIndex+int(bandAverageSize/2)]
+
+                    if flipUD == 1:
+                        listOfFakeNames=listOfImageFilenames[trueSliceOverlapIndex-int(bandAverageSize/2):trueSliceOverlapIndex+int(bandAverageSize/2)].reverse()
+                    else:
+                        listOfFakeNames=listOfImageFilenames[trueSliceOverlapIndex-int(bandAverageSize/2):trueSliceOverlapIndex+int(bandAverageSize/2)]
 
                     for filename in listOfFakeNames:
                         outputFilename=outputFolderName+os.path.basename(filename)
@@ -101,7 +117,12 @@ def stitchFolders(listOfFolders,outputFolderName,deltaZ,lookForBestSlice=True,co
                     begToCopy = suposedSliceOfOverlapUp + diffIndex+int(bandAverageSize/2)
         else :
             print('Last Folder')
-            listToCopy=listOfImageFilenames[begToCopy:-1]
+
+            if flipUD == 1:
+                listToCopy = listOfImageFilenames[begToCopy:-1].reverse()
+            else:
+                listToCopy = listOfImageFilenames[begToCopy:-1]
+
             for fileName in listToCopy:
                 outputFilename = outputFolderName + '/' + os.path.basename(fileName)
                 if copyMode == 0:

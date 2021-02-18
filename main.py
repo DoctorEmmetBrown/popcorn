@@ -59,7 +59,7 @@ def usage():
 
 if __name__ == "__main__" :
     inputFolder      = '/data/visitor/md1217/id17/'
-    mainOutputFolder = '/data/visitor/md1217/id17/voltif/'
+    mainOutputFolder = '/data       /visitor/md1217/id17/voltif/'
     radix            = 'HA750_6um_42kev_SP_023_PM'
 
     speckleDone       = False
