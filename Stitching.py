@@ -74,39 +74,38 @@ def stitchFolders(listOfFolders,outputFolderName,deltaZ,lookForBestSlice=True,co
 
                 if overlapMode == 0:
                     #elbourinos
-                    if flipUD == 1:
-                        listToCopy=listOfImageFilenames[begToCopy:trueSliceOverlapIndex].reverse()
-                    else:
-                        listToCopy = listOfImageFilenames[begToCopy:trueSliceOverlapIndex]
-                    for fileName in listToCopy:
-                        outputFilename=outputFolderName+'/'+os.path.basename(fileName)
-                        if copyMode == 0:
-                            os.rename(fileName,outputFilename)
+
+                    listToCopy = listOfImageFilenames[begToCopy:trueSliceOverlapIndex]
+                    for sliceNb in range(0, len(listToCopy)):
+                        if flipUD == 1:
+                            outputFilename=outputFolderName+'/'+os.path.basename(listToCopy[-(sliceNb + 1)])
                         else:
-                            shutil.copy2(fileName,outputFilename)
+                            outputFilename=outputFolderName+'/'+os.path.basename(listToCopy[sliceNb])
+
+                        if copyMode == 0:
+                            os.rename(listToCopy[sliceNb],outputFilename)
+                        else:
+                            shutil.copy2(listToCopy[sliceNb],outputFilename)
                     begToCopy = suposedSliceOfOverlapUp
 
                 else:
-                    if flipUD == 1:
-                        listToCopy=listOfImageFilenames[begToCopy:trueSliceOverlapIndex-int(bandAverageSize/2)].reverse()
-                    else:
-                        listToCopy=listOfImageFilenames[begToCopy:trueSliceOverlapIndex-int(bandAverageSize/2)]
+                    listOfImageFilenames[begToCopy:trueSliceOverlapIndex-int(bandAverageSize/2)]
 
-                    for fileName in listToCopy:
-                        outputFilename = outputFolderName + '/' + os.path.basename(fileName)
-                        if copyMode == 0:
-                            os.rename(fileName, outputFilename)
+                    for fileNb in range(0, len(listToCopy)):
+                        if flipUD == 1:
+                            outputFilename = outputFolderName + '/' + os.path.basename(listToCopy[-(fileNb + 1)])
                         else:
-                            shutil.copy2(fileName, outputFilename)
+                            outputFilename = outputFolderName + '/' + os.path.basename(listToCopy[fileNb])
+                        if copyMode == 0:
+                            os.rename(listToCopy[fileNb], outputFilename)
+                        else:
+                            shutil.copy2(listToCopy[fileNb], outputFilename)
+
                     filenamesDownToAverage=listOfImageFilenames[trueSliceOverlapIndex-int(bandAverageSize/2):trueSliceOverlapIndex+int(bandAverageSize/2)]
 
                     filenamesUpToAverage=listOfImageFilenamesUpperFolder[suposedSliceOfOverlapUp+diffIndex-int(bandAverageSize/2):suposedSliceOfOverlapUp+diffIndex+int(bandAverageSize/2)]
                     averagedImage=averageImagesFromFilenames(filenamesDownToAverage,filenamesUpToAverage)
-
-                    if flipUD == 1:
-                        listOfFakeNames=listOfImageFilenames[trueSliceOverlapIndex-int(bandAverageSize/2):trueSliceOverlapIndex+int(bandAverageSize/2)].reverse()
-                    else:
-                        listOfFakeNames=listOfImageFilenames[trueSliceOverlapIndex-int(bandAverageSize/2):trueSliceOverlapIndex+int(bandAverageSize/2)]
+                    listOfFakeNames=listOfImageFilenames[trueSliceOverlapIndex-int(bandAverageSize/2):trueSliceOverlapIndex+int(bandAverageSize/2)]
 
                     for filename in listOfFakeNames:
                         outputFilename=outputFolderName+os.path.basename(filename)
@@ -118,17 +117,18 @@ def stitchFolders(listOfFolders,outputFolderName,deltaZ,lookForBestSlice=True,co
         else :
             print('Last Folder')
 
-            if flipUD == 1:
-                listToCopy = listOfImageFilenames[begToCopy:-1].reverse()
-            else:
-                listToCopy = listOfImageFilenames[begToCopy:-1]
-
-            for fileName in listToCopy:
-                outputFilename = outputFolderName + '/' + os.path.basename(fileName)
-                if copyMode == 0:
-                    os.rename(fileName, outputFilename)
+            listToCopy = listOfImageFilenames[begToCopy:-1]
+            for fileNb in range(0, len(listToCopy)):
+                if flipUD == 1:
+                    outputFilename = outputFolderName + '/' + os.path.basename(listToCopy[-(fileNb + 1)])
                 else:
-                    shutil.copy2(fileName, outputFilename)
+                    outputFilename = outputFolderName + '/' + os.path.basename(listToCopy[fileNb])
+
+                if copyMode == 0:
+                    os.rename(listToCopy[fileNb], outputFilename)
+                else:
+                    shutil.copy2(listToCopy[fileNb], outputFilename)
+
 
         cptFolder+=1
 
