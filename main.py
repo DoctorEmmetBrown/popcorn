@@ -46,15 +46,17 @@ def lookForMinMaxVal(listOfFolders, percentile):
     return min(x[0] for x in minMaxList), max(x[1] for x in minMaxList)
 
 def usage():
-    print("""usage: python main.py [-i|-o|-r|-s|-m|-M|-t|-z]
-            -i, --ifolder:   input folder
-            -o, --ofolder:   output folder
-            -r, --radix:     regular expression 
-            -s, --speckle:   speckle?
-            -m, --min:,      forced min value
-            -M, --max::      forced max value
-            -t, --threading: multi threading?
-            -z, --deltaz:    delta Z value (nb of slices)""")
+    print("""usage: python main.py [-i|-o|-r|-s|-c|-m|-M|-t|-z|-f]
+            -i, --ifolder:    input folder
+            -o, --ofolder:    output folder
+            -r, --radix:      regular expression 
+            -s, --speckle:    speckle?
+            -c, --conversion: 16bit conversion?
+            -m, --min:,       forced min value
+            -M, --max::       forced max value
+            -t, --threading:  multi threading?
+            -z, --deltaz:     delta Z value (nb of slices)
+            -f, --flip:       need to flip each floor [0: no, 1: yes] ?""")
 
 
 if __name__ == "__main__" :
@@ -62,17 +64,20 @@ if __name__ == "__main__" :
     mainOutputFolder = '/data       /visitor/md1217/id17/voltif/'
     radix            = 'HA750_6um_42kev_SP_023_PM'
 
-    speckleDone       = False
-    manualMinMax16bit = False
-    minIm16Bit        = -0.02
-    maxIm16Bit        = 0.8
-    multiThreading    = True
-    deltaZ            = 234
+    speckleDone          = False
+    sixteenBitConversion = True
+    manualMinMax16bit    = False
+    minIm16Bit           = -0.02
+    maxIm16Bit           = 0.8
+    multiThreading       = True
+    deltaZ               = 234
+    flipUD               = 0
 
     if sys.argv[1:]:
         try:
-            opts, args = getopt.getopt(sys.argv[1:], "hi:o:r:s:m:M:t:z:", ["help", "ifolder=", "ofolder=", "radix=", "speckle=",
-                                                                   "min=", "max=", "threading=", "deltaz="])
+            opts, args = getopt.getopt(sys.argv[1:], "hi:o:r:s:c:m:M:t:z:f:", ["help", "ifolder=", "ofolder=", "radix=",
+                                                                               "conversion=", "speckle=", "min=", "max=",
+                                                                               "threading=", "deltaz=", "flip="])
         except getopt.GetoptError as err:
             print(err)
             usage()
@@ -90,6 +95,8 @@ if __name__ == "__main__" :
                 radix = arg
             elif opt in("-s", "--speckle"):
                 speckleDone = arg
+            elif opt in("-c", "--conversion"):
+                sixteenBitConversion = arg
             elif opt in("-m", "--min"):
                 minIm16Bit = arg
                 manualMinMax16bit = True
@@ -100,6 +107,8 @@ if __name__ == "__main__" :
                 multiThreading = arg
             elif opt in("-z", "--deltaz"):
                 deltaZ = arg
+            elif opt in("-f", "--flip"):
+                flipUD = arg
 
     # SPECKLE : Parsing all the reconstructed folders and putting them in a list
     if speckleDone:
@@ -132,29 +141,29 @@ if __name__ == "__main__" :
 
         listOf16bitFolder.append(outputFolder)
         myMkdir(outputFolder)
+        if sixteenBitConversion:
+            currentImageWidth = imageWidthList.pop(0)
+            paddingSize = maxImageWidth - currentImageWidth
+            if multiThreading:
+                numCores = multiprocessing.cpu_count()
+                print("Number of cores on cpu :", numCores)
+                pool = multiprocessing.Pool(processes=numCores)
 
-        currentImageWidth = imageWidthList.pop(0)
-        paddingSize = maxImageWidth - currentImageWidth
-        if multiThreading:
-            numCores = multiprocessing.cpu_count()
-            print("Number of cores on cpu :", numCores)
-            pool = multiprocessing.Pool(processes=numCores)
-
-            if len(imageFiles) > numCores:
-                sizeOfSubList = math.ceil(len(imageFiles) / numCores)
+                if len(imageFiles) > numCores:
+                    sizeOfSubList = math.ceil(len(imageFiles) / numCores)
+                else:
+                    sizeOfSubList = numCores
+                subListsOfFiles = [imageFiles[k:k + sizeOfSubList] for k in range(0, len(imageFiles), sizeOfSubList)]
+                multiThreadingArgs = []
+                for subList in subListsOfFiles:
+                    multiThreadingArgs.append([subList, outputFolder, minIm16Bit, maxIm16Bit, paddingSize])
+                pool.map(multiThreadingConversion, multiThreadingArgs)
             else:
-                sizeOfSubList = numCores
-            subListsOfFiles = [imageFiles[k:k + sizeOfSubList] for k in range(0, len(imageFiles), sizeOfSubList)]
-            multiThreadingArgs = []
-            for subList in subListsOfFiles:
-                multiThreadingArgs.append([subList, outputFolder, minIm16Bit, maxIm16Bit, paddingSize])
-            pool.map(multiThreadingConversion, multiThreadingArgs)
-        else:
-            conversionFromListOfFiles(imageFiles, outputFolder, minIm16Bit, maxIm16Bit, paddingSize)
+                conversionFromListOfFiles(imageFiles, outputFolder, minIm16Bit, maxIm16Bit, paddingSize)
 
     outputRadixFolder = mainOutputFolder + '/' + radix + '_' + str("%.2f" % minIm16Bit) + '_' + str(
         "%.2f" % maxIm16Bit)
     myMkdir(outputRadixFolder)
 
     stitchFolders(listOf16bitFolder, outputRadixFolder, deltaZ, lookForBestSlice=True, copyMode=1, securityBandSize=30, overlapMode=0,
-                  bandAverageSize=0, flipUD=0)
+                  bandAverageSize=0, flipUD=flipUD)
