@@ -7,11 +7,17 @@ class Material:
     def __init__(self, name):
         """Material class constructor.
 
-        :param name: material's name
-        :type name: string
-
         Notes:
             If the material doesn't correspond to any existing material, the user will be asked to create one.
+
+        Args:
+            name (str): material's name
+
+        Examples:
+            Examples should be written in doctest format, and should illustrate how
+            to use the function.
+
+            >>> gold_material = Material("Gold")
         """
         self.name = name
         # If the material exists, we retrieve its formula and density
@@ -45,48 +51,48 @@ class Material:
     def get_mu(self, energy, density=None):
         """linear attenuation of the material at given energies
 
-        :param energy: energy or array of energies in eV
-        :type energy: float | numpy.ndarray
-        :param density: material density (g/cm^3)
-        :type density: None or float
-        :return: absorption length in 1/cm
-        :rtype: float | numpy.ndarray
+        Args:
+            energy (float | numpy.ndarray): energy or array of energies in eV
+            density (None or float):        material density (g/cm^3)
+
+        Returns:
+            float | numpy.ndarray: absorption length in 1/cm
         """
         return xraydb.material_mu(self.chemical_formula, energy, density)
 
     def get_beta(self, energy, density):
         """beta coefficient of the material of given density at given energy
 
-        :param energy: energy in eV
-        :type energy: float
-        :param density: material density (g/cm^3)
-        :type density: float
-        :return: beta coefficient
-        :rtype: float
+        Args:
+            energy (float):  energy in eV
+            density (float): material density (g/cm^3)
+
+        Returns:
+            float: beta coefficient
         """
         return xraydb.xray_delta_beta(self.chemical_formula, density, energy)[1]
 
     def get_delta(self, energy, density):
         """delta coefficient of the material of given density at given energy
 
-        :param energy: energy in eV
-        :type energy: float
-        :param density: material density (g/cm^3)
-        :type density: float
-        :return: delta coefficient
-        :rtype: float
+        Args:
+            energy (float):  energy in eV
+            density (float): material density (g/cm^3)
+
+        Returns:
+            float: delta coefficient
         """
         return xraydb.xray_delta_beta(self.chemical_formula, density, energy)[0]
 
     def get_beta_from_spectrum(self, energy_spectrum, density):
         """beta coefficient of the material of given density at given energies
 
-        :param energy_spectrum: array of energies in eV
-        :type energy_spectrum: numpy.ndarray
-        :param density: material density (g/cm^3)
-        :type density: float
-        :return: beta coefficients for each given energy
-        :rtype: float
+        Args:
+            energy_spectrum (numpy.ndarray): energy in eV
+            density (float):         material density (g/cm^3)
+
+        Returns:
+            list[float]: beta coefficients for each given energies
         """
         list_of_betas = []
         for energy in energy_spectrum:
@@ -96,12 +102,12 @@ class Material:
     def get_delta_from_spectrum(self, energy_spectrum, density):
         """delta coefficient of the material of given density at given energies
 
-        :param energy_spectrum: array of energies in eV
-        :type energy_spectrum: numpy.ndarray
-        :param density: material density (g/cm^3)
-        :type density: float
-        :return: delta coefficients for each given energy
-        :rtype: float
+        Args:
+            energy_spectrum (numpy.ndarray):  energy in eV
+            density (float):          material density (g/cm^3)
+
+        Returns:
+            list[float]: delta coefficients for each given energies
         """
         list_of_deltas = []
         for energy in energy_spectrum:

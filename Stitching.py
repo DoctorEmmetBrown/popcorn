@@ -1,4 +1,6 @@
-import os, glob
+import os
+import sys
+import glob
 import shutil
 
 from skimage import filters
@@ -7,247 +9,320 @@ import numpy as np
 from popcornIO import openSeq, saveTif
 
 
-def stitchFolders(listOfFolders,outputFolderName,deltaZ,lookForBestSlice=True,copyMode=0,securityBandSize=10,overlapMode=0,bandAverageSize=0,flipUD=0):
-    """
-    Function that stitches different folders into a unique one
-    The first and last folders are treated differently (correlation with other folders is looked only on one side)
-    Every other slices are moved or copied (depending on copy mode) in the ouptutFolder
-    For the rest of folders the slices are either moved or copied (depending on copy mode)
-    :param listOfFolders: a simple list of strings (expect to have images in each of those folders whatever the format)
-    :param outputFolderName: a string with the entire path
-    :param deltaZ: the supposed z discrete displacement in number of slices
-    :param lookForBestSlice: False : we don't look for best matched slice between folders, True : we do
-    :param copyMode: 0 files are simply moved (no backup) 1 files are copied in the outputfoldername
-    :param securityBandSize: the bandsize (int) in which we will look for the best matched slice between two z folders
-    :param overlapMode: 0 just copy or move files 1 standard average in the bandAverageSize 2 weighted average
-    :param bandAverageSize: If bandmode >0 size of the band for the (weighted) average
-    :param flipUD: 0 alphabetic filenames in a folder is in the right order 1 need to reverse the alphabetic order
-    :return:
-    """
+def stitch_multiple_folders_into_one(list_of_folders, output_folder, delta_z, look_for_best_slice=True, copy_mode=0,
+                                     security_band_size=10, overlap_mode=0, band_average_size=0, flip=False):
+    """Function that stitches different folders into a unique one.
 
-    print('Stitching ....')
-    numberOfFolders=len(listOfFolders)
-    cptFolder=0
-    listOfFolders.sort()
-    begToCopy=0
+    Notes:
+        1. First and last folders are treated differently (correlation with other folders is looked only on one side).
+        2. Every other slices are moved or copied (depending on copy mode) in the output_folder.
+        3. For the rest of folders, the slices are either moved or copied (depending on copy mode).
 
-    for folderName in listOfFolders:
-        print(folderName)
-        listOfImageFilenames=glob.glob(folderName+'/*.tif')+glob.glob(folderName+'/*.edf')+glob.glob(folderName+'/*.png')
-        if flipUD == 1:
-            listOfImageFilenames.sort(reverse=True)
+    Args:
+        list_of_folders (list[str]): list of input folders (expects images in each of those folders whatever the format)
+        output_folder (str):         complete output path
+        delta_z (int):               supposed z discrete displacement (number of slices)
+        look_for_best_slice (bool):  False: we don't look for best matched slice between folders, True : we do
+        copy_mode (int):             0: files are moved (no backup), 1: files are copied in the output_folder
+        security_band_size (int):    nb of slices above and below delta_z used for stitching computation
+        overlap_mode (int):          0: copy/move files, 1: standard average in band_average_size, 2: weighted average
+        band_average_size (int):     If overlap_mode > 0: size of the band for the (weighted) average
+        flip (bool):                 True: alphabetic filenames in a folder False: Reverse alphabetic order
+    """
+    list_of_folders.sort()
+    number_of_folders = len(list_of_folders)
+    folder_nb = 0
+    bottom_overlap_index = 0
+    top_overlap_index = 0
+
+    # Parsing all input folders
+    for folder_name in list_of_folders:
+        print("Stitching step ", str(folder_nb) + "/", str(len(list_of_folders)))
+
+        # We retrieve the list of filenames in the very first folder
+        bottom_image_filenames = glob.glob(folder_name + '/*.tif') + glob.glob(folder_name + '/*.edf') \
+            + glob.glob(folder_name + '/*.png')
+
+        if flip:
+            bottom_image_filenames.sort(reverse=True)
         else:
-            listOfImageFilenames.sort()
-        print(folderName)
-        nbSliceInAFolder = len(listOfImageFilenames)
-        if (cptFolder<numberOfFolders-1):
-            listOfImageFilenamesUpperFolder = glob.glob(listOfFolders[cptFolder+1] + '/*.tif') + glob.glob(listOfFolders[cptFolder+1] + '/*.edf') + glob.glob(listOfFolders[cptFolder+1] + '/*.png')
+            bottom_image_filenames.sort()
 
-            if flipUD == 1:
-                listOfImageFilenamesUpperFolder.sort(reverse=True)
+        nb_slices = len(bottom_image_filenames)
+
+        # We compute stitching on all folders (N folders implies N-1 stitching computations)
+        if folder_nb < number_of_folders - 1:
+            # We retrieve the list of filenames for the folder next to the current one
+            top_image_filenames = glob.glob(list_of_folders[folder_nb + 1] + '/*.tif') \
+                                  + glob.glob(list_of_folders[folder_nb + 1] + '/*.edf') \
+                                  + glob.glob(list_of_folders[folder_nb + 1] + '/*.png')
+            if flip:
+                top_image_filenames.sort(reverse=True)
             else:
-                listOfImageFilenamesUpperFolder.sort()
+                top_image_filenames.sort()
 
-            suposedSliceOfOverlapDown = nbSliceInAFolder - int((nbSliceInAFolder - deltaZ)/2)
-            print('suposedSliceOfOverlapDown'+str(suposedSliceOfOverlapDown))
-            suposedSliceOfOverlapUp = int((nbSliceInAFolder - deltaZ)/2)
-            print('suposedSliceOfOverlapUp' + str(suposedSliceOfOverlapUp))
+            # We use delta_z to determine the theoretical overlapping slice index
+            supposed_bottom_overlap_slice = nb_slices - int((nb_slices - delta_z) / 2)
+            supposed_top_overlap_slice = int((nb_slices - delta_z) / 2)
 
-            if securityBandSize>0:
-                if lookForBestSlice:
-                    imageDownFileNames=listOfImageFilenames[suposedSliceOfOverlapDown-int(securityBandSize):suposedSliceOfOverlapDown+int(securityBandSize)]
-                    imageUpFileNames=listOfImageFilenamesUpperFolder[suposedSliceOfOverlapUp-int(securityBandSize):suposedSliceOfOverlapUp+int(securityBandSize)]
-                    #print('Band : ['+str(suposedSliceOfOverlapDown-int(securityBandSize))+','+str(suposedSliceOfOverlapDown+int(securityBandSize)))
+            # We're computing stitching on a band (not only one image)
+            if security_band_size > 0:
+                # If we don't trust delta_z value
+                if look_for_best_slice:
+                    # We only keep the filenames of the bands used for stitching computation
+                    bottom_band_filenames = \
+                        bottom_image_filenames[supposed_bottom_overlap_slice - int(security_band_size):
+                                               supposed_bottom_overlap_slice + int(security_band_size)]
+                    top_band_filenames = \
+                        top_image_filenames[supposed_top_overlap_slice - int(security_band_size):
+                                            supposed_top_overlap_slice + int(security_band_size)]
 
-                    imageDown=openSeq(imageDownFileNames)
-                    imageUp=openSeq(imageUpFileNames)
+                    # We load the corresponding bands
+                    bottom_band_image = openSeq(bottom_band_filenames)
+                    top_band_image = openSeq(top_band_filenames)
 
-                    indexOfOverlap = int(lookForMaximumCorrelationBand(imageDown, imageUp, 10, True))
+                    # Stitching computation. Returns the overlapping slices index between given bands
+                    overlap_index = int(look_for_maximum_correlation_band(bottom_band_image, top_band_image, 10, True))
 
-                    diffIndex=securityBandSize - indexOfOverlap
+                    # We compute the difference between theoretical overlap index and real overlap index
+                    overlap_index_difference = security_band_size - overlap_index
+                # If we trust delta_z value, we set the difference between theory and practice to 0
                 else:
-                    diffIndex = 0
-                trueSliceOverlapIndex=suposedSliceOfOverlapDown + diffIndex
+                    overlap_index_difference = 0
 
+                # We compute for overlap index for the current folder
+                bottom_overlap_index = supposed_bottom_overlap_slice + overlap_index_difference
 
-                if overlapMode == 0:
-                    #elbourinos
+                # List of filenames from current folder we need to copy
+                list_to_copy = bottom_image_filenames[top_overlap_index:bottom_overlap_index]
 
-                    listToCopy = listOfImageFilenames[begToCopy:trueSliceOverlapIndex]
-                    for sliceNb in range(0, len(listToCopy)):
-                        if flipUD == 1:
-                            outputFilename=outputFolderName+'/'+os.path.basename(listToCopy[-(sliceNb + 1)])
+                # If we do not average images
+                if overlap_mode == 0:
+                    for slice_index in range(0, len(list_to_copy)):
+                        # If the filenames are in reverse order
+                        if flip == 1:
+                            output_filename = output_folder + '/' + os.path.basename(list_to_copy[-(slice_index + 1)])
                         else:
-                            outputFilename=outputFolderName+'/'+os.path.basename(listToCopy[sliceNb])
-
-                        if copyMode == 0:
-                            os.rename(listToCopy[sliceNb],outputFilename)
+                            output_filename = output_folder + '/' + os.path.basename(list_to_copy[slice_index])
+                        # We either copy or move files depending on copy_mode
+                        if copy_mode == 0:
+                            os.rename(list_to_copy[slice_index], output_filename)
                         else:
-                            shutil.copy2(listToCopy[sliceNb],outputFilename)
-                    begToCopy = suposedSliceOfOverlapUp
+                            shutil.copy2(list_to_copy[slice_index], output_filename)
 
+                    # In case of no average, the overlapping index in the next folder is the supposed one
+                    top_overlap_index = supposed_top_overlap_slice
                 else:
-                    listOfImageFilenames[begToCopy:trueSliceOverlapIndex-int(bandAverageSize/2)]
-
-                    for fileNb in range(0, len(listToCopy)):
-                        if flipUD == 1:
-                            outputFilename = outputFolderName + '/' + os.path.basename(listToCopy[-(fileNb + 1)])
+                    for slice_index in range(0, len(list_to_copy)):
+                        # If the filenames are in reverse order
+                        if flip:
+                            output_filename = output_folder + '/' + os.path.basename(list_to_copy[-(slice_index + 1)])
                         else:
-                            outputFilename = outputFolderName + '/' + os.path.basename(listToCopy[fileNb])
-                        if copyMode == 0:
-                            os.rename(listToCopy[fileNb], outputFilename)
+                            output_filename = output_folder + '/' + os.path.basename(list_to_copy[slice_index])
+
+                        # We either copy or move files depending on copy_mode
+                        if copy_mode == 0:
+                            os.rename(list_to_copy[slice_index], output_filename)
                         else:
-                            shutil.copy2(listToCopy[fileNb], outputFilename)
+                            shutil.copy2(list_to_copy[slice_index], output_filename)
 
-                    filenamesDownToAverage=listOfImageFilenames[trueSliceOverlapIndex-int(bandAverageSize/2):trueSliceOverlapIndex+int(bandAverageSize/2)]
+                    # We retrieve the filenames used for averaging
+                    bottom_average_filenames = \
+                        bottom_image_filenames[bottom_overlap_index - int(band_average_size / 2):
+                                               bottom_overlap_index + int(band_average_size / 2)]
 
-                    filenamesUpToAverage=listOfImageFilenamesUpperFolder[suposedSliceOfOverlapUp+diffIndex-int(bandAverageSize/2):suposedSliceOfOverlapUp+diffIndex+int(bandAverageSize/2)]
-                    averagedImage=averageImagesFromFilenames(filenamesDownToAverage,filenamesUpToAverage)
-                    listOfFakeNames=listOfImageFilenames[trueSliceOverlapIndex-int(bandAverageSize/2):trueSliceOverlapIndex+int(bandAverageSize/2)]
+                    top_average_filenames = \
+                        top_image_filenames[supposed_top_overlap_slice +
+                                            overlap_index_difference - int(band_average_size / 2):
+                                            supposed_top_overlap_slice +
+                                            overlap_index_difference + int(band_average_size / 2)]
+                    # We compute the average between the two images depending on
+                    averaged_image = average_images_from_filenames(bottom_average_filenames, top_average_filenames,
+                                                                   overlap_mode)
+                    # We save the averaged images
+                    list_of_new_filenames = bottom_image_filenames[bottom_overlap_index - int(band_average_size / 2):
+                                                                   bottom_overlap_index + int(band_average_size / 2)]
 
-                    for filename in listOfFakeNames:
-                        outputFilename=outputFolderName+os.path.basename(filename)
-                        for i in range(0,bandAverageSize) :
-                            data=averagedImage[i,:,:].squeeze()
-                            saveTif(data.astype(np.uint16),outputFilename)
+                    for filename in list_of_new_filenames:
+                        output_filename = output_folder + os.path.basename(filename)
+                        for i in range(0, band_average_size):
+                            slice_data = averaged_image[i, :, :].squeeze()
+                            saveTif(slice_data.astype(np.uint16), output_filename)
 
-                    begToCopy = suposedSliceOfOverlapUp + diffIndex+int(bandAverageSize/2)
-        else :
-            print('Last Folder')
+                    # In case of no average, the overlapping index in the next folder is
+                    # the supposed one + half of average band
+                    top_overlap_index = supposed_top_overlap_slice + overlap_index_difference + int(band_average_size/2)
 
-            listToCopy = listOfImageFilenames[begToCopy:-1]
-            for fileNb in range(0, len(listToCopy)):
-                if flipUD == 1:
-                    outputFilename = outputFolderName + '/' + os.path.basename(listToCopy[-(fileNb + 1)])
-                else:
-                    outputFilename = outputFolderName + '/' + os.path.basename(listToCopy[fileNb])
-
-                if copyMode == 0:
-                    os.rename(listToCopy[fileNb], outputFilename)
-                else:
-                    shutil.copy2(listToCopy[fileNb], outputFilename)
-
-
-        cptFolder+=1
-
-
-def averageImagesFromFilenames(filenameDown,fileNameUp,mode=0):
-    imageDown=openSeq(filenameDown)
-    imageUp = openSeq(fileNameUp)
-
-    return (imageDown+imageUp)/2
-
-
-def lookForMaximumCorrelation(imageA,imageB):
-    """
-    Function to look for the maximum correlated slice between two different volumes
-    Preparation for stitching 2 sets of images
-    The computation is only performed with the slice in the middle of imageA on the entire imageB volume
-    :param imageA:3D np array
-    :param imageB:3D np array
-    :return: the slice number with highest zero normalized cross correlation.
-    """
-    nbSlicesA, widthA, heightA = imageA.shape
-    nbSlicesB, widthB, heightB = imageB.shape
-    width = max(widthA, widthB)
-    height = max(heightA, heightB)
-
-    middleSlice = int(nbSlicesA/2)
-    imageToMultiply = np.copy(imageA[middleSlice, :, :].squeeze())
-    imageToMultiply = imageToMultiply - np.mean(imageToMultiply)
-
-    tmpB = np.copy(imageB)
-    stdMul = np.std(imageToMultiply)
-    corr = np.zeros(nbSlicesB)
-
-    for slice in range(0, nbSlicesB):
-        tmpB[slice, :, :] = tmpB[slice, :, :] - np.mean(tmpB[slice, :, :])
-
-    imMultiplied = imageToMultiply * tmpB
-
-    for slice in range(0,nbSlicesB):
-        #tmpB[slice,:,:]=tmpB[slice,:,:]-np.mean(tmpB[slice,:,:])
-        stdB = np.std(tmpB[slice, :, :])
-        sumMultiplication = np.sum(imMultiplied[slice, :, :])
-        normcrosscorr = sumMultiplication / (stdMul * stdB)
-        normcrosscorr /= (width * height)
-        corr[slice]=normcrosscorr
-        #print("slice", slice, "cross-corr :", normcrosscorr)
-
-    maxCorSlice=np.argmax(corr)
-    print("best slice", maxCorSlice, "cross-corr :", corr[maxCorSlice])
-
-    return (maxCorSlice)
-
-
-def lookForMaximumCorrelationBand(imageA,imageB,bandSize,segmented=False):
-    """
-    Function to look for the maximum correlated slice between two different volumes
-    Preparation for stitching 2 sets of images
-    The computation is performed for every slices in a band of bandSize centered around the imageA middle slice
-    :param imageA:3D np array
-    :param imageB:3D np array
-    :param bandSize: Number of slice the zero normalized cross correlation is made on
-    :param segmented: True otsu thesholding is performed before correlation
-    :return: the median value of all slices number with highest zero normalized cross correlation.
-    """
-    nbSlices, width, height = imageA.shape
-
-    middleSlice = int(nbSlices / 2)
-
-    tmpA = np.copy(imageA)
-    tmpB = np.copy(imageB)
-
-    if segmented:
-        thresh = filters.threshold_otsu(tmpA[tmpA > 0.15 * 65535])
-        mask   = tmpA > thresh
-        tmpA = mask * tmpA
-        tmpB = mask * tmpB
-
-    #Preparation for normalized cross correlation
-    for slice in range(0, nbSlices):
-        tmpBSlice = tmpB[slice, :, :]
-        if segmented:
-            tmpB[slice, :, :] = mask[slice, :, :] * (tmpBSlice - np.mean(tmpBSlice[tmpBSlice > 0.0]))
+            # If the security_band_size is not > 0
+            else:
+                sys.exit("Please use a security_band_size > 0")
+        # Once we computed stitching on all folders, we copy the remaining files (from the last folder)
         else:
-            tmpB[slice, :, :] = tmpB[slice, :, :] - np.mean(tmpB[slice, :, :])
+            list_to_copy = bottom_image_filenames[top_overlap_index:-1]
+            for slice_index in range(0, len(list_to_copy)):
+                # If the filenames are in reverse order
+                if flip:
+                    output_filename = output_folder + '/' + os.path.basename(list_to_copy[-(slice_index + 1)])
+                else:
+                    output_filename = output_folder + '/' + os.path.basename(list_to_copy[slice_index])
 
-    argMaxCoors = np.zeros(bandSize)
-    for i in range(int(-bandSize/2),(int(bandSize/2))):
-        imageToMultiply = tmpA[middleSlice+i, :, :].squeeze()
-        if segmented:
-            imageToMultiply = mask[middleSlice+i, :, :] * (imageToMultiply - np.mean(imageToMultiply[imageToMultiply > 0.0]))
+                # We either copy or move files depending on copy_mode
+                if copy_mode == 0:
+                    os.rename(list_to_copy[slice_index], output_filename)
+                else:
+                    shutil.copy2(list_to_copy[slice_index], output_filename)
+        print(" > corresponding slices found: slice", bottom_overlap_index, "and slice", top_overlap_index)
+        folder_nb += 1
+
+
+def average_images_from_filenames(first_image_filenames, second_image_filenames, mode=1):
+    """Averages two images
+
+    Args:
+        first_image_filenames (list[str]):  list of first image filenames
+        second_image_filenames (list[str]): list of second image filenames
+        mode (int):                         1: standard average, 2: weighted average TODO
+
+    Returns:
+        numpy.ndarray: averaged image
+    """
+    # Opens image
+    first_image = openSeq(first_image_filenames)
+    second_image = openSeq(second_image_filenames)
+
+    # If standard average requested
+    if mode == 1:
+        return (first_image + second_image) / 2
+    # If weighted average requested
+    else:
+        return (first_image + second_image) / 2
+
+
+def look_for_maximum_correlation(first_image, second_image):
+    """Looks for the maximum correlated slice between two images
+
+    The computation is only performed with the slice in the middle of first image and on the entire second image
+
+    Args:
+        first_image (numpy.ndarray):  first image
+        second_image (numpy.ndarray): second image
+
+    Returns:
+        int: the slice number with highest zero normalized cross correlation.
+    """
+    first_nb_slices, first_width, first_height = first_image.shape
+    second_nb_slices, second_width, second_height = second_image.shape
+
+    width = max(first_width, second_width)
+    height = max(first_height, second_height)
+
+    middle_slice = int(first_nb_slices / 2)
+
+    # We compute what we need for normalized cross correlation (first image middle slice)
+    first_image_middle_slice = np.copy(first_image[middle_slice, :, :].squeeze())
+    first_image_middle_slice = first_image_middle_slice - np.mean(first_image_middle_slice)
+    first_image_middle_slice_std = np.std(first_image_middle_slice)
+
+    # We compute what we need for normalized cross correlation (second image)
+    centered_second_image = np.copy(second_image)
+    for slice_nb in range(0, second_nb_slices):
+        centered_second_image[slice_nb, :, :] = centered_second_image[slice_nb, :, :] \
+                                                - np.mean(centered_second_image[slice_nb, :, :])
+    centered_images_multiplication_result = first_image_middle_slice * centered_second_image
+
+    # We compute normalized cross-correlation between first image middle slice and all second image slices
+    normalized_cross_correlations = np.zeros(second_nb_slices)
+    for slice_nb in range(0, second_nb_slices):
+        second_image_slice_std = np.std(centered_second_image[slice_nb, :, :])
+        sum_of_multiplied_images = np.sum(centered_images_multiplication_result[slice_nb, :, :])
+        normalized_cross_correlation = sum_of_multiplied_images/(first_image_middle_slice_std * second_image_slice_std)
+        normalized_cross_correlation /= (width * height)
+        normalized_cross_correlations[slice_nb] = normalized_cross_correlation  # array of normalized-cross correlations
+
+    # The best candidate corresponds to the nb with max normalized cross-correlation
+    best_corresponding_slice_nb = np.argmax(normalized_cross_correlations)
+
+    return best_corresponding_slice_nb
+
+
+def look_for_maximum_correlation_band(first_image, second_image, band_size, with_segmentation=True):
+    """Looks for the maximum correlated slice between two images
+
+    The computation is performed for every slices in a band of band_size centered around the first image middle slice
+
+    Args:
+        first_image (numpy.ndarray):  first image
+        second_image (numpy.ndarray): second image
+        band_size (int):              nb of slices above/below middle slice for computation
+        with_segmentation (bool):     True: we perform thresholding, False: we don't
+
+    Returns:
+        int: the slice number with highest zero normalized cross correlation.
+    """
+    nb_slices, width, height = first_image.shape
+    mask = np.zeros(first_image.shape)
+    middle_slice_nb = int(nb_slices / 2)
+
+    first_image_copy = np.copy(first_image)
+    centered_second_image = np.copy(second_image)
+
+    # If a thresholding is requested, we use Otsu thresholding on top 85% of the first image histogram
+    if with_segmentation:
+        thresh = filters.threshold_otsu(first_image_copy[first_image_copy > 0.15 * 65535])
+        mask = first_image_copy > thresh
+        first_image_copy = mask * first_image_copy
+        centered_second_image = mask * centered_second_image
+
+    # We compute what we need for normalized cross correlation (second image)
+    for slice_nb in range(0, nb_slices):
+        second_image_slice = centered_second_image[slice_nb, :, :]
+        if with_segmentation:
+            centered_second_image[slice_nb, :, :] = \
+                mask[slice_nb, :, :] * (second_image_slice - np.mean(second_image_slice[second_image_slice > 0.0]))
         else:
-            imageToMultiply = imageToMultiply - np.mean(imageToMultiply)
-        stdMul = np.std(imageToMultiply)
-        corr = np.zeros(nbSlices)
-        imMultiplied = imageToMultiply * tmpB
+            centered_second_image[slice_nb, :, :] = centered_second_image[slice_nb, :, :] \
+                                                    - np.mean(centered_second_image[slice_nb, :, :])
 
-        for slice in range(0,nbSlices):
-            stdB = np.std(tmpB[slice, :, :])
-            sumMultiplication = np.sum(imMultiplied[slice, :, :])
+    # We parse every slice of first_image[-band_size/2: band_size/2]
+    best_slice_candidates = np.zeros(band_size)
+    for i in range(int(-band_size / 2), (int(band_size / 2))):
+        first_image_middle_slice = first_image_copy[middle_slice_nb + i, :, :].squeeze()
+        # In case of thresholding, we use the computed mask on the current slice for computation
+        if with_segmentation:
+            first_image_middle_slice = \
+                mask[middle_slice_nb + i, :, :] * \
+                (first_image_middle_slice - np.mean(first_image_middle_slice[first_image_middle_slice > 0.0]))
+        # In case of no thresholding, we don't use the mask for computation
+        else:
+            first_image_middle_slice = first_image_middle_slice - np.mean(first_image_middle_slice)
+        first_image_middle_slice_std = np.std(first_image_middle_slice)
+        normalized_cross_correlations = np.zeros(nb_slices)
+        centered_images_multiplication_result = first_image_middle_slice * centered_second_image
 
-            normcrosscorr = sumMultiplication / (stdMul * stdB)
-            normcrosscorr /= (width * height)
-            corr[slice]=normcrosscorr
-            #print("slice", slice, "cross-corr :", normcrosscorr)
+        # We parse every slice of second image to compute normalized cross-correlations
+        for slice_nb in range(0, nb_slices):
+            centered_second_image_std = np.std(centered_second_image[slice_nb, :, :])
+            sum_of_multiplied_images = np.sum(centered_images_multiplication_result[slice_nb, :, :])
 
-        maxCorSlice = np.argmax(corr)-i
-        #print('maxCorSlice found for slice:'+str(i)+' is :'+str(maxCorSlice))
-        argMaxCoors[i + int(bandSize/2)] = maxCorSlice
-        print("For imageA slice", middleSlice + i, "best fit is imageB slice", np.argmax(corr))
-    print(argMaxCoors)
-    medianValue = np.median(argMaxCoors)
-    return (medianValue)
+            normalized_cross_correlation = \
+                sum_of_multiplied_images / (first_image_middle_slice_std * centered_second_image_std)
+            normalized_cross_correlation /= (width * height)
+            normalized_cross_correlations[slice_nb] = normalized_cross_correlation  # arrays of normalized cross-corr
+
+        # We store the best candidate for overlapping slice for each first image slice.
+        best_corresponding_slice_nb = np.argmax(normalized_cross_correlations) - i
+        best_slice_candidates[i + int(band_size / 2)] = best_corresponding_slice_nb
+
+    # We finally retrieve the final best candidate (victory royale)
+    computed_corresponding_slice_nb = np.median(best_slice_candidates)
+    return computed_corresponding_slice_nb
 
 
-if __name__ == "__main__" :
+if __name__ == "__main__":
     print("Hello")
-    imageAFolder = 'C:\\Users\\ctavakol\\Desktop\\test_for_popcorn\\voltif\\test1pag\\'
-    imageBFolder = 'C:\\Users\\ctavakol\\Desktop\\test_for_popcorn\\voltif\\test2pag\\'
+    imageAFolder = '/data/visitor/md1237/id17/volfloat/blablabla_001'
+    imageBFolder = '/data/visitor/md1237/id17/volfloat/blablabla_002'
     imageAFiles = glob.glob(imageAFolder + '/*.tif')
     imageBFiles = glob.glob(imageAFolder + '/*.tif')
     imageA = openSeq(imageAFiles)
     imageB = openSeq(imageBFiles)
-    #lookForMaximumCorrelation(imageA,imageB)
-    #lookForMaximumCorrelationBand(imageA,imageB,10)

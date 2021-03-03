@@ -10,7 +10,7 @@ import multiprocessing
 
 from popcornIO import myMkdir, openImage
 from SixteenBitConverter import conversionFromListOfFiles, multiThreadingConversion
-from Stitching import stitchFolders
+from Stitching import stitch_multiple_folders_into_one
 
 
 def lookForMinMaxVal(listOfFolders, percentile):
@@ -165,5 +165,6 @@ if __name__ == "__main__" :
         "%.2f" % maxIm16Bit)
     myMkdir(outputRadixFolder)
 
-    stitchFolders(listOf16bitFolder, outputRadixFolder, deltaZ, lookForBestSlice=True, copyMode=1, securityBandSize=30, overlapMode=0,
-                  bandAverageSize=0, flipUD=flipUD)
+    stitch_multiple_folders_into_one(listOf16bitFolder, outputRadixFolder, deltaZ, look_for_best_slice=True,
+                                     copy_mode=1, security_band_size=30, overlap_mode=0, band_average_size=0,
+                                     flip=flipUD)
