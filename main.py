@@ -2,7 +2,7 @@ import os, sys, getopt
 import glob
 
 import math
-import numpy
+import numpy as np
 import random
 
 import fabio
@@ -29,15 +29,15 @@ def lookForMinMaxVal(listOfFolders, percentile):
 
         sum_histo = 0
         index = 1
-        histo.data = histo.data / numpy.sum(histo.data)
+        histo.data = histo.data / np.sum(histo.data)
         while sum_histo < percentile:
-            sum_histo = numpy.sum(histo.data[0:index])
+            sum_histo = np.sum(histo.data[0:index])
             index += 1
         finalMinVal = minVal + index * pas
 
         index = 2
         while sum_histo < percentile:
-            sum_histo = numpy.sum(histo.data[-index:-1])
+            sum_histo = np.sum(histo.data[-index:-1])
             index += 1
 
         finalMaxVal = maxVal - index * pas

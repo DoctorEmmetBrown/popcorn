@@ -1,6 +1,6 @@
 import os
 import math
-import numpy
+import numpy as np
 from popcornIO import openImage, saveTiff16bit
 
 def pad_with(vector, pad_width, iaxis, kwargs):
@@ -24,9 +24,9 @@ def paddingImage(image, paddingSize):
     :return: padded image
     """
     if paddingSize%2 != 0:
-        return numpy.pad(image, (int(paddingSize/2), math.ceil(paddingSize/2)), pad_with)
+        return np.pad(image, (int(paddingSize/2), math.ceil(paddingSize/2)), pad_with)
     else:
-        return numpy.pad(image, int(paddingSize/2), pad_with)
+        return np.pad(image, int(paddingSize/2), pad_with)
 
 
 def multiThreadingConversion(listOfArgs):

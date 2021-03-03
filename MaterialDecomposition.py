@@ -1,4 +1,4 @@
-import numpy
+import numpy as np
 import glob, os
 import popcornIO
 
@@ -11,7 +11,7 @@ def convert_int_to_float(image, minFloat, maxFloat):
     :param maxFloat: max val after conversion
     :return: converted float32 image
     """
-    image = image.astype(numpy.float32)
+    image = image.astype(np.float32)
     return image / 65535 * (maxFloat - minFloat) + minFloat
 
 
@@ -60,9 +60,9 @@ def three_materials_decomposition(above_kedge_image, below_kedge_image, kedge_el
     mu_main_element_below = muz[main_element_index][(main_element_index - 1) * 2]
     mu_main_element_above = muz[main_element_index][(main_element_index - 1) * 2 + 1]
 
-    images = numpy.stack((above_kedge_image, below_kedge_image), axis=0)
-    material_densities = numpy.array([densities[main_element_index - 1], densities[second_element_index - 1], 1.0])
-    mus = numpy.array([[mu_main_element_above, mu_second_element_above, mu_water_above],
+    images = np.stack((above_kedge_image, below_kedge_image), axis=0)
+    material_densities = np.array([densities[main_element_index - 1], densities[second_element_index - 1], 1.0])
+    mus = np.array([[mu_main_element_above, mu_second_element_above, mu_water_above],
                        [mu_main_element_below, mu_second_element_below, mu_water_below]])
 
     main_element_concentration_map, second_element_concentration_map, water_concentration_map = \
@@ -87,34 +87,34 @@ def decomposition_equation_resolution(images, densities, materialAttenuations, v
     numberOfMaterials = densities.size
     print(">Number of materials: ", numberOfMaterials)
     print(">Sum of materials volume fraction equal to 1 hypothesis :", volumeFractionHypothesis)
-    system_2d_matrix = numpy.ones((numberOfEnergies + volumeFractionHypothesis * 1, numberOfMaterials))
+    system_2d_matrix = np.ones((numberOfEnergies + volumeFractionHypothesis * 1, numberOfMaterials))
 
     system_2d_matrix[0:numberOfEnergies, :] = materialAttenuations
-    vector_2d_matrix = numpy.ones((numberOfEnergies + volumeFractionHypothesis * 1, images[0, :].size))
+    vector_2d_matrix = np.ones((numberOfEnergies + volumeFractionHypothesis * 1, images[0, :].size))
     energyIndex = 0
     for image in images:
         vector_2d_matrix[energyIndex] = image.flatten()
         energyIndex += 1
 
-    vector_2d_matrix = numpy.transpose(vector_2d_matrix)
+    vector_2d_matrix = np.transpose(vector_2d_matrix)
 
     if numberOfEnergies + volumeFractionHypothesis * 1 == numberOfMaterials:
-        system_3d_matrix = numpy.repeat(system_2d_matrix[numpy.newaxis, :], images[0, :].size, axis=0)
-        solution_matrix = numpy.linalg.solve(system_3d_matrix, vector_2d_matrix)
+        system_3d_matrix = np.repeat(system_2d_matrix[np.newaxis, :], images[0, :].size, axis=0)
+        solution_matrix = np.linalg.solve(system_3d_matrix, vector_2d_matrix)
     else:
         for vector in vector_2d_matrix:
-            solution_vector = numpy.linalg.lstsq(system_2d_matrix, vector, rcond=None)
+            solution_vector = np.linalg.lstsq(system_2d_matrix, vector, rcond=None)
             if 'solution_matrix' in locals():
                 if solution_matrix.ndim == 2:
-                    solution_matrix = numpy.vstack([solution_matrix, solution_vector[0]])
+                    solution_matrix = np.vstack([solution_matrix, solution_vector[0]])
                 else:
-                    solution_matrix = numpy.stack((solution_matrix, solution_vector[0]), axis=0)
+                    solution_matrix = np.stack((solution_matrix, solution_vector[0]), axis=0)
             else:
                 solution_matrix = solution_vector[0]
 
-    m1_image = numpy.reshape(solution_matrix[:, 0] * densities[0] * 1000.0, images[0, :].shape).astype(numpy.float32)
-    m2_image = numpy.reshape(solution_matrix[:, 1] * densities[1] * 1000.0, images[0, :].shape).astype(numpy.float32)
-    m3_image = numpy.reshape(solution_matrix[:, 2] * densities[2] * 1000.0, images[0, :].shape).astype(numpy.float32)
+    m1_image = np.reshape(solution_matrix[:, 0] * densities[0] * 1000.0, images[0, :].shape).astype(np.float32)
+    m2_image = np.reshape(solution_matrix[:, 1] * densities[1] * 1000.0, images[0, :].shape).astype(np.float32)
+    m3_image = np.reshape(solution_matrix[:, 2] * densities[2] * 1000.0, images[0, :].shape).astype(np.float32)
 
     return m1_image, m2_image, m3_image
 

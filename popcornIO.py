@@ -1,10 +1,9 @@
+import os
+
 import fabio
 import fabio.edfimage as edf
 import fabio.tifimage as tif
-import os
-import glob
 
-# from PIL import Image
 import numpy as np
 
 
