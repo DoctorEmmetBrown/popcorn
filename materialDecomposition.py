@@ -1,4 +1,18 @@
 import numpy
+import glob, os
+import popcornIO
+
+
+def convert_int_to_float(image, minFloat, maxFloat):
+    """
+    Conversion from [0:65535] uint16 to [minFloat:maxFloat] float32
+    :param image: input uint image
+    :param minFloat: min val after conversion
+    :param maxFloat: max val after conversion
+    :return: converted float32 image
+    """
+    image = image.astype(numpy.float32)
+    return image / 65535 * (maxFloat - minFloat) + minFloat
 
 
 def three_materials_decomposition(above_kedge_image, below_kedge_image, kedge_element="Au", second_element="I"):
@@ -48,7 +62,8 @@ def three_materials_decomposition(above_kedge_image, below_kedge_image, kedge_el
 
     images = numpy.stack((above_kedge_image, below_kedge_image), axis=0)
     material_densities = numpy.array([densities[main_element_index - 1], densities[second_element_index - 1], 1.0])
-    mus = numpy.array([[mu_main_element_above, mu_second_element_above, mu_water_above],[mu_main_element_below, mu_second_element_below, mu_water_below]])
+    mus = numpy.array([[mu_main_element_above, mu_second_element_above, mu_water_above],
+                       [mu_main_element_below, mu_second_element_below, mu_water_below]])
 
     main_element_concentration_map, second_element_concentration_map, water_concentration_map = \
         decomposition_equation_resolution(images, material_densities, mus)
@@ -58,7 +73,7 @@ def three_materials_decomposition(above_kedge_image, below_kedge_image, kedge_el
            water_concentration_map.copy()
 
 
-def decomposition_equation_resolution(images, densities, materialAttenuations, volumeFractionHypothesis = True):
+def decomposition_equation_resolution(images, densities, materialAttenuations, volumeFractionHypothesis=True):
     """
     solving the element decomposition system : images.ndim energies
     :param images: N dim array, each N-1 dim array is an image acquired at 1 given energy (can be 2D or 3D, K energies in total)
@@ -80,7 +95,6 @@ def decomposition_equation_resolution(images, densities, materialAttenuations, v
     for image in images:
         vector_2d_matrix[energyIndex] = image.flatten()
         energyIndex += 1
-
 
     vector_2d_matrix = numpy.transpose(vector_2d_matrix)
 
@@ -104,32 +118,62 @@ def decomposition_equation_resolution(images, densities, materialAttenuations, v
 
     return m1_image, m2_image, m3_image
 
+
 if __name__ == '__main__':
-    image1 = [[[1, 1, 1], [1, 1, 1]],
-              [[2, 3, 4], [2, 3, 4]],
-              [[4, 5, 5], [4, 5, 6]],
-              [[2, 1, 2], [2, 1, 2]]]
+    radix = "BiColor_B1toB9__"
+    mainFolder = "/data/visitor/md1237/id17/voltif/"
+    mainMaterial = "Au"
 
-    image2 = [[[1, 1, 1], [1, 1, 1]],
-              [[2, 3, 4], [2, 3, 4]],
-              [[4, 5, 5], [4, 5, 6]],
-              [[2, 1, 2], [2, 1, 2]]]
+    aboveFileNames = glob.glob(mainFolder + radix + "*Above*" + mainMaterial + "*.*" + '/*.tif') + glob.glob(
+        mainFolder + radix + "*Above*" + mainMaterial + "*.*" + '/*.edf')
+    aboveFileNames.sort()
 
-    image3 = [[[1, 1, 1], [1, 1, 1]],
-              [[2, 3, 4], [2, 3, 4]],
-              [[4, 5, 5], [4, 5, 6]],
-              [[2, 1, 2], [2, 1, 2]]]
+    belowFileNames = glob.glob(mainFolder + radix + "*Below*" + mainMaterial + "*.*" + '/*.tif') + glob.glob(
+        mainFolder + radix + "*Below*" + mainMaterial + "*.*" + '/*.edf')
+    belowFileNames.sort()
 
-    image4 = [[[1, 1, 1], [1, 1, 1]],
-              [[2, 3, 4], [2, 3, 4]],
-              [[4, 5, 5], [4, 5, 6]],
-              [[2, 1, 2], [2, 1, 2]]]
-    images = numpy.stack((image1, image2, image3), axis=0)
+    aboveFolder = aboveFileNames[0].split("/")[-2]
+    aboveMinFloat = float(aboveFolder.split("_")[-2])
+    aboveMaxFloat = float(aboveFolder.split("_")[-1])
+    print("Found above folder :", aboveFolder)
+    print("min Float value :", aboveMinFloat)
+    print("max Float value :", aboveMaxFloat)
+    belowFolder = belowFileNames[0].split("/")[-2]
+    belowMinFloat = float(belowFolder.split("_")[-2])
+    belowMaxFloat = float(belowFolder.split("_")[-1])
+    print("Found below folder :", belowFolder)
+    print("min Float value :", belowMinFloat)
+    print("max Float value :", belowMaxFloat)
+    for fileNameIndex in range(0, min(len(aboveFileNames), len(belowFileNames))):
+        belowImage = popcornIO.openImage(belowFileNames[fileNameIndex])
+        aboveImage = popcornIO.openImage(aboveFileNames[fileNameIndex])
 
-    densities = numpy.array([1, 2, 3])
-    materialAttenuations = numpy.array([[1, 2, 3],
-                                    [1, 2, 3],
-                                    [1, 2, 3]])
-    result1, result2, result3 = decomposition_equation_resolution(images, densities, materialAttenuations)
+        aboveImage = convert_int_to_float(aboveImage, aboveMinFloat, aboveMaxFloat)
 
-    print(result1)
+        belowImage = convert_int_to_float(belowImage, belowMinFloat, belowMaxFloat)
+
+        if mainMaterial == "Au":
+            AuImage, IImage, WaterImage = three_materials_decomposition(aboveImage, belowImage, "Au", "I")
+        else:
+            IImage, AuImage, WaterImage = three_materials_decomposition(aboveImage, belowImage, "I", "Au")
+
+        if not os.path.exists(mainFolder + "material_decomposition/"):
+            os.makedirs(mainFolder + "material_decomposition/")
+
+        if not os.path.exists(mainFolder + radix + "/"):
+            os.makedirs(mainFolder + radix + "material_decomposition/")
+
+        if not os.path.exists(mainFolder + radix + "material_decomposition/" + "/Au_decomposition"):
+            os.makedirs(mainFolder + radix + "material_decomposition/" + "/Au_decomposition")
+        if not os.path.exists(mainFolder + radix + "material_decomposition/" + "/I_decomposition"):
+            os.makedirs(mainFolder + radix + "material_decomposition/" + "/I_decomposition")
+        if not os.path.exists(mainFolder + radix + "material_decomposition/" + "/Water_decomposition"):
+            os.makedirs(mainFolder + radix + "material_decomposition/" + "/Water_decomposition")
+
+        textSlice = '%4.4d' % fileNameIndex
+
+        popcornIO.saveEdf(AuImage, mainFolder + radix + "material_decomposition/" + "/Au_decomposition/" + radix + "Au_decomposition_" + textSlice + '.edf')
+        popcornIO.saveEdf(IImage, mainFolder + radix + "material_decomposition/" + "/I_decomposition/" + radix + "I_decomposition_" + textSlice + '.edf')
+        popcornIO.saveEdf(WaterImage, mainFolder + radix + "material_decomposition/" + "/Water_decomposition/" + radix + "Water_decomposition_" + textSlice + '.edf')
+
+
