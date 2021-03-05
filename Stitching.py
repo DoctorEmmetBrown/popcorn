@@ -6,7 +6,7 @@ import shutil
 from skimage import filters
 import numpy as np
 
-from popcornIO import openSeq, saveTif
+from popcornIO import open_sequence, save_tif_image
 
 
 def stitch_multiple_folders_into_one(list_of_folders, output_folder, delta_z, look_for_best_slice=True, copy_mode=0,
@@ -20,7 +20,7 @@ def stitch_multiple_folders_into_one(list_of_folders, output_folder, delta_z, lo
 
     Args:
         list_of_folders (list[str]): list of input folders (expects images in each of those folders whatever the format)
-        output_folder (str):         complete output path
+        output_folder (str):         complete output total_path
         delta_z (int):               supposed z discrete displacement (number of slices)
         look_for_best_slice (bool):  False: we don't look for best matched slice between folders, True : we do
         copy_mode (int):             0: files are moved (no backup), 1: files are copied in the output_folder
@@ -78,8 +78,8 @@ def stitch_multiple_folders_into_one(list_of_folders, output_folder, delta_z, lo
                                             supposed_top_overlap_slice + int(security_band_size)]
 
                     # We load the corresponding bands
-                    bottom_band_image = openSeq(bottom_band_filenames)
-                    top_band_image = openSeq(top_band_filenames)
+                    bottom_band_image = open_sequence(bottom_band_filenames)
+                    top_band_image = open_sequence(top_band_filenames)
 
                     # Stitching computation. Returns the overlapping slices index between given bands
                     overlap_index = int(look_for_maximum_correlation_band(bottom_band_image, top_band_image, 10, True))
@@ -147,7 +147,7 @@ def stitch_multiple_folders_into_one(list_of_folders, output_folder, delta_z, lo
                         output_filename = output_folder + os.path.basename(filename)
                         for i in range(0, band_average_size):
                             slice_data = averaged_image[i, :, :].squeeze()
-                            saveTif(slice_data.astype(np.uint16), output_filename)
+                            save_tif_image(slice_data.astype(np.uint16), output_filename, bit=16)
 
                     # In case of no average, the overlapping index in the next folder is
                     # the supposed one + half of average band
@@ -187,8 +187,8 @@ def average_images_from_filenames(first_image_filenames, second_image_filenames,
         numpy.ndarray: averaged image
     """
     # Opens image
-    first_image = openSeq(first_image_filenames)
-    second_image = openSeq(second_image_filenames)
+    first_image = open_sequence(first_image_filenames)
+    second_image = open_sequence(second_image_filenames)
 
     # If standard average requested
     if mode == 1:
@@ -324,5 +324,5 @@ if __name__ == "__main__":
     imageBFolder = '/data/visitor/md1237/id17/volfloat/blablabla_002'
     imageAFiles = glob.glob(imageAFolder + '/*.tif')
     imageBFiles = glob.glob(imageAFolder + '/*.tif')
-    imageA = openSeq(imageAFiles)
-    imageB = openSeq(imageBFiles)
+    imageA = open_sequence(imageAFiles)
+    imageB = open_sequence(imageBFiles)

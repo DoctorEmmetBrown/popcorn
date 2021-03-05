@@ -1,31 +1,25 @@
+import os
+import glob
+
 import numpy as np
-import glob, os
+
 import popcornIO
+import Resampling
 
 
-def convert_int_to_float(image, minFloat, maxFloat):
-    """
-    Conversion from [0:65535] uint16 to [minFloat:maxFloat] float32
-    :param image: input uint image
-    :param minFloat: min val after conversion
-    :param maxFloat: max val after conversion
-    :return: converted float32 image
-    """
-    image = image.astype(np.float32)
-    return image / 65535 * (maxFloat - minFloat) + minFloat
+def three_materials_decomposition(above_kedge_image, below_kedge_image, kedge_material="Au", secondary_material="I"):
+    """Temporary 3 material decomposition for (I, Ba, Gd, Au) + Water
 
+    Args:
+        above_kedge_image (numpy.ndarray): above K-edge acquisition image
+        below_kedge_image (numpy.ndarray): below K-edge acquisition image
+        kedge_material (str):              K-edge element (among I, Ba, Gd and Au)
+        secondary_material (str):          secondary element (among I, Ba, Gd and Au)
 
-def three_materials_decomposition(above_kedge_image, below_kedge_image, kedge_element="Au", second_element="I"):
+    Returns:
+        (numpy.ndarray, numpy.ndarray, numpy.ndarray): concentration maps (in g/L) of both input materials and water
     """
-    Calculating the concentration (in mg/mL) of the kedge_element based on the assumption that each voxel is only
-    composed of water, the kedge element and the second element.
-    :param above_kedge_image: image acquired with an energy right above the element kedge
-    :param below_kedge_image: image acquired with an energy right below the element kedge
-    :param kedge_element: the kedge element (I, Ba, Gd, Au)
-    :param second_element: the second element
-    :return: concentration map (in mg/mL) of the kedge element
-    """
-    indexesDict = {
+    indices_dict = {
         "i": 1,
         "iodine": 1,
         "ba": 2,
@@ -45,66 +39,77 @@ def three_materials_decomposition(above_kedge_image, below_kedge_image, kedge_el
 
     densities = [4.93, 3.5, 7.9, 19.3]
 
-    main_element_index = indexesDict.get(kedge_element.lower())
-    second_element_index = indexesDict.get(second_element.lower())
-    # E1 = Below, E2 = Above
-    # Water
-    mu_water_below = muz[0][(main_element_index - 1) * 2]
-    mu_water_above = muz[0][(main_element_index - 1) * 2 + 1]
+    kedge_material_index = indices_dict.get(kedge_material.lower())
+    secondary_material_index = indices_dict.get(secondary_material.lower())
 
-    # Second element
-    mu_second_element_below = muz[second_element_index][(main_element_index - 1) * 2]
-    mu_second_element_above = muz[second_element_index][(main_element_index - 1) * 2 + 1]
+    # Water attenuation
+    mu_water_below = muz[0][(kedge_material_index - 1) * 2]
+    mu_water_above = muz[0][(kedge_material_index - 1) * 2 + 1]
 
-    # Main element
-    mu_main_element_below = muz[main_element_index][(main_element_index - 1) * 2]
-    mu_main_element_above = muz[main_element_index][(main_element_index - 1) * 2 + 1]
+    # Secondary material attenuation
+    mu_secondary_material_below = muz[secondary_material_index][(kedge_material_index - 1) * 2]
+    mu_secondary_material_above = muz[secondary_material_index][(kedge_material_index - 1) * 2 + 1]
+
+    # Kedge material attenuation
+    mu_kedge_material_below = muz[kedge_material_index][(kedge_material_index - 1) * 2]
+    mu_kedge_material_above = muz[kedge_material_index][(kedge_material_index - 1) * 2 + 1]
 
     images = np.stack((above_kedge_image, below_kedge_image), axis=0)
-    material_densities = np.array([densities[main_element_index - 1], densities[second_element_index - 1], 1.0])
-    mus = np.array([[mu_main_element_above, mu_second_element_above, mu_water_above],
-                       [mu_main_element_below, mu_second_element_below, mu_water_below]])
+    material_densities = np.array([densities[kedge_material_index - 1], densities[secondary_material_index - 1], 1.0])
+    mus = np.array([[mu_kedge_material_above, mu_secondary_material_above, mu_water_above],
+                    [mu_kedge_material_below, mu_secondary_material_below, mu_water_below]])
 
-    main_element_concentration_map, second_element_concentration_map, water_concentration_map = \
+    main_material_concentration_map, second_material_concentration_map, water_concentration_map = \
         decomposition_equation_resolution(images, material_densities, mus)
 
-    return main_element_concentration_map.copy(), \
-           second_element_concentration_map.copy(), \
-           water_concentration_map.copy()
+    return main_material_concentration_map.copy(), \
+        second_material_concentration_map.copy(), \
+        water_concentration_map.copy()
 
 
-def decomposition_equation_resolution(images, densities, materialAttenuations, volumeFractionHypothesis=True):
+def decomposition_equation_resolution(images, densities, material_attenuations, volume_fraction_hypothesis=True,
+                                      verbose=False):
+    """solves the element decomposition system
+
+    Args:
+        images (numpy.ndarray): N dim array, each N-1 dim array is an image acquired at 1 given energy (can be 2D or 3D,
+        K energies in total)
+        densities (numpy.ndarray): 1D array, one density per elements inside a voxel (P elements in total)
+        material_attenuations (numpy.ndarray): 2D array, linear attenuation of each element at each energy (K * P array)
+        volume_fraction_hypothesis (bool):
+        verbose (bool):
+
+    Returns:
+        (numpy.ndarray): material decomposition maps, N-dim array composed of P * N-1-dim arrays
     """
-    solving the element decomposition system : images.ndim energies
-    :param images: N dim array, each N-1 dim array is an image acquired at 1 given energy (can be 2D or 3D, K energies in total)
-    :param densities: 1D array, one density per elements inside a voxel (P elements in total)
-    :param materialAttenuations: 2D array, linear attenuation of each element at each energy (K * P array)
-    :return: material decomposition maps, N-dim array composed of P * N-1-dim arrays
-    """
-    print("-- Material decomposition --")
-    numberOfEnergies = images.shape[0]
-    print(">Number of energies: ", numberOfEnergies)
-    numberOfMaterials = densities.size
-    print(">Number of materials: ", numberOfMaterials)
-    print(">Sum of materials volume fraction equal to 1 hypothesis :", volumeFractionHypothesis)
-    system_2d_matrix = np.ones((numberOfEnergies + volumeFractionHypothesis * 1, numberOfMaterials))
+    number_of_energies = images.shape[0]
+    number_of_materials = densities.size
 
-    system_2d_matrix[0:numberOfEnergies, :] = materialAttenuations
-    vector_2d_matrix = np.ones((numberOfEnergies + volumeFractionHypothesis * 1, images[0, :].size))
-    energyIndex = 0
+    if verbose:
+        print("-- Material decomposition --")
+        print(">Number of energies: ", number_of_energies)
+        print(">Number of materials: ", number_of_materials)
+        print(">Sum of materials volume fraction equal to 1 hypothesis :", volume_fraction_hypothesis)
+
+    system_2d_matrix = np.ones((number_of_energies + volume_fraction_hypothesis * 1, number_of_materials))
+
+    system_2d_matrix[0:number_of_energies, :] = material_attenuations
+    vector_2d_matrix = np.ones((number_of_energies + volume_fraction_hypothesis * 1, images[0, :].size))
+    energy_index = 0
     for image in images:
-        vector_2d_matrix[energyIndex] = image.flatten()
-        energyIndex += 1
+        vector_2d_matrix[energy_index] = image.flatten()
+        energy_index += 1
 
     vector_2d_matrix = np.transpose(vector_2d_matrix)
 
-    if numberOfEnergies + volumeFractionHypothesis * 1 == numberOfMaterials:
+    solution_matrix = None
+    if number_of_energies + volume_fraction_hypothesis * 1 == number_of_materials:
         system_3d_matrix = np.repeat(system_2d_matrix[np.newaxis, :], images[0, :].size, axis=0)
         solution_matrix = np.linalg.solve(system_3d_matrix, vector_2d_matrix)
     else:
         for vector in vector_2d_matrix:
             solution_vector = np.linalg.lstsq(system_2d_matrix, vector, rcond=None)
-            if 'solution_matrix' in locals():
+            if solution_matrix:
                 if solution_matrix.ndim == 2:
                     solution_matrix = np.vstack([solution_matrix, solution_vector[0]])
                 else:
@@ -144,36 +149,49 @@ if __name__ == '__main__':
     print("Found below folder :", belowFolder)
     print("min Float value :", belowMinFloat)
     print("max Float value :", belowMaxFloat)
+
+    if not os.path.exists(mainFolder + "material_decomposition/"):
+        os.makedirs(mainFolder + "material_decomposition/")
+
+    if not os.path.exists(mainFolder + radix + "/"):
+        os.makedirs(mainFolder + radix + "material_decomposition/")
+
+    if not os.path.exists(mainFolder + radix + "material_decomposition/" + "/Au_decomposition"):
+        os.makedirs(mainFolder + radix + "material_decomposition/" + "/Au_decomposition")
+    if not os.path.exists(mainFolder + radix + "material_decomposition/" + "/I_decomposition"):
+        os.makedirs(mainFolder + radix + "material_decomposition/" + "/I_decomposition")
+    if not os.path.exists(mainFolder + radix + "material_decomposition/" + "/Water_decomposition"):
+        os.makedirs(mainFolder + radix + "material_decomposition/" + "/Water_decomposition")
+
     for fileNameIndex in range(0, min(len(aboveFileNames), len(belowFileNames))):
-        belowImage = popcornIO.openImage(belowFileNames[fileNameIndex])
-        aboveImage = popcornIO.openImage(aboveFileNames[fileNameIndex])
+        belowImage = popcornIO.open_image(belowFileNames[fileNameIndex])
+        aboveImage = popcornIO.open_image(aboveFileNames[fileNameIndex])
 
-        aboveImage = convert_int_to_float(aboveImage, aboveMinFloat, aboveMaxFloat)
+        aboveImage = Resampling.conversion_from_uint16_to_float32(aboveImage, aboveMinFloat, aboveMaxFloat)
 
-        belowImage = convert_int_to_float(belowImage, belowMinFloat, belowMaxFloat)
+        belowImage = Resampling.conversion_from_uint16_to_float32(belowImage, belowMinFloat, belowMaxFloat)
 
         if mainMaterial == "Au":
             AuImage, IImage, WaterImage = three_materials_decomposition(aboveImage, belowImage, "Au", "I")
         else:
             IImage, AuImage, WaterImage = three_materials_decomposition(aboveImage, belowImage, "I", "Au")
 
-        if not os.path.exists(mainFolder + "material_decomposition/"):
-            os.makedirs(mainFolder + "material_decomposition/")
-
-        if not os.path.exists(mainFolder + radix + "/"):
-            os.makedirs(mainFolder + radix + "material_decomposition/")
-
-        if not os.path.exists(mainFolder + radix + "material_decomposition/" + "/Au_decomposition"):
-            os.makedirs(mainFolder + radix + "material_decomposition/" + "/Au_decomposition")
-        if not os.path.exists(mainFolder + radix + "material_decomposition/" + "/I_decomposition"):
-            os.makedirs(mainFolder + radix + "material_decomposition/" + "/I_decomposition")
-        if not os.path.exists(mainFolder + radix + "material_decomposition/" + "/Water_decomposition"):
-            os.makedirs(mainFolder + radix + "material_decomposition/" + "/Water_decomposition")
+        percent = "{0:.1f}".format(100 * (fileNameIndex / float(min(len(aboveFileNames), len(belowFileNames)) - 1)))
+        filled_length = int(100 * fileNameIndex // min(len(aboveFileNames), len(belowFileNames)) - 1)
+        bar = '#' * filled_length + '-' * (100 - filled_length)
+        print("\r |" + bar + "| " + percent + "% ", end="\r")
+        # Print New Line on Complete
+        if fileNameIndex == min(len(aboveFileNames), len(belowFileNames)) - 1:
+            print()
 
         textSlice = '%4.4d' % fileNameIndex
 
-        popcornIO.saveEdf(AuImage, mainFolder + radix + "material_decomposition/" + "/Au_decomposition/" + radix + "Au_decomposition_" + textSlice + '.edf')
-        popcornIO.saveEdf(IImage, mainFolder + radix + "material_decomposition/" + "/I_decomposition/" + radix + "I_decomposition_" + textSlice + '.edf')
-        popcornIO.saveEdf(WaterImage, mainFolder + radix + "material_decomposition/" + "/Water_decomposition/" + radix + "Water_decomposition_" + textSlice + '.edf')
-
-
+        popcornIO.save_edf_image(AuImage,
+                                 mainFolder + radix + "material_decomposition/" + "/Au_decomposition/"
+                                 + radix + "Au_decomposition_" + textSlice + '.edf')
+        popcornIO.save_edf_image(IImage,
+                                 mainFolder + radix + "material_decomposition/" + "/I_decomposition/"
+                                 + radix + "I_decomposition_" + textSlice + '.edf')
+        popcornIO.save_edf_image(WaterImage,
+                                 mainFolder + radix + "material_decomposition/" + "/Water_decomposition/"
+                                 + radix + "Water_decomposition_" + textSlice + '.edf')

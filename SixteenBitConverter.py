@@ -1,62 +1,69 @@
 import os
 import math
 import numpy as np
-from popcornIO import openImage, saveTiff16bit
+from popcornIO import open_image, save_tif_image
+from Resampling import conversion_from_float32_to_uint16
+
 
 def pad_with(vector, pad_width, iaxis, kwargs):
-    """
-    adds rows and columns to an image : its size depends on pad_width value, the value of pixels depends on padder value
-    :param vector: self
-    :param pad_width: nb of pixels to add
-    :param iaxis: self
-    :param kwargs: 'padder' = value of the added pixels
-    :return: self
+    """adds rows and columns to an image : its size depends on pad_width val, the value of pixels depends on padder val
+
+    Args:
+        vector ():       self
+        pad_width (list[int]): nb of pixels to add
+        iaxis ():        self
+        kwargs ():       'padder' = value of the added pixels
+
+    Returns:
+        self
     """
     pad_value = kwargs.get('padder', 0)
     vector[:pad_width[0]] = pad_value
     vector[-pad_width[1]:] = pad_value
 
-def paddingImage(image, paddingSize):
+
+def padding_image(image, padding_size):
+    """determines the distribution of pixels to add on top/bottom/right/left calls the pad_with function
+
+    Args:
+        image (numpy.ndarray): input image
+        padding_size (int):     nb of pixels to add (in both x and y directions)
+
+    Returns:
+        (numpy.ndarray): padded image
     """
-    determines the distribution of pixels to add on top/bottom/righ/left calls the pad_with function
-    :param image: input image
-    :param paddingSize: nb of pixels to add (in both x and y directions)
-    :return: padded image
-    """
-    if paddingSize%2 != 0:
-        return np.pad(image, (int(paddingSize/2), math.ceil(paddingSize/2)), pad_with)
+    if padding_size % 2 != 0:
+        return np.pad(image, (int(padding_size / 2), math.ceil(padding_size / 2)), pad_with)
     else:
-        return np.pad(image, int(paddingSize/2), pad_with)
+        return np.pad(image, int(padding_size / 2), pad_with)
 
 
-def multiThreadingConversion(listOfArgs):
+def multi_threading_conversion(list_of_args):
     """
     transforms a list of args into 5 args before calling the conversion function
-    :param listOfArgs: list of args
+    :param list_of_args: list of args
     :return: None
     """
-    conversionFromListOfFiles(listOfArgs[0], listOfArgs[1], listOfArgs[2], listOfArgs[3], listOfArgs[4])
+    conversion_from_list_of_files(list_of_args[0], list_of_args[1], list_of_args[2], list_of_args[3], list_of_args[4])
 
 
+def conversion_from_list_of_files(list_of_files, output_folder, min_value=0., max_value=1., padding_size=0):
+    """opens files from the input list of files, converts them in uint16 and saves them in output folder as .tif files
 
-def conversionFromListOfFiles(listOfFiles, outputFolder, minValue=0., maxValue=1., paddingSize=0):
+    Args:
+        list_of_files (): input list of files
+        output_folder (): output folder path
+        min_value ():     minimum value (any value below will be set to 0)
+        max_value ():     maximum value (any value above will be set to 65535)
+        padding_size ():  image padding size
+
+    Returns:
+        None
     """
-    opens the files from the input list of files, converts them in uint16 and saves them in output folder as .tif files
-    :param listOfFiles: input list of files
-    :param outputFolder: output folder
-    :param minValue: minimum value in the image
-    :param maxValue: maximum value in the image
-    :return: None
-    """
-    for fileName in listOfFiles:
-        baseName = os.path.basename(fileName).split(".")[0]
-        data = openImage(fileName)
-        if paddingSize != 0 :
-            data = paddingImage(data, paddingSize)
-        saveTiff16bit(data, outputFolder + '/'+baseName + ".tif", minValue, maxValue)
-
-if __name__ == "__main__" :
-    print("Hello")
-    number = 0
-    import fabio
-
+    for file_name in list_of_files:
+        base_name = os.path.basename(file_name).split(".")[0]
+        data = open_image(file_name)
+        if padding_size != 0:
+            data = padding_image(data, padding_size)
+        converted_data = conversion_from_float32_to_uint16(data, min_value, max_value)
+        save_tif_image(converted_data, output_folder + '/' + base_name + ".tif", bit=16)

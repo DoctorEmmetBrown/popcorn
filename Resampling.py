@@ -4,7 +4,7 @@ from skimage.transform import resize
 
 
 def conversion_from_uint16_to_float32(image, min_value, max_value):
-    """Converts 16 bit int into 32 bit float using min max parameters (0 -> min, 65535 -> max)
+    """Converts 16 bit uint into 32 bit float using min max parameters (0 -> min, 65535 -> max)
 
     Args:
         image (numpy.ndarray): input 16bit image
@@ -16,6 +16,21 @@ def conversion_from_uint16_to_float32(image, min_value, max_value):
     """
     image = image.astype(np.float32)
     return (image/65535) * (max_value - min_value) - min_value
+
+
+def conversion_from_float32_to_uint16(image, min_value, max_value):
+    """Converts 32 bit float into 16 bit uint using min max parameters (min -> 0, max -> 65535)
+
+    Args:
+        image (numpy.ndarray): input 32bit image
+        min_value (float):     min float value
+        max_value (float):     max float value
+
+    Returns:
+        (numpy.ndarray): converted image (uint16)
+    """
+    image = (image - min_value) / (max_value - min_value) * 65535
+    return image.astype(np.uint16)
 
 
 def normalize_image(image):

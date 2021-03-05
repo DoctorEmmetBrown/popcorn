@@ -1,88 +1,285 @@
 import os
+import glob
 
 import fabio
 import fabio.edfimage as edf
 import fabio.tifimage as tif
 
+import Resampling
+
 import numpy as np
 
 
-def myMkdir(folderPath):
-    if not os.path.isdir(folderPath):
-        os.mkdir(folderPath)
+def create_directory(path):
+    """creates a directory at the specified path
 
-def openImage(filename):
+    Args:
+        path (str): complete path
+
+    Returns:
+        None
+    """
+    if not os.path.exists(path):
+        os.makedirs(path)
+
+
+def create_list_of_files(folder_name, extension):
+    """creating a list of files with a corresponding extension in an input folder
+
+    Args:
+        folder_name (str): folder name
+        extension (str):   extension of the target files
+
+    Returns:
+        (str): the list of files sorted
+    """
+    list_of_files = glob.glob(folder_name + '/*' + extension)
+    list_of_files.sort()
+    return list_of_files
+
+
+def get_header(filename):
+    """retrieves the header of an image
+
+    Args:
+        filename (str): file name
+
+    Returns:
+        (str): header
+    """
+    im = fabio.open(filename)
+    header = im.header
+    return header
+
+
+def open_image(filename):
+    """opens a 2D image
+
+    Args:
+        filename (str): file name
+
+    Returns:
+        (numpy.ndarray): 2D image
+    """
     filename = str(filename)
     im = fabio.open(filename)
     imarray = im.data
     return imarray
 
 
-def getHeader(filename):
-    im = fabio.open(filename)
-    header = im.header
-    return header
+def open_sequence(filenames):
+    """opens a sequence of images
 
+    Args:
+        filenames (str): file names
 
-def saveTif(data,filename):
-    datatoStore = np.asarray(data, np.uint16)
-    tif.TifImage(data=datatoStore).write(filename)
-
-def saveTiff16bit(data, filename, minIm=0, maxIm=0, header=None):
-    if (minIm == maxIm):
-        minIm = np.amin(data)
-        maxIm = np.amax(data)
-    datatoStore = 65536 * (data - minIm) / (maxIm - minIm)
-    datatoStore[datatoStore > 65635] = 65535
-    datatoStore[datatoStore < 0] = 0
-    datatoStore = np.asarray(datatoStore, np.uint16)
-
-    if (header != None):
-        tif.TifImage(data=datatoStore, header=header).write(filename)
-    else:
-        tif.TifImage(data=datatoStore).write(filename)
-
-
-def openSeq(filenames):
+    Returns:
+        (numpy.ndarray): sequence of 2D images
+    """
     if len(filenames) > 0:
-        data = openImage(str(filenames[0]))
+        data = open_image(str(filenames[0]))
         height, width = data.shape
-        toReturn = np.zeros((len(filenames), height, width), dtype=np.float32)
+        to_return = np.zeros((len(filenames), height, width), dtype=np.float32)
         i = 0
         for file in filenames:
-            data = openImage(str(file))
-            toReturn[i, :, :] = data
+            data = open_image(str(file))
+            to_return[i, :, :] = data
             i += 1
-        return toReturn
+        return to_return
     raise Exception('spytlabIOError')
 
 
-def makeDarkMean(Darkfiedls):
-    nbslices, height, width = Darkfiedls.shape
-    meanSlice = np.mean(Darkfiedls, axis=0)
+def save_edf_image(image, filename):
+    """saves an image to .edf format (32 bit)
+
+    Args:
+        image (numpy.ndarray): 2D image
+        filename (str): filename (complete path)
+
+    Returns:
+        None
+    """
+    create_directory(remove_filename_in_path(filename))
+
+    data_to_store = image.astype(np.float32)
+    edf.EdfImage(data=data_to_store).write(filename)
+
+
+def save_edf_sequence(image, path):
+    """ saves a sequence of images to .edf format (32 bit)
+
+    Args:
+        image (numpy.ndarray): 3D sequence of images
+        path (str): complete path and regular expression of file names
+
+    Returns:
+        None
+    """
+    if not os.path.exists(path):
+        os.makedirs(path)
+    for i in range(0, image.shape[0]):
+        if i < 10:
+            save_edf_image(image[i, :, :], path + '000' + str(i) + '.edf')
+        else:
+            if i < 100:
+                save_edf_image(image[i, :, :], path + '00' + str(i) + '.edf')
+            else:
+                save_edf_image(image[i, :, :], path + '0' + str(i) + '.edf')
+
+
+def save_edf_sequence_and_crop(image, bounding_box, path):
+    """crops a sequence of images and saves it to .edf format (32 bit)
+
+    Args:
+        image (numpy.ndarray):        3D sequence of images
+        bounding_box (numpy.ndarray): shape to crop into
+        path (str):                   complete path and regular expression of file names
+
+    Returns:
+        None
+    """
+    if not os.path.exists(path):
+        os.makedirs(path)
+
+    cropped_image = image[bounding_box[4]:bounding_box[5] + 1,
+                          bounding_box[2]:bounding_box[3] + 1,
+                          bounding_box[0]:bounding_box[1] + 1]
+
+    for i in range(0, cropped_image.shape[0]):
+        slice_to_save = cropped_image[i, :, :]
+        save_edf_image(slice_to_save, path + '{:04d}'.format(i) + '.edf')
+
+
+def save_tif_image(image, filename, bit=32, header=None):
+    """saves an image to .tif format (either int16 or float32)
+
+    Args:
+        image (numpy.ndarray): 2D image
+        filename (str):        file name
+        bit (int):             16: int16, 32: float32
+        header (str):          header
+
+    Returns:
+        None
+    """
+    create_directory(remove_filename_in_path(filename))
+
+    if header:
+        if bit == 32:
+            tif.TifImage(data=image.astype(np.float32), header=header).write(filename + '.tif')
+        else:
+            tif.TifImage(data=image.astype(np.uint16), header=header).write(filename + '.tif')
+    else:
+        if bit == 32:
+            tif.TifImage(data=image.astype(np.float32)).write(filename + '.tif')
+        else:
+            tif.TifImage(data=image.astype(np.uint16)).write(filename + '.tif')
+
+
+def save_tif_sequence(image, path, bit=32, header=None):
+    """saves a sequence of images to .tif format (either int16 or float32)
+
+    Args:
+        image (numpy.ndarray): 2D image
+        path (str):            complete path + regular expression of file names
+        bit (int):             16: int16, 32: float32
+        header (str):          header
+
+    Returns:
+        None
+    """
+    for i in range(0, image.shape[0]):
+        image_path = path + '{:04d}'.format(i) + '.tif'
+        save_tif_image(image[i, :, :], image_path, bit, header)
+
+
+def save_tif_sequence_and_crop(image, bounding_box, path, bit=32, header=None):
+    """crops a sequence of images and saves it to .tif format (either int16 or float32)
+
+    Args:
+        image (numpy.ndarray):        3D sequence of images
+        bounding_box (numpy.ndarray): shape to crop into
+        path (str):                   complete path and regular expression of file names
+        bit (int):                    16: int16, 32: float32
+        header (str):                 header
+
+    Returns:
+        None
+    """
+    cropped_image = image[bounding_box[4]:bounding_box[5] + 1,
+                          bounding_box[2]:bounding_box[3] + 1,
+                          bounding_box[0]:bounding_box[1] + 1]
+
+    for i in range(0, cropped_image.shape[0]):
+        cropped_slice = cropped_image[i, :, :]
+        image_path = path + '{:04d}'.format(i) + '.tif'
+        save_tif_image(cropped_slice, image_path, bit, header)
+
+
+def remove_filename_in_path(path):
+    """remove the file name from a path
+
+    Args:
+        path (str): complete path
+
+    Returns:
+        complete path without the file name
+    """
+    if len(path.split("\\")) > 1:
+        splitter = "\\"
+    else:
+        splitter = "/"
+    path_list = path.split(splitter)[:-1]
+    new_path = ""
+    for elt in path_list:
+        new_path += elt + splitter
+
+    return new_path
+
+
+def remove_last_folder_in_path(path):
+    """remove the last folder from a path
+
+    Args:
+        path (str): complete path
+
+    Returns:
+        complete path without the last folder
+    """
+    if len(path.split("\\")) > 1:
+        splitter = "\\"
+    else:
+        splitter = "/"
+    path_list = path.split(splitter)[:-2]
+    new_path = ""
+    for elt in path_list:
+        new_path += elt + splitter
+
+    return new_path
+
+
+def make_dark_mean(dark_fields):
+    """TODO
+
+    Args:
+        dark_fields (TODO): TODO
+
+    Returns:
+        TODO
+    """
+    mean_slice = np.mean(dark_fields, axis=0)
     print('-----------------------  mean Dark calculation done ------------------------- ')
-    OutputFileName = '/Users/helene/PycharmProjects/spytlab/meanDarkTest.edf'
-    outputEdf = edf.EdfFile(OutputFileName, access='wb+')
-    outputEdf.WriteImage({}, meanSlice)
-    return meanSlice
+    output_filename = '/Users/helene/PycharmProjects/spytlab/meanDarkTest.edf'
+    output_edf = edf.EdfFile(output_filename, access='wb+')
+    output_edf.WriteImage({}, mean_slice)
+
+    return mean_slice
 
 
-def saveEdf(data, filename):
-    #    print(filename)
-    dataToStore = data.astype(np.float32)
-    edf.EdfImage(data=dataToStore).write(filename)
-
-
-def saveEdfInt(data, filename):
-    #    print(filename)
-    dataToStore = data.astype(np.int)
-    edf.EdfImage(data=dataToStore).write(filename)
-
-
-def save3D_Edf(data, filename):
-    nbslices, height, width = data.shape
-    for i in range(nbslices):
-        textSlice = '%4.4d' % i
-        dataToSave = data[i, :, :]
-        filenameSlice = filename + textSlice + '.edf'
-        saveEdf(dataToSave, filenameSlice)
+if __name__ == '__main__':
+    total_path = "/data/visitor/test/ok.tif"
+    print(remove_filename_in_path(total_path))
+    print(remove_last_folder_in_path(total_path))
+    total_path = "\\data\\visitor\\test\\ok.tif"
+    print(remove_filename_in_path(total_path))
+    print(remove_last_folder_in_path(total_path))
