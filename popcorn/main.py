@@ -10,9 +10,9 @@ import random
 import fabio
 import multiprocessing
 
-from popcornIO import open_image
-from SixteenBitConverter import conversion_from_list_of_files, multi_threading_conversion
-from Stitching import stitch_multiple_folders_into_one
+from popcorn.input_output import open_image
+from popcorn.sixteen_bit_converter import conversion_from_list_of_files, multi_threading_conversion
+from popcorn.stitching import stitch_multiple_folders_into_one
 
 
 def look_for_min_max_val(list_of_folders, percentile):

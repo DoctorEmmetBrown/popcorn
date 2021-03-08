@@ -1,8 +1,8 @@
 import os
 import math
 import numpy as np
-from popcornIO import open_image, save_tif_image
-from Resampling import conversion_from_float32_to_uint16
+from popcorn.input_output import open_image, save_tif_image
+from resampling import conversion_from_float32_to_uint16
 
 
 def pad_with(vector, pad_width, iaxis, kwargs):

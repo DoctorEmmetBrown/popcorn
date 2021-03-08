@@ -5,8 +5,6 @@ import fabio
 import fabio.edfimage as edf
 import fabio.tifimage as tif
 
-import Resampling
-
 import numpy as np
 
 

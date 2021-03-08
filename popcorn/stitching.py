@@ -6,7 +6,7 @@ import shutil
 from skimage import filters
 import numpy as np
 
-from popcornIO import open_sequence, save_tif_image
+from popcorn.input_output import open_sequence, save_tif_image
 
 
 def stitch_multiple_folders_into_one(list_of_folders, output_folder, delta_z, look_for_best_slice=True, copy_mode=0,
