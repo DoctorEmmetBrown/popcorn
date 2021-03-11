@@ -116,10 +116,10 @@ class Material:
 
 
 if __name__ == '__main__':
-    gold = Material("Gold")
+    gold = Material("Cortical Bone")
     energies = np.array([10000, 35000, 40000, 45000, 50000])
     print("Mus :", gold.get_mu(energies))
-    print("Beta :", gold.get_beta(int(energies[0]), 19.3))
-    print("Betas :", gold.get_beta_from_spectrum(energies, 19.3))
-    print("Delta :", gold.get_delta(int(energies[0]), 19.3))
-    print("Deltas :", gold.get_delta_from_spectrum(energies, 19.3))
+    print("Beta :", gold.get_beta(int(energies[0]), 1.85))
+    print("Betas :", gold.get_beta_from_spectrum(energies, 1.85))
+    print("Delta :", gold.get_delta(int(energies[0]), 1.85))
+    print("Deltas :", gold.get_delta_from_spectrum(energies, 1.85))
