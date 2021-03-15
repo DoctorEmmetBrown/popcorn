@@ -25,6 +25,7 @@ def preProcessAndPadImages(Is, Ir, expDict):
     Returns Is and Ir padded
     Will eventually do more (Deconvolution, shot noise filtering...)
     """
+    
     nbImages, width, height = Ir.shape
     padSize=expDict['padding']
     IrToReturn = np.zeros((nbImages, width + 2 * padSize, height + 2 * padSize))
@@ -63,14 +64,13 @@ def deconvolve(Image, sigma, deconvType):
     
   
 def readStudiedCase(sCase, nbImages, machinePrefix='MacLaurene'):
-    """
-    This function contains and reads the data specific to an experiment,
-    opens the acquisitions and normalizes
-    Arguments: 
+    
+    """This function contains and reads the data specific to an experiment, opens the acquisitions and normalizes
+    Args:
         sCase [string]: the experiment name
         nbImages [int]: the number of pairs of acquisitions to take into account
         machinePrefix [string]: the name of the machine you are working on
-    Outputs:
+    Returns:
         Is [numpy array]: contains the nbImages sample images
         Ir [numpy array]: contains the nbImages reference images
     """
@@ -333,10 +333,13 @@ def readStudiedCase(sCase, nbImages, machinePrefix='MacLaurene'):
 
 
 def processMISTII_2(sampleImage, referenceImage, ddict):
-    """
-    this function calls processMISTII_2() in its file, 
+    """this function calls processMISTII_2() in its file, 
     crops the results of the padds added in pre-processin 
     and saves the retrieved images.
+    Args:
+        sampleImage [numpy array]: set of sample images
+        referenceImage [numpy array]: set of reference images
+        ddict [dictionnary]: experiment dictionnary
     """
     result = processProjectionMISTII_2(sampleImage, referenceImage, expParam=ddict)
     thickness= result['thickness']
@@ -371,10 +374,13 @@ def processMISTII_2(sampleImage, referenceImage, ddict):
     return 
 
 def processMISTII_1(sampleImage, referenceImage, ddict):
-    """
-    this function calls processProjectionMISTII_1() in its file, 
-    crops the results of the padds added in pre-processing
+    """this function calls processProjectionMISTII_1() in its file, 
+    crops the results of the padds added in pre-processin 
     and saves the retrieved images.
+    Args:
+        sampleImage [numpy array]: set of sample images
+        referenceImage [numpy array]: set of reference images
+        ddict [dictionnary]: experiment dictionnary
     """
     result = processProjectionMISTII_1(sampleImage, referenceImage, expParam=ddict)
     phi= result['phi']
@@ -399,10 +405,13 @@ def processMISTII_1(sampleImage, referenceImage, ddict):
 
 
 def processLCS(sampleImage, referenceImage, ddict):
-    """
-    this function calls processProjectionLCS() in its file, 
+    """this function calls processProjectionLCS() in its file, 
     crops the results of the padds added in pre-processin 
     and saves the retrieved images.
+    Args:
+        sampleImage [numpy array]: set of sample images
+        referenceImage [numpy array]: set of reference images
+        ddict [dictionnary]: experiment dictionnary
     """
     result=processProjectionLCS(sampleImage, referenceImage,ddict)
     dx=result['dx']
@@ -433,11 +442,15 @@ def processLCS(sampleImage, referenceImage, ddict):
 
     
 def processUMPA(sampleImage, referenceImage, ddict):
-    """
-    this function calls processProjectionUMPA() in its file, 
+    """this function calls processProjectionUMPA() in its file, 
     crops the results of the padds added in pre-processin 
     and saves the retrieved images.
+    Args:
+        sampleImage [numpy array]: set of sample images
+        referenceImage [numpy array]: set of reference images
+        ddict [dictionnary]: experiment dictionnary
     """
+
     result=processProjectionUMPA(sampleImage, referenceImage,ddict)
     dx=result['dx']
     dy=result['dy']
@@ -470,12 +483,15 @@ def processUMPA(sampleImage, referenceImage, ddict):
     return dx, dy, phiFC, phiK, phiLA
 
 def processOpticalFlow(sampleImage, referenceImage, ddict):
-    
-    """
-    this function calls opticalFlow2020() in its file, 
+    """this function calls opticalFlow2020() in its file, 
     crops the results of the padds added in pre-processin 
     and saves the retrieved images.
+    Args:
+        sampleImage [numpy array]: set of sample images
+        referenceImage [numpy array]: set of reference images
+        ddict [dictionnary]: experiment dictionnary
     """
+    
     result = processProjectionOpticalFlow2020(sampleImage, referenceImage, expParam=ddict)
     dx = result['dx']
     dy = result['dy']
@@ -502,6 +518,14 @@ def processOpticalFlow(sampleImage, referenceImage, ddict):
 
 
 def processPavlov2020(sampleImage, referenceImage, ddict):
+    """this function calls pavlov2020() in its file, 
+    crops the results of the padds added in pre-processin 
+    and saves the retrieved images.
+    Args:
+        sampleImage [numpy array]: set of sample images
+        referenceImage [numpy array]: set of reference images
+        ddict [dictionnary]: experiment dictionnary
+    """
     absMask=gaussian_filter(Is,10)/gaussian_filter(Ir,10)
     result = pavlov2020(sampleImage, referenceImage, absMask, expParam=ddict)
     thicknessPavlov = result
@@ -514,6 +538,14 @@ def processPavlov2020(sampleImage, referenceImage, ddict):
 
 
 def processMISTI(sampleImage, referenceImage, ddict):
+    """this function calls MISTI() in its file, 
+    crops the results of the padds added in pre-processin 
+    and saves the retrieved images.
+    Args:
+        sampleImage [numpy array]: set of sample images
+        referenceImage [numpy array]: set of reference images
+        ddict [dictionnary]: experiment dictionnary
+    """
     result = MISTI(sampleImage, referenceImage, ddict)
     phi = result['phi']
     Deff = result['Deff']
@@ -532,6 +564,37 @@ if __name__ == "__main__":
     nbImages=10 #nb of pairs (Is, Ir) to use
     studiedCase = 'Patte_XSVTTest'  # name of the experiment we want to work on
     machinePrefix='MacData'  #name of the machine we are working on
+    
+    methods_list=[]
+    phase_retrieval_method={}
+    
+    LCS={}
+    LCS["do"]=False
+    methods_list.append(LCS)
+    UMPA={}
+    UMPA["do"]=False
+    methods_list.append(LCS)
+    OF={}
+    OF["do"]=False
+    methods_list.append(LCS)
+    Pavlov={}
+    Pavlov["do"]=False
+    methods_list.append(LCS)
+    MISTI={}
+    MISTI["do"]=False
+    methods_list.append(LCS)
+    MISTII_1={}
+    MISTII_1["do"]=False
+    methods_list.append(LCS)
+    MISTII_2={}
+    MISTII_2["do"]=False
+    methods_list.append(LCS)
+
+    for method in methods_list:
+        if method["do"]==True:
+            
+    
+    
     doLCS=False
     doMISTII_2=True
     doMISTII_1=False
