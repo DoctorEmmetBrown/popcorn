@@ -5,7 +5,7 @@ import glob
 import random
 import os
 from scipy.ndimage.filters import gaussian_filter
-from MISTII_2 import processProjectionMISTII_2,processProjectionMISTII_2_2
+from MISTII_2 import processProjectionMISTII_2
 from MISTII_1 import processProjectionMISTII_1
 from MISTI import MISTI
 from OpticalFlow2020 import processProjectionOpticalFlow2020
@@ -18,6 +18,7 @@ from matplotlib import pyplot as plt
 import numpy as np
 from skimage import color, data, restoration
 from saveParameters import saveParameters
+from PhaseRetrievalClasses import Phase_Retrieval_Methods
 
 def preProcessAndPadImages(Is, Ir, expDict):
     """
@@ -289,7 +290,8 @@ def readStudiedCase(sCase, nbImages, machinePrefix='MacLaurene'):
         raise Exception('experiment sCase: %g not found',sCase )
     #We create a folder for each retrieval test
     expParam['outputFolder']+=expParam['expID']
-    os.mkdir(expParam['outputFolder'])    
+    os.mkdir(expParam['outputFolder'])   
+    
     
     ## Load the reference and sample images
     refFolder = expParam['expFolder'] + 'ref/'
@@ -558,7 +560,7 @@ def processMISTI(sampleImage, referenceImage, ddict):
     saveEdf(Deff, ddict['outputFolder'] + '/Deff_MISTI.edf')
     return phi, Deff
 
-if __name__ == "__main__":
+def mainBis():
     
     #Parameters to tune
     nbImages=10 #nb of pairs (Is, Ir) to use
@@ -567,32 +569,6 @@ if __name__ == "__main__":
     
     methods_list=[]
     phase_retrieval_method={}
-    
-    LCS={}
-    LCS["do"]=False
-    methods_list.append(LCS)
-    UMPA={}
-    UMPA["do"]=False
-    methods_list.append(LCS)
-    OF={}
-    OF["do"]=False
-    methods_list.append(LCS)
-    Pavlov={}
-    Pavlov["do"]=False
-    methods_list.append(LCS)
-    MISTI={}
-    MISTI["do"]=False
-    methods_list.append(LCS)
-    MISTII_1={}
-    MISTII_1["do"]=False
-    methods_list.append(LCS)
-    MISTII_2={}
-    MISTII_2["do"]=False
-    methods_list.append(LCS)
-
-    for method in methods_list:
-        if method["do"]==True:
-            
     
     
     doLCS=False
@@ -623,7 +599,7 @@ if __name__ == "__main__":
     expDict['DeconvType'] = 'unsupervised_wiener' #unsupervised_wiener or richardson_lucy
     expDict['processingtimeLCSv2']=0
     expDict['processingtimePavlovDirDF']=0   
-    expDict['PavlovDirDF_MedianFilter']=3
+    expDict['PavlovDixrDF_MedianFilter']=3
     expDict['Absorption_correction_sigma']=15
     #First processing of the acquisitions before phase retrieval
     Is, Ir = preProcessAndPadImages(Is, Ir, expDict)
@@ -693,3 +669,41 @@ if __name__ == "__main__":
    
     saveParameters(expDict) #Function that is used to save all parameters in excel file when testing
 
+
+if __name__ == "__main__":
+    
+    #Parameters to tune
+    studiedCase = 'MoucheSimapAout2017'  # name of the experiment we want to work on
+    
+    doLCS=True
+    doMISTII_2=True
+    doMISTII_1=True
+    doMISTI=True
+    doUMPA=True
+    doOF=True
+    doPavlov=True
+    
+    doSaveParameters=False
+    
+    phase_retrieval_experiment=Phase_Retrieval_Methods(studiedCase)
+    
+    if doLCS:
+        phase_retrieval_experiment.process_LCS()
+    if doUMPA:
+        phase_retrieval_experiment.process_UMPA()
+    if doOF:
+        phase_retrieval_experiment.process_OpticalFlow()
+    if doPavlov:
+        phase_retrieval_experiment.process_Pavlov2020()
+    if doMISTI:
+        phase_retrieval_experiment.process_MISTI()
+    if doMISTII_1:
+        phase_retrieval_experiment.process_MISTII_1()
+    if doMISTII_2:
+        phase_retrieval_experiment.process_MISTII_2()
+    
+    if doSaveParameters:
+        saveParameters(phase_retrieval_experiment)
+    
+    
+    

@@ -1,2 +1,22 @@
-<listExperiments>
-    
+<list_experiments>
+    <experiment>
+        <experiment_name>MoucheSimapAout2017</experiment_name>
+        <exp_folder>/Users/quenot/Data/SIMAP/MoucheSimapAout2017/selec16/</exp_folder>
+        <output_folder>/Users/quenot/Documents/PhaseRetrieval/Results/MoucheSimapAout2017/</output_folder>
+        <energy unit="keV">27</energy>
+        <pixel unit="um">44e-6</pixel>
+        <dist_object_detector unit="m">0.41</dist_object_detector>
+        <dist_sample_object unit="m">0.12</dist_sample_object>
+        <delta>2.97e-7</delta>
+        <beta>1.29e-9</beta>
+        <source_size unit="um">2</source_size>
+        <detector_PSF unit="pix">1.2</detector_PSF>
+        <crop_on>True</crop_on>
+        <cropDebX unit="pix">20</cropDebX>
+        <cropDebY unit="pix">160</cropDebY>
+        <cropEndX unit="pix">1520</cropEndX>
+        <cropEndY unit="pix">1660</cropEndY>
+        
+    </experiment>
+        
+</list_experiments>
