@@ -1,0 +1,18 @@
+<list_experiments>
+    <experiment>
+        <experiment_name>MoucheSimapAout2017</experiment_name>
+        <nb_of_point>22</nb_of_point>
+        <pad_size>0</pad_size>
+        <pad_type>reflect</pad_type>
+        <do_deconvolution>True</do_deconvolution>
+        <deconvolution_type>unsupervised_wiener</deconvolution_type>
+        <absorption_correction_sigma>15</absorption_correction_sigma>
+        <max_shift>2</max_shift>
+        <sigma_regularization>1</sigma_regularization>
+        <LCS_median_filter>3</LCS_median_filter>
+        <umpaNw>5</umpaNw>
+        <MIST_median_filter>3</MIST_median_filter>
+    </experiment>
+
+
+</list_experiments>
