@@ -17,6 +17,7 @@ from OpticalFlow2020 import processProjectionOpticalFlow2020
 from Pavlov2020 import tie_Pavlovetal2020 as pavlov2020
 from LCS import processProjectionLCS
 from speckle_matching import processProjectionUMPA
+from XSVT import processProjectionXSVT
 import datetime
 from matplotlib import pyplot as plt
 import numpy as np
@@ -443,6 +444,13 @@ class Phase_Retrieval_Experiment:
         saveEdf(phi, self.output_folder + '/Phi_MISTI.edf')
         saveEdf(Deff, self.output_folder + '/Deff_MISTI.edf')
         return self.result_MISTI
+
+    def process_XSVT(self):
+        """
+        TO BE DEFINED
+        """
+        self.result_XSVT = processProjectionXSVT(self)
+        return
 
     def getk(self):
         """
