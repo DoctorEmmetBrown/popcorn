@@ -1,3 +1,10 @@
+# !/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Created on Mon Mar 15 13:46:27 2021.
+
+@author: quenot
+"""
 import os
 import sys
 
@@ -22,14 +29,14 @@ def kevToLambda(energyInKev):
 
     return waveLengthInNanometer * 1e-9
 
-def MISTI(sampleImages, refImages, dataDict):
-    nbImages, Nx, Ny=refImages.shape
-    beta=dataDict.beta
-    gamma_mat=dataDict.delta/beta
-    distSampDet=dataDict.dist_object_detector
-    pixSize=dataDict.pixel
-    k=dataDict.getk()
-    Lambda=1.2398/dataDict.energy*1e-9
+def MISTI(experiment):
+    nbImages, Nx, Ny=experiment.reference_images.shape
+    beta=experiment.beta
+    gamma_mat=experiment.delta/beta
+    distSampDet=experiment.dist_object_detector
+    pixSize=experiment.pixel
+    k=experiment.getk()
+    Lambda=1.2398/experiment.energy*1e-9
     
     LHS=np.ones(((nbImages, Nx, Ny)))
     RHS=np.ones((((nbImages,2, Nx, Ny))))
@@ -38,11 +45,11 @@ def MISTI(sampleImages, refImages, dataDict):
     #Prepare system matrices
     for i in range(nbImages):
         #Left hand Side
-        IrIs=refImages[i]-sampleImages[i]
+        IrIs=experiment.reference_images[i]-experiment.sample_images[i]
         
         #Right handSide
-        FirstRHS=refImages[i]/k
-        lapIr=laplace(refImages[i])
+        FirstRHS=experiment.reference_images[i]/k
+        lapIr=laplace(experiment.reference_images[i])
         
         RHS[i]=[FirstRHS,-lapIr]
         LHS[i]=IrIs/distSampDet
@@ -64,7 +71,7 @@ def MISTI(sampleImages, refImages, dataDict):
     Deff=solution[1]
     
     #Median filter
-    medFiltSize=dataDict.MIST_median_filter
+    medFiltSize=experiment.MIST_median_filter
     if medFiltSize!=0:
         Deff=median_filter(Deff, medFiltSize)
     
@@ -78,7 +85,7 @@ def MISTI(sampleImages, refImages, dataDict):
     alpha=1
     uv_sqr[uv_sqr==0]=alpha
     
-    sig_scale=dataDict.sigma_regularization
+    sig_scale=experiment.sigma_regularization
     if sig_scale==0:
         beta=1
     else:

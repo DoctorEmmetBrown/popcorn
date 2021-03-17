@@ -1,3 +1,10 @@
+# !/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Created on Mon Mar 15 13:46:27 2021.
+
+@author: quenot
+"""
 import numpy as np
 import frankoChellappa  as fc
 from scipy.ndimage.filters import gaussian_filter, median_filter
@@ -6,7 +13,7 @@ from skimage import color, data, restoration
 from phaseIntegration import kottler, LarkinAnissonSheppard
 
 
-def LCS(sampleImages, refImages, dataDict,nbImages):
+def LCS(experiment):
     """
     Calculates the displacement images from sample and reference images using the LCS system
     Returns:
@@ -15,17 +22,17 @@ def LCS(sampleImages, refImages, dataDict,nbImages):
         absoprtion [numpy array]: the absorption 
     """    
     
-    Nz, Nx, Ny=refImages.shape
-    LHS=np.ones(((nbImages, Nx, Ny)))
-    RHS=np.ones((((nbImages,3, Nx, Ny))))
+    Nz, Nx, Ny=experiment.reference_images.shape
+    LHS=np.ones(((experiment.nb_of_point, Nx, Ny)))
+    RHS=np.ones((((experiment.nb_of_point,3, Nx, Ny))))
     solution=np.ones(((3, Nx, Ny)))
     
     #Prepare system matrices
-    for i in range(nbImages):
+    for i in range(experiment.nb_of_point):
         #Right handSide
-        gX_IrIr,gY_IrIr=np.gradient(refImages[i])
-        RHS[i]=[sampleImages[i],gX_IrIr, gY_IrIr]
-        LHS[i]=refImages[i]
+        gX_IrIr,gY_IrIr=np.gradient(experiment.reference_images[i])
+        RHS[i]=[experiment.sample_images[i],gX_IrIr, gY_IrIr]
+        LHS[i]=experiment.reference_images[i]
         
     #Solving system for each pixel 
     for i in range(Nx):
@@ -47,46 +54,45 @@ def LCS(sampleImages, refImages, dataDict,nbImages):
     
     #Bit of post-processing
     #Limiting displacement to a threshold
-    displacementLimit=dataDict.max_shift
+    displacementLimit=experiment.max_shift
     Dx[Dx<-displacementLimit]=-displacementLimit
     Dx[Dx>displacementLimit]=displacementLimit
     Dy[Dy<-displacementLimit]=-displacementLimit
     Dy[Dy>displacementLimit]=displacementLimit
     #Trying different filters
-    if dataDict.LCS_median_filter !=0:
-        Dx=median_filter(Dx,size=dataDict.LCS_median_filter)
-        Dy=median_filter(Dy,size=dataDict.LCS_median_filter)
+    if experiment.LCS_median_filter !=0:
+        Dx=median_filter(Dx,size=experiment.LCS_median_filter)
+        Dy=median_filter(Dy,size=experiment.LCS_median_filter)
     
     return Dx, Dy, absoprtion
 
 
-def processProjectionLCS(Is,Ir,expParam):
+def processProjectionLCS(experiment):
     """
     this function calls pre-processing specific to the method (only deconvolution for now)
     then calls the LCS_v2 wich returns displacement images
     then calls 3 different function to integrate Dx, Dy into the phase image (frankotchellappa, kottler and LarkinArnisonSheppard)
     It returns the displacement images, the three phase images and the absorption calculated.
     """
-    nbImages, Nx, Ny= Is.shape
+    experiment.nb_of_point, Nx, Ny= experiment.sample_images.shape
     
-    dx, dy , absorption =LCS(Is,Ir,expParam,nbImages)
+    dx, dy , absorption =LCS(experiment)
 
-    #Compute the phase gradient from displacements (linear relationship)
-    #magnification=(expParam['distSO']+expParam['distOD'])/expParam['distSO'] #Not sure I need to use this yet
-    dphix=dx*(expParam.pixel/expParam.dist_object_detector)*expParam.getk()
-    dphiy=dy*(expParam.pixel/expParam.dist_object_detector)*expParam.getk()
+    # Compute the phase gradient from displacements (linear relationship)
+    # magnification=(experiment['distSO']+experiment['distOD'])/experiment['distSO'] #Not sure I need to use this yet
+    dphix=dx*(experiment.pixel/experiment.dist_object_detector)*experiment.getk()
+    dphiy=dy*(experiment.pixel/experiment.dist_object_detector)*experiment.getk()
     
     padForIntegration=True
     padSize=300
     if padForIntegration:
         dphix = np.pad(dphix, ((padSize, padSize), (padSize, padSize)),mode='reflect')  # voir is edge mieux que reflect
         dphiy = np.pad(dphiy, ((padSize, padSize), (padSize, padSize)),mode='reflect')  # voir is edge mieux que reflect
-
     
-    #Compute the phase from phase gradients with 3 different methods (still trying to choose the best one)
-    phiFC = fc.frankotchellappa(dphiy, dphix, True)*expParam.pixel
-    phiK = kottler(dphiy, dphix)*expParam.pixel
-    phiLA = LarkinAnissonSheppard(dphiy, dphix)*expParam.pixel
+    # Compute the phase from phase gradients with 3 different methods (still trying to choose the best one)
+    phiFC = fc.frankotchellappa(dphiy, dphix, True)*experiment.pixel
+    phiK = kottler(dphiy, dphix)*experiment.pixel
+    phiLA = LarkinAnissonSheppard(dphiy, dphix)*experiment.pixel
     
     if padSize > 0:
         phiFC = phiFC[padSize:padSize + Nx, padSize:padSize + Ny]
