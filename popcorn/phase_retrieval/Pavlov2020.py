@@ -1,18 +1,17 @@
-import os
-import sys
+# !/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Created on Mon Mar 15 13:46:27 2021.
 
-from pagailleIO import openImage, saveEdf
+@author: quenot
+"""
 from numpy.fft import fftshift as fftshift
 from numpy.fft import ifftshift as ifftshift
 from numpy.fft import fft2 as fft2
 from numpy.fft import ifft2 as ifft2
 from math import pi as pi
 import numpy as np
-from math import floor as floor
-
-import glob
-# from NoiseTracking.OpticalFlow import pavlovThread
-import sys
+from scipy.ndimage import gaussian_filter
 
 
 def kevToLambda(energyInKev):
@@ -20,25 +19,27 @@ def kevToLambda(energyInKev):
     waveLengthInNanometer = 1240. / energy
     return waveLengthInNanometer * 1e-9
 
-def tie_Pavlovetal2020(Is,Ir,absMask,expParam):
-    lambda_energy = kevToLambda(expParam.energy)
-    pix_size = kevToLambda(expParam.pixel)
-    delta = expParam.delta
-    beta = expParam.beta
+def tie_Pavlovetal2020(experiment):#.sample_images,Ir,absMask,experiment):
+    lambda_energy = kevToLambda(experiment.energy)
+    pix_size = kevToLambda(experiment.pixel)
+    delta = experiment.delta
+    beta = experiment.beta
+
+    absMask=gaussian_filter(np.median(experiment.sample_images),experiment.absorption_correction_sigma)/gaussian_filter(np.median(experiment.reference_images),experiment.absorption_correction_sigma)
 
     waveNumber = (2 * pi) / lambda_energy
     mu = 2 * waveNumber * beta
-    magnificationFactor = (expParam.dist_object_detector + expParam.dist_sample_object) / expParam.dist_sample_object
+    magnificationFactor = (experiment.dist_object_detector + experiment.dist_sample_object) / experiment.dist_sample_object
     pix_size=pix_size*magnificationFactor
-    sigmaSource = expParam.source_size
+    sigmaSource = experiment.source_size
     gamma = delta / beta
 
-    is_divided_by_Ir = np.true_divide(Is*absMask, Ir)
-    #is_divided_by_Ir = np.true_divide(Is , Ir)
-    if Ir.ndim>2:
-        is_divided_by_Ir=np.median(is_divided_by_Ir,axis=0)
+    Is_divided_by_Ir = np.true_divide(experiment.sample_images*absMask, experiment.reference_images)
+    #experiment.sample_images_divided_by_Ir = np.true_divide(experiment.sample_images , Ir)
+    if experiment.reference_images.ndim>2:
+        Is_divided_by_Ir=np.median(Is_divided_by_Ir,axis=0)
 
-    numerator = 1 - is_divided_by_Ir
+    numerator = 1 - Is_divided_by_Ir
 
 
     fftNumerator = fftshift(fft2(numerator))
@@ -52,10 +53,10 @@ def tie_Pavlovetal2020(Is,Ir,absMask,expParam):
     uv_sqr=  np.transpose(u_m ** 2 + v_m ** 2)  # ie (u2+v2)
 
     # without taking care of source size
-    denominator = 1 + pi * gamma * expParam.dist_object_detector * lambda_energy * uv_sqr
+    denominator = 1 + pi * gamma * experiment.dist_object_detector * lambda_energy * uv_sqr
 
     # Beltran et al method to deblur with source
-    #denominator = 1 + pi * (gamma * expParam['distOD'] - waveNumber * sigmaSource * sigmaSource) * lambda_energy * uv_sqr
+    #denominator = 1 + pi * (gamma * experiment['distOD'] - waveNumber * sigmaSource * sigmaSource) * lambda_energy * uv_sqr
 
 #    denominator *= magnificationFactor
     tmp = fftNumerator / denominator
@@ -64,7 +65,7 @@ def tie_Pavlovetal2020(Is,Ir,absMask,expParam):
     # building filters
     dqx = 2 * pi / (Nx)
     dqy = 2 * pi / (Ny)
-    sig_scale=expParam.sigma_regularization
+    sig_scale=experiment.sigma_regularization
     if sig_scale==0:
         lff=1
     else:
@@ -87,7 +88,7 @@ def tie_Pavlovetal2020(Is,Ir,absMask,expParam):
     # inverse fourier transform
     tmpThickness = ifft2(ifftshift(tmp))  # F-1
     img_thickness = np.real(tmpThickness)
-    # Division by mu
+    # Diision by mu
     img_thickness = img_thickness / mu
     # multiplication to be in micron
     img_thickness = img_thickness * 1e6

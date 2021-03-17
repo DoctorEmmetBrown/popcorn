@@ -4,7 +4,7 @@
         <nb_of_point>22</nb_of_point>
         <pad_size>0</pad_size>
         <pad_type>reflect</pad_type>
-        <do_deconvolution>True</do_deconvolution>
+        <do_deconvolution>False</do_deconvolution>
         <deconvolution_type>unsupervised_wiener</deconvolution_type>
         <absorption_correction_sigma>15</absorption_correction_sigma>
         <max_shift>2</max_shift>

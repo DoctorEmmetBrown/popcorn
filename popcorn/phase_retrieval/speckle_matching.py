@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Speckle matching
+Speckle matching.
 
 Author: Pierre Thibault
 Date: July 2015
@@ -12,20 +12,18 @@ import frankoChellappa  as fc
 from OpticalFlow2020 import kottler, LarkinAnissonSheppard
 
 
-def processProjectionUMPA(Is,Ir,expParam):
+def processProjectionUMPA(experiment):
 
-    nbImages, Nx, Ny= Is.shape
+    nbImages, Nx, Ny= experiment.sample_images.shape
     
-    subImage=Is-Ir
-
-    result = match_speckles(Is, Ir, Nw=expParam.umpaNw, step=1, max_shift=expParam.max_shift, df=False)
+    result = match_speckles(experiment.sample_images, experiment.reference_images, Nw=experiment.umpaNw, step=1, max_shift=experiment.max_shift, df=False)
     dx=-result['dx']
     dy=-result['dy']
     thickness=result['T']
     df=result['df']
     f=result['f']
-    dphix=dx*(expParam.pixel/expParam.dist_object_detector)*expParam.getk()
-    dphiy=dy*(expParam.pixel/expParam.dist_object_detector)*expParam.getk()
+    dphix=dx*(experiment.pixel/experiment.dist_object_detector)*experiment.getk()
+    dphiy=dy*(experiment.pixel/experiment.dist_object_detector)*experiment.getk()
     
     padForIntegration=True
     padSize=300
@@ -33,11 +31,10 @@ def processProjectionUMPA(Is,Ir,expParam):
         dphix = np.pad(dphix, ((padSize, padSize), (padSize, padSize)),mode='reflect')  # voir is edge mieux que reflect
         dphiy = np.pad(dphiy, ((padSize, padSize), (padSize, padSize)),mode='reflect')  # voir is edge mieux que reflect
 
-    
     #Compute the phase from phase gradients with 3 different methods (still trying to choose the best one)
-    phiFC = fc.frankotchellappa(dphiy, dphix, True)*expParam.pixel
-    phiK = kottler(dphiy, dphix)*expParam.pixel
-    phiLA = LarkinAnissonSheppard(dphiy, dphix)*expParam.pixel
+    phiFC = fc.frankotchellappa(dphiy, dphix, True)*experiment.pixel
+    phiK = kottler(dphiy, dphix)*experiment.pixel
+    phiLA = LarkinAnissonSheppard(dphiy, dphix)*experiment.pixel
     
     if padSize > 0:
         phiFC = phiFC[padSize:padSize + Nx, padSize:padSize + Ny]

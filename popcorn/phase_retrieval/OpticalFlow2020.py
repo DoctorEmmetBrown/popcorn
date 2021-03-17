@@ -1,3 +1,10 @@
+# !/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Created on Mon Mar 15 13:46:27 2021.
+
+@author: quenot
+"""
 from pagailleIO import saveEdf,openImage,openSeq,save3D_Edf
 import glob
 from numpy.fft import fftshift as fftshift
@@ -92,14 +99,12 @@ def LarkinAnissonSheppard(dx,dy):
     return phi
 
 
-def processProjectionOpticalFlow2020(Is,Ir,expParam):
-    absMask=gaussian_filter(np.median(Is),10)/gaussian_filter(np.median(Ir),10)
-    subImage=Is/absMask-Ir
-
-    dI = subImage
-    dx, dy = derivativesByOpticalflow(Ir, dI,pixsize=expParam.pixel, sig_scale=expParam.sigma_regularization)
-    dx=dx*(expParam.pixel/expParam.dist_object_detector)
-    dy=dy*(expParam.pixel/expParam.dist_object_detector)
+def processProjectionOpticalFlow2020(experiment):
+    absMask=gaussian_filter(np.median(experiment.sample_images),experiment.absorption_correction_sigma)/gaussian_filter(np.median(experiment.reference_images),experiment.absorption_correction_sigma)
+    subImage=experiment.sample_images/absMask-experiment.reference_images
+    dx, dy = derivativesByOpticalflow(experiment.reference_images, subImage,pixsize=experiment.pixel, sig_scale=experiment.sigma_regularization)
+    dx=dx*(experiment.pixel/experiment.dist_object_detector)
+    dy=dy*(experiment.pixel/experiment.dist_object_detector)
     phiFC = fc.frankotchellappa(dx, dy, False)
     phiK = kottler(dx, dy)
     phiLA = LarkinAnissonSheppard(dx, dy)

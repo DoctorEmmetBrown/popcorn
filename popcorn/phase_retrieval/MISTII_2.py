@@ -1,3 +1,10 @@
+# !/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Created on Mon Mar 15 13:46:27 2021.
+
+@author: quenot
+"""
 from pagailleIO import saveEdf,openImage,openSeq,save3D_Edf
 from numpy.fft import fftshift as fftshift
 from numpy.fft import ifftshift as ifftshift
@@ -18,37 +25,36 @@ import math
 import multiprocessing
 
 
-def MISTII_2(sampleImages, refImages, dataDict,nbImages):
+def MISTII_2(experiment):
     """
     Calculates the tensors of the dark field and the thickness of a single-material object from the acquisitions
     """
-        
-    Nz, Nx, Ny=refImages.shape
-    beta=dataDict.beta
-    gamma_mat=dataDict.delta/beta
-    distSampDet=dataDict.dist_object_detector
-    pixSize=dataDict.pixel
-    Lambda=1.2398/dataDict.energy*1e-9
+    Nz, Nx, Ny=experiment.reference_images.shape
+    beta=experiment.beta
+    gamma_mat=experiment.delta/beta
+    distSampDet=experiment.dist_object_detector
+    pixSize=experiment.pixel
+    Lambda=1.2398/experiment.energy*1e-9
     
-    LHS=np.ones(((nbImages, Nx, Ny)))
-    RHS=np.ones((((nbImages,4, Nx, Ny))))
+    LHS=np.ones(((experiment.nb_of_point, Nx, Ny)))
+    RHS=np.ones((((experiment.nb_of_point,4, Nx, Ny))))
     FirstTermRHS=np.ones((Nx,Ny))
     solution=np.ones(((4, Nx, Ny)))
     
     #Prepare system matrices
-    for i in range(nbImages):
+    for i in range(experiment.nb_of_point):
         #Left hand Side
-        IsIr=sampleImages[i]/refImages[i]
+        IsIr=experiment.sample_images[i]/experiment.reference_images[i]
         
         #Right handSide
-        gX_IrIr,gY_IrIr=np.gradient(refImages[i],pixSize)
+        gX_IrIr,gY_IrIr=np.gradient(experiment.reference_images[i],pixSize)
         gXX_IrIr,gYX_IrIr=np.gradient(gX_IrIr,pixSize)
         gXY_IrIr,gYY_IrIr=np.gradient(gY_IrIr,pixSize)
         
-        gXX_IrIr=gXX_IrIr/refImages[i]
-        gXY_IrIr=gXY_IrIr/refImages[i]
-        gYX_IrIr=gYX_IrIr/refImages[i]
-        gYY_IrIr=gYY_IrIr/refImages[i]
+        gXX_IrIr=gXX_IrIr/experiment.reference_images[i]
+        gXY_IrIr=gXY_IrIr/experiment.reference_images[i]
+        gYX_IrIr=gYX_IrIr/experiment.reference_images[i]
+        gYY_IrIr=gYY_IrIr/experiment.reference_images[i]
         
         RHS[i]=[FirstTermRHS,gXX_IrIr, gYY_IrIr,gXY_IrIr]
         LHS[i]=IsIr
@@ -80,7 +86,7 @@ def MISTII_2(sampleImages, refImages, dataDict,nbImages):
     _,ddG4=np.gradient(dG4,pixSize)
     G=G1-ddG2-ddG3-ddG4
      
-    sig_scale=dataDict.sigma_regularization
+    sig_scale=experiment.sigma_regularization
     if sig_scale==0:
         beta=1
     else:
@@ -121,15 +127,15 @@ def normalize(Image):
     Imageb=(Image-np.min(Image))/(np.max(Image)-np.min(Image))
     return Imageb
 
-def processProjectionMISTII_2(Is,Ir,experiment):
+def processProjectionMISTII_2(experiment):
     """
     This function calls PavlovDirDF to compute the tensors of the directional dark field and the thickness of the sample
     The function should also convert the tensor into a coloured image
     """
-    nbImages, Nx, Ny= Is.shape
+    Nx, Ny= experiment.sample_images[0].shape
     
     #Calculate directional darl field
-    thickness, Deff_xx,Deff_yy,Deff_xy=MISTII_2(Is,Ir,experiment,nbImages)
+    thickness, Deff_xx,Deff_yy,Deff_xy=MISTII_2(experiment)
     
     #Post processing tests
     #Median filter
