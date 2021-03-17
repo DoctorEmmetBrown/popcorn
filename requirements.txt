@@ -46,3 +46,5 @@ tifffile==2020.9.3
 trimesh==3.9.8
 urllib3==1.26.3
 xraydb==4.4.5
+
+setuptools~=39.0.1
