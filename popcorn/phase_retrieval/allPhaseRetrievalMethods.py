@@ -19,6 +19,7 @@ if __name__ == "__main__":
     do_UMPA=False
     do_OF=False
     do_Pavlov=True
+    do_XSVT=False
     do_save_parameters=False
 
     phase_retrieval_experiment=Phase_Retrieval_Experiment(studied_case)
@@ -37,6 +38,8 @@ if __name__ == "__main__":
         phase_retrieval_experiment.process_MISTII_1()
     if do_MISTII_2:
         phase_retrieval_experiment.process_MISTII_2()
+    if do_XSVT:
+        phase_retrieval_experiment.process_XSVT()
 
     if do_save_parameters:
         saveParameters(phase_retrieval_experiment)

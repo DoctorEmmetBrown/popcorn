@@ -1,46 +1,35 @@
 import os
-import math
+from math import ceil
 import numpy as np
 from popcorn.input_output import open_image, save_tif_image
 from resampling import conversion_from_float32_to_uint16
 
 
-def pad_with(vector, pad_width, iaxis, kwargs):
-    """adds rows and columns to an image : its size depends on pad_width val, the value of pixels depends on padder val
-
-    Args:
-        vector ():       self
-        pad_width (list[int]): nb of pixels to add
-        iaxis ():        self
-        kwargs ():       'padder' = value of the added pixels
-
-    Returns:
-        self
-    """
-    pad_value = kwargs.get('padder', 0)
-    vector[:pad_width[0]] = pad_value
-    vector[-pad_width[1]:] = pad_value
-
-
-def padding_image(image, padding_size):
+def padding_image(image, pad_size):
     """determines the distribution of pixels to add on top/bottom/right/left calls the pad_with function
 
     Args:
         image (numpy.ndarray): input image
-        padding_size (int):     nb of pixels to add (in both x and y directions)
+        pad_size (int):     nb of pixels to add (in both x and y directions)
 
     Returns:
         (numpy.ndarray): padded image
     """
-    if padding_size % 2 != 0:
-        return np.pad(image, (int(padding_size / 2), math.ceil(padding_size / 2)), pad_with)
+    if pad_size % 2 != 0:
+        return np.pad(image,
+                      pad_width=((int(pad_size / 2), ceil(pad_size / 2)),
+                                 (int(pad_size / 2), ceil(pad_size / 2))),
+                      mode='constant')
     else:
-        return np.pad(image, int(padding_size / 2), pad_with)
+        return np.pad(image,
+                      pad_width=((int(pad_size / 2), int(pad_size / 2)),
+                                 (int(pad_size / 2), int(pad_size / 2))),
+                      mode='constant')
 
 
 def multi_threading_conversion(list_of_args):
     """
-    transforms a list of args into 5 args before calling the conversion function
+    transforms a list of args into 5 args before calling conversion function
     :param list_of_args: list of args
     :return: None
     """
