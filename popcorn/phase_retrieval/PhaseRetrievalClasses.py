@@ -5,7 +5,7 @@ Created on Mon Mar 15 13:46:27 2021.
 
 @author: quenot
 """
-from pagailleIO import saveEdf, openSeq
+from pagailleIO import saveEdf, openSeq, openImage
 import glob
 import random
 import os
@@ -44,7 +44,7 @@ class Phase_Retrieval_Experiment:
         self.energy=0.
         self.pixel=0.
         self.dist_object_detector=0.
-        self.dist_sample_object=0.
+        self.dist_source_object=0.
         self.delta=0.
         self.beta=0.
         self.source_size=0.
@@ -103,20 +103,21 @@ class Phase_Retrieval_Experiment:
                 self.energy=float(self.getText(current_exp.getElementsByTagName("energy")[0]))*1e3 #F or eV
                 self.pixel=float(self.getText(current_exp.getElementsByTagName("pixel")[0]))
                 self.dist_object_detector=float(self.getText(current_exp.getElementsByTagName("dist_object_detector")[0]))
-                self.dist_sample_object=float(self.getText(current_exp.getElementsByTagName("dist_sample_object")[0]))
+                self.dist_source_object=float(self.getText(current_exp.getElementsByTagName("dist_source_object")[0]))
                 self.delta=float(self.getText(current_exp.getElementsByTagName("delta")[0]))
                 self.beta=float(self.getText(current_exp.getElementsByTagName("beta")[0]))
                 self.source_size=float(self.getText(current_exp.getElementsByTagName("source_size")[0]))
                 self.detector_PSF=float(self.getText(current_exp.getElementsByTagName("detector_PSF")[0]))
-                self.crop_on=bool(self.getText(current_exp.getElementsByTagName("crop_on")[0]))
+                self.crop_on=self.boolean(self.getText(current_exp.getElementsByTagName("crop_on")[0]))
                 self.cropDebX=int(self.getText(current_exp.getElementsByTagName("cropDebX")[0]))
                 self.cropDebY=int(self.getText(current_exp.getElementsByTagName("cropDebY")[0]))
                 self.cropEndX=int(self.getText(current_exp.getElementsByTagName("cropEndX")[0]))
                 self.cropEndY=int(self.getText(current_exp.getElementsByTagName("cropEndY")[0]))
-            else:
-                raise Exception("Correct experiment not found")
-                
-        return
+                return
+        
+        raise Exception("Correct experiment not found")
+        return     
+        
 
     def define_algorithmic_values(self):
         xml_doc = minidom.parse(self.xml_algorithmic_file_name)
@@ -126,7 +127,7 @@ class Phase_Retrieval_Experiment:
                 self.nb_of_point=int(self.getText(current_exp.getElementsByTagName("nb_of_point")[0]))
                 self.pad_size=int(self.getText(current_exp.getElementsByTagName("pad_size")[0]))
                 self.pad_type=self.getText(current_exp.getElementsByTagName("pad_type")[0])
-                self.deconvolution=bool(self.getText(current_exp.getElementsByTagName("do_deconvolution")[0]))
+                self.deconvolution=self.boolean(self.getText(current_exp.getElementsByTagName("do_deconvolution")[0]))
                 self.deconvolution_type=self.getText(current_exp.getElementsByTagName("deconvolution_type")[0])
                 self.absorption_correction_sigma=int(self.getText(current_exp.getElementsByTagName("absorption_correction_sigma")[0]))
                 self.max_shift=int(self.getText(current_exp.getElementsByTagName("max_shift")[0]))
@@ -134,8 +135,9 @@ class Phase_Retrieval_Experiment:
                 self.umpaNw=int(self.getText(current_exp.getElementsByTagName("umpaNw")[0]))
                 self.MIST_median_filter=int(self.getText(current_exp.getElementsByTagName("MIST_median_filter")[0]))
                 self.sigma_regularization=float(self.getText(current_exp.getElementsByTagName("sigma_regularization")[0]))
-            else:
-                raise Exception("Correct experiment not found")
+                return
+    
+        raise Exception("Correct experiment not found")
         return
 
     def getText(self,node):
@@ -161,6 +163,8 @@ class Phase_Retrieval_Experiment:
         sampImages = glob.glob(sampleFolder + '/*.tif') + glob.glob(sampleFolder + '/*.tiff') + glob.glob(
             sampleFolder + '/*.edf')
         sampImages.sort()
+        whiteImage= glob.glob(self.exp_folder+'white.tif')+glob.glob(self.exp_folder+'White.tif')+glob.glob(self.exp_folder+'white.tiff')
+        darkImage= glob.glob(self.exp_folder+'dark.tif')+glob.glob(self.exp_folder+'dark.tif')+glob.glob(self.exp_folder+'dark.tiff')
         if self.nb_of_point >= len(refImages):
             print("Nb of points limited to ", len(refImages))
             self.nb_of_point=len(refImages)
@@ -170,12 +174,18 @@ class Phase_Retrieval_Experiment:
             indexOfImagesPicked = []
             refTaken = []
             sampTaken = []
+            number=0
             while len(indexOfImagesPicked) < self.nb_of_point:
-                number = random.randint(0, len(refImages) - 1)
-                if not number in indexOfImagesPicked:
-                    indexOfImagesPicked.append(number)
-                    refTaken.append(refImages[number])
-                    sampTaken.append(sampImages[number])
+                indexOfImagesPicked.append(number)
+                refTaken.append(refImages[number])
+                sampTaken.append(sampImages[number])
+                number+=1
+                
+                # number = random.randint(0, len(refImages) - 1)
+                # if not number in indexOfImagesPicked:
+                #     indexOfImagesPicked.append(number)
+                #     refTaken.append(refImages[number])
+                #     sampTaken.append(sampImages[number])
             refTaken.sort()
             sampTaken.sort()
             Ir = openSeq(refTaken)
@@ -183,9 +193,16 @@ class Phase_Retrieval_Experiment:
 
 
         # On cree un white a partir de la reference pour normaliser
-        white=gaussian_filter(np.mean(Ir, axis=0),50)
-        self.reference_images=np.asarray(Ir/white, dtype=np.float64)
-        self.sample_images=np.asarray(Is/white, dtype=np.float64)
+        # if len(whiteImage)==0:
+        #     white=gaussian_filter(np.mean(Ir, axis=0),50)
+        # else:
+        #     white=openSeq(whiteImage)[0]
+        if len(darkImage)!=0:
+            dark=openSeq(darkImage)[0]
+        # Ir=(Ir-dark)/(white-dark)
+        # Is=(Is-dark)/(white-dark)
+        self.reference_images=np.asarray(Ir, dtype=np.float64)#/white
+        self.sample_images=np.asarray(Is, dtype=np.float64)#/white
 
         if self.crop_on:
             self.reference_images = self.reference_images[:, self.cropDebX:self.cropEndX,self.cropDebY:self.cropEndY]
@@ -201,6 +218,7 @@ class Phase_Retrieval_Experiment:
         """
 
         nbImages, width, height = self.reference_images.shape
+        print("Deconvolution",self.deconvolution)
         if self.deconvolution:
             self.set_deconvolution()
 
@@ -215,10 +233,18 @@ class Phase_Retrieval_Experiment:
         return
 
     def set_deconvolution(self):
+        print("starting deconvolution")
         for i in range(self.nb_of_point):
             self.reference_images[i]=deconvolve(self.reference_images[i], self.detector_PSF, self.deconvolution_type)
             self.sample_images[i]=deconvolve(self.sample_images[i], self.detector_PSF, self.deconvolution_type)
+        
         return self.reference_images, self.sample_images
+    
+    def boolean(self, boolStr):
+        if boolStr=="True":
+            return True
+        elif boolStr=="False":
+            return False
 
     # *******************************************************
     # ************PHASE RETRIEVAL METHODS******************
