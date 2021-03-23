@@ -29,7 +29,7 @@ def tie_Pavlovetal2020(experiment):#.sample_images,Ir,absMask,experiment):
 
     waveNumber = (2 * pi) / lambda_energy
     mu = 2 * waveNumber * beta
-    magnificationFactor = (experiment.dist_object_detector + experiment.dist_sample_object) / experiment.dist_sample_object
+    magnificationFactor = (experiment.dist_object_detector + experiment.dist_source_object) / experiment.dist_source_object
     pix_size=pix_size*magnificationFactor
     sigmaSource = experiment.source_size
     gamma = delta / beta
