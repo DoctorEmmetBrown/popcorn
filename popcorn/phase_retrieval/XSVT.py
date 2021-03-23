@@ -1,7 +1,11 @@
 import numpy as np
-from itertools import product
-from scipy.stats import pearsonr
+import multiprocessing as mp
 import matplotlib.pyplot as plt
+from itertools import product, chain
+from scipy.stats import pearsonr
+from scipy.interpolate import interp2d
+from functools import partial
+
 
 def processProjectionXSVT(experiment):
 
@@ -30,32 +34,67 @@ def speckle_vector_tracking(Isample, Iref, max_shift):
     nb_images, px_x, px_y = Iref.shape
     paddedIref = np.array([np.pad(Iref[im, :, :], max_shift, 'constant') for im in range(0, nb_images)])
 
-    pearson_map = np.zeros((2*max_shift+1, 2*max_shift+1))
+    #px_x = px_y = 5
 
-    #px_x = px_y = 1
+    i = range(0, px_x)
+    j = range(0, px_y)
 
-    dx = np.zeros((px_x, px_y))
-    dy = np.zeros((px_x, px_y))
+    paramlist = list(product(i, j))
+    pool = mp.Pool(mp.cpu_count())
 
-    for i, j in product(range(px_x), range(px_y)):
-        print(i)
-        v_sample = Isample[:, i, j]
+    # for i, j in product(range(px_x), range(px_y)):
+    #     print(i)
+    #     v_sample = Isample[:, i, j]
+    #
+    #     for l, m in product(range(2*max_shift+1), range(2*max_shift+1)):
+    #         v_ref = paddedIref[:, i+l, j+m]
+    #
+    #         pearson_map[l][m] = pearson_correlation(v_sample, v_ref)
+    #
+    #     dx_px, dy_px = [max_shift-idx for idx in np.unravel_index(pearson_map.argmax(), pearson_map.shape)]
+    #
+    #     dx[i, j] = dx_px
+    #     dy[i, j] = dy_px
 
-        for l, m in product(range(2*max_shift+1), range(2*max_shift+1)):
-            v_ref = paddedIref[:, i+l, j+m]
+    func = partial(calc_dx_dy, Isample, paddedIref, max_shift)
+    result = pool.map(func, paramlist)
+    #result = pool.starmap(calc_dx_dy, [(Isample, paddedIref, max_shift, x) for x in paramlist])
 
-            pearson_map[l][m] = pearson_correlation(v_sample, v_ref)
+    dx_px = list(chain(*result))[0::2]
+    dy_px = list(chain(*result))[1::2]
 
-        dx_px, dy_px = [max_shift-idx for idx in np.unravel_index(pearson_map.argmax(), pearson_map.shape)]
+    dx = np.array(dx_px).reshape(px_x, px_y)
+    dy = np.array(dy_px).reshape(px_y, px_x)
 
-        dx[i, j] = dx_px
-        dy[i, j] = dy_px
+    pool.close()
 
     plt.imshow(dx, cmap='gray')
     plt.colorbar()
     plt.show()
 
     return "something"
+
+
+def calc_dx_dy(sample_image, padded_ref_image, shift, params):
+    i = params[0]
+    j = params[1]
+
+    if j == 0:
+        print(i)
+
+    pearson_map = np.zeros((2 * shift + 1, 2 * shift + 1))
+    v_sample = sample_image[:, i, j]
+
+    pixel = np.linspace(0, 2 * shift, 2 * shift + 1)
+    subpixel = np.linspace(0, 2 * shift, 20 * shift + 1)  # 10th of a pixel resolution
+
+    for l, m in product(range(2 * shift +1), range(2 * shift + 1)):
+        v_ref = padded_ref_image[:, i + l, j + m]
+        pearson_map[l][m] = pearson_correlation(v_sample, v_ref)
+
+    diff_x, diff_y = [shift - idx for idx in np.unravel_index(pearson_map.argmax(), pearson_map.shape)]
+
+    return diff_x, diff_y
 
 
 def pearson_correlation(sample_vector, ref_vector):
