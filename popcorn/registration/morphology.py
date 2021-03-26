@@ -1,7 +1,6 @@
 # -- IPSDK Library --
 import PyIPSDK
-import PyIPSDK.IPSDKIPLMorphology as morpho
-import PyIPSDK.IPSDKIPLAdvancedMorphology as advmorpho
+import PyIPSDK.IPSDKIPLMorphology as Morpho
 import PyIPSDK.IPSDKIPLBinarization as Bin
 
 import numpy as np
@@ -18,6 +17,6 @@ def dilate(image, radius):
     image_ipsdk = Bin.lightThresholdImg(image_ipsdk, 1)
 
     morpho_mask = PyIPSDK.sphericalSEXYZInfo(radius)
-    image_ipsdk = morpho.dilate3dImg(image_ipsdk, morpho_mask)
+    image_ipsdk = Morpho.dilate3dImg(image_ipsdk, morpho_mask)
 
     return np.copy(image_ipsdk.array)
