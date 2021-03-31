@@ -3,48 +3,62 @@ import PyIPSDK.IPSDKIPLBinarization as Bin
 
 import numpy as np
 
-import segmentation, resampling, registration, ratGistrationIO, morphology
-from elementDecomposition import three_elements_decomposition
-import animationCreation
+import segmentation
+from popcorn.image_processing import resampling
+import registration
+import morphology
+
+from popcorn import input_output
+from popcorn.spectral_imaging.material_decomposition import three_materials_decomposition
+
 
 def conversion_pipeline(above_folder, below_folder, bin_factor, above_min, above_max, below_min, below_max):
+    """Opens 16 bit Above and Below images in main folder, converts them into float32 using min and max and saves them
+
+    Args:
+        above_folder (str): above folder path
+        below_folder (str): below folder path
+        bin_factor (int):   binning factor
+        above_min (float):  min value of above image
+        above_max (float):  max value of above image
+        below_min (float):  min value of below image
+        below_max (float):  max value of below image
+
+    Returns:
+        None
     """
-    Opens 16 bit Above and Below images in main folder, converts them into 32 bit float using min and max and saves them
-    :param above_folder: above folder
-    :param below_folder: below folder
-    :param above_min: min value of above image
-    :param above_max: max value of above image
-    :param below_min: min value of below image
-    :param below_max: max value of below image
-    :return: None
-    """
-    above_list_of_files = ratGistrationIO.create_list_of_files(above_folder, extension="tif")
-    above_image_int = ratGistrationIO.open_seq(above_list_of_files)
+    above_list_of_files = input_output.create_list_of_files(above_folder, extension="tif")
+    above_image_int = input_output.open_sequence(above_list_of_files)
     above_image_float = resampling.conversion_uint16_to_float32(above_image_int, above_min, above_max)
     above_image_float = resampling.bin_resize(above_image_float, bin_factor)
-    ratGistrationIO.save_tif_sequence(above_image_float, ratGistrationIO.remove_last_folder_in_path(above_folder) + "\\Above_Acquisition\\")
+    input_output.save_tif_sequence(above_image_float, input_output.remove_last_folder_in_path(above_folder)
+                                   + "\\Above_Acquisition\\")
 
-    below_list_of_files = ratGistrationIO.create_list_of_files(below_folder, extension="tif")
-    below_image_int = ratGistrationIO.open_seq(below_list_of_files)
+    below_list_of_files = input_output.create_list_of_files(below_folder, extension="tif")
+    below_image_int = input_output.open_sequence(below_list_of_files)
     below_image_float = resampling.conversion_uint16_to_float32(below_image_int, below_min, below_max)
     below_image_float = resampling.bin_resize(below_image_float, bin_factor)
-    ratGistrationIO.save_tif_sequence(below_image_float, ratGistrationIO.remove_last_folder_in_path(below_folder) + "\\Below_Acquisition\\")
+    input_output.save_tif_sequence(below_image_float, input_output.remove_last_folder_in_path(below_folder)
+                                   + "\\Below_Acquisition\\")
 
 
 def aligning_skull_pipeline(input_above_folder, input_below_folder, element="Au"):
-    """
-    computes all the skull segmentation and rat aligning with z axis calculations
-    :param input_above_folder: input above energy acquisition images
-    :param input_below_folder: input below energy acquisition images
-    :param element: k-edge element (Au, I, Gd...)
-    :return: None
+    """computes all the skull segmentation and rat aligning with z axis calculations
+
+    Args:
+        input_above_folder (str): input above image path
+        input_below_folder (str): input below image path
+        element (str):            k-edge element (Au, I, Gd...)
+
+    Returns:
+        None
     """
 
-    above_list_of_files = ratGistrationIO.create_list_of_files(input_above_folder, 'tif')
-    above_image = ratGistrationIO.open_seq(above_list_of_files)
+    above_list_of_files = input_output.create_list_of_files(input_above_folder, 'tif')
+    above_image = input_output.open_sequence(above_list_of_files)
     print("Above image opened")
-    below_list_of_files = ratGistrationIO.create_list_of_files(input_below_folder, 'tif')
-    below_image = ratGistrationIO.open_seq(below_list_of_files)
+    below_list_of_files = input_output.create_list_of_files(input_below_folder, 'tif')
+    below_image = input_output.open_sequence(below_list_of_files)
     print("Below image opened")
 
     binning_factor = 2
@@ -75,19 +89,17 @@ def aligning_skull_pipeline(input_above_folder, input_below_folder, element="Au"
 
     # 2) Second rotation based on the position of the throat
     print("... Beginning the second rotation ...")
-    ratGistrationIO.save_tif_sequence(straightened_image, "C:\\Users\\ctavakol\\Desktop\\md1237_rat2to4\\R1392_02\\Au\\straightened_image\\")
     post_mortem = False
     # segmentation of the throat
     if post_mortem:
         vector_director = np.array([-1., 4., 59.])
         throat_coordinates = np.array([313, 321, 0]).astype(np.uint32)
-        straightened_image, rotation_matrix, throat_coordinates, offset = registration.straight_throat_rotation_manual(straightened_image,
-                                                                                                                       vector_director,
-                                                                                                                       throat_coordinates)
+        straightened_image, rotation_matrix, throat_coordinates, offset =\
+            registration.straight_throat_rotation(straightened_image, vector_director, throat_coordinates)
     else:
         throat_mask = segmentation.throat_segmentation(straightened_image, bbox, element)
-        straightened_image, rotation_matrix, throat_coordinates, offset = registration.straight_throat_rotation(straightened_image,
-                                                                                                            throat_mask)
+        straightened_image, rotation_matrix, throat_coordinates, offset = \
+            registration.straight_throat_rotation(straightened_image, throat_mask)
 
     # We re-segment the skull/jaws
     thresholded_img_ipsdk = Bin.thresholdImg(PyIPSDK.fromArray(straightened_image), threshold_value, 3)
@@ -95,7 +107,6 @@ def aligning_skull_pipeline(input_above_folder, input_below_folder, element="Au"
     above_skull, skull_bbox, \
         barycenter_jaw_one, barycenter_jaw_two, \
         y_max_jaw_one, y_max_jaw_two = segmentation.extract_skull_and_jaws(thresholded_img_ipsdk)
-
 
     # 3) Third rotation based on the symmetry of the skull
     print("... Beginning the third rotation ...")
@@ -133,75 +144,91 @@ def aligning_skull_pipeline(input_above_folder, input_below_folder, element="Au"
                                    min(final_above_skull_bbox[4], final_below_skull_bbox[4]),
                                    max(final_above_skull_bbox[5], final_below_skull_bbox[5])])
 
-
     # The bounding box needs to be centered on the throat coordinates
     if throat_coordinates[0] - final_bounding_box[0] > final_bounding_box[1] - throat_coordinates[0]:
         final_bounding_box[1] = int(final_bounding_box[0] + (throat_coordinates[0] - final_bounding_box[0]) * 2)
     else:
         final_bounding_box[0] = int(final_bounding_box[1] - (final_bounding_box[1] - throat_coordinates[0]) * 2)
 
-    output_folder = ratGistrationIO.remove_last_folder_in_path(input_above_folder)
+    output_folder = input_output.remove_last_folder_in_path(input_above_folder)
 
-    ratGistrationIO.save_tif_sequence_and_crop(final_above_image, final_bounding_box,
-                                               output_folder + "Above_img_for_registration\\")
-    ratGistrationIO.save_tif_sequence_and_crop(final_above_skull, final_bounding_box,
-                                               output_folder + "Above_skull_for_registration\\")
+    input_output.save_tif_sequence_and_crop(final_above_image, final_bounding_box,
+                                            output_folder + "Above_img_for_registration\\")
+    input_output.save_tif_sequence_and_crop(final_above_skull, final_bounding_box,
+                                            output_folder + "Above_skull_for_registration\\")
 
-    ratGistrationIO.save_tif_sequence_and_crop(final_below_image, final_bounding_box,
-                                               output_folder + "Below_img_for_registration\\")
-    ratGistrationIO.save_tif_sequence_and_crop(final_below_skull, final_bounding_box,
-                                               output_folder + "Below_skull_for_registration\\")
+    input_output.save_tif_sequence_and_crop(final_below_image, final_bounding_box,
+                                            output_folder + "Below_img_for_registration\\")
+    input_output.save_tif_sequence_and_crop(final_below_skull, final_bounding_box,
+                                            output_folder + "Below_skull_for_registration\\")
     print("-------------------------------------")
 
 
-def different_energies_registration_pipeline(input_folder, main_element="Au", second_element="I", translation_bool = True, rotation_bool=True):
+def different_energies_registration_pipeline(input_folder, kedge_material="Au", secondary_material="I",
+                                             translation_bool=False, rotation_bool=True):
+    """registers above and below images and computes concentration maps
+
+    Args:
+        input_folder (str):       input folder path
+        kedge_material (str):     element of interest (Au, I, Gd...)
+        secondary_material (str): secondary material (Au, I, Gd...)
+        translation_bool (bool):  True: computes 3D translation
+        rotation_bool (bool):     True: computes 3D euler rotation
+
+    Returns:
+        None
+    """
     print("Starting registration...")
-    above_img_list_of_files = ratGistrationIO.create_list_of_files(input_folder + "Above_img_for_registration\\", 'tif')
-    above_image = ratGistrationIO.open_seq(above_img_list_of_files)
-    above_skull_list_of_files = ratGistrationIO.create_list_of_files(input_folder + "Above_skull_for_registration\\", 'tif')
-    above_skull = ratGistrationIO.open_seq(above_skull_list_of_files)
+    above_img_list_of_files = input_output.create_list_of_files(input_folder + "Above_img_for_registration\\", 'tif')
+    above_image = input_output.open_sequence(above_img_list_of_files)
+    above_skull_list_of_files = input_output.create_list_of_files(input_folder + "Above_skull_for_registration\\",
+                                                                  'tif')
+    above_skull = input_output.open_sequence(above_skull_list_of_files)
 
-    below_img_list_of_files = ratGistrationIO.create_list_of_files(input_folder + "Below_img_for_registration\\", 'tif')
-    below_image = ratGistrationIO.open_seq(below_img_list_of_files)
-    below_skull_list_of_files = ratGistrationIO.create_list_of_files(input_folder + "Below_skull_for_registration\\", 'tif')
-    below_skull = ratGistrationIO.open_seq(below_skull_list_of_files)
+    below_img_list_of_files = input_output.create_list_of_files(input_folder + "Below_img_for_registration\\", 'tif')
+    below_image = input_output.open_sequence(below_img_list_of_files)
+    below_skull_list_of_files = input_output.create_list_of_files(input_folder + "Below_skull_for_registration\\",
+                                                                  'tif')
+    below_skull = input_output.open_sequence(below_skull_list_of_files)
 
-    translation_transform, rotation_transform = registration.registration_computation_with_mask(above_image,
-                                                                                                below_image,
-                                                                                                above_skull,
-                                                                                                below_skull,
-                                                                                                is_translation_needed=translation_bool,
-                                                                                                is_rotation_needed=rotation_bool,
-                                                                                                verbose=True)
+    translation_transform, rotation_transform \
+        = registration.registration_computation_with_mask(above_image,
+                                                          below_image,
+                                                          above_skull,
+                                                          below_skull,
+                                                          is_translation_needed=translation_bool,
+                                                          is_rotation_needed=rotation_bool,
+                                                          verbose=True)
 
     above_image_unnecessary_voxels = morphology.dilate((above_image == 0).astype(np.int16), 3)
     below_image_unnecessary_voxels = morphology.dilate((below_image == 0).astype(np.int16), 3)
 
     # 1) Registering the above image
     if translation_bool:
-        above_image = registration.apply_itk_transformation_with_ref_img(above_image, below_image, translation_transform,
-                                                                         "linear")
+        above_image = registration.apply_itk_transformation(above_image, translation_transform, "linear",
+                                                            ref_img=below_image)
     if rotation_bool:
         above_image = registration.apply_itk_transformation(above_image, rotation_transform, "linear")
 
     # 2) Registering the black voxels in the above image
     if translation_bool:
-        above_image_unnecessary_voxels = registration.apply_itk_transformation_with_ref_img(above_image_unnecessary_voxels,
-                                                                                            below_image,
-                                                                                            translation_transform, "linear")
+        above_image_unnecessary_voxels = registration.apply_itk_transformation(above_image_unnecessary_voxels,
+                                                                               translation_transform, "linear",
+                                                                               ref_img=below_image)
     if rotation_bool:
         above_image_unnecessary_voxels = registration.apply_itk_transformation(above_image_unnecessary_voxels,
                                                                                rotation_transform, "linear")
 
     # 3) Registering the skull mask of the above image
     if translation_bool:
-        above_skull = registration.apply_itk_transformation_with_ref_img(above_skull, below_skull, translation_transform,
-                                                                         "nearest")
+        above_skull = registration.apply_itk_transformation(above_skull, translation_transform, "nearest",
+                                                            ref_img=below_skull)
     if rotation_bool:
         above_skull = registration.apply_itk_transformation(above_skull, rotation_transform, "nearest")
 
     main_concentration_map, second_concentration_map, water_concentration_map\
-        = three_elements_decomposition(above_image, below_image, kedge_element=main_element, second_element=second_element)
+        = three_materials_decomposition(above_image, below_image, kedge_material=kedge_material,
+                                        secondary_material=secondary_material)
 
     above_image_unnecessary_voxels = (above_image_unnecessary_voxels > 0)
     both_images_unnecessary_voxels = above_image_unnecessary_voxels | below_image_unnecessary_voxels
@@ -210,21 +237,31 @@ def different_energies_registration_pipeline(input_folder, main_element="Au", se
     water_concentration_map = (both_images_unnecessary_voxels == 0) * water_concentration_map
 
     print("... Registration ended. Saving results in \"concentration map\" folder")
-    ratGistrationIO.save_tif_sequence(above_image, input_folder + "Above_registered_image\\")
-    ratGistrationIO.save_tif_sequence(above_skull, input_folder + "Above_registered_skull\\")
-    ratGistrationIO.save_tif_sequence(main_concentration_map, input_folder + "main_element_concentration_map\\")
-    ratGistrationIO.save_tif_sequence(second_concentration_map, input_folder + "second_element_concentration_map\\")
-    ratGistrationIO.save_tif_sequence(water_concentration_map, input_folder + "water_concentration_map\\")
+    input_output.save_tif_sequence(above_image, input_folder + "Above_registered_image\\")
+    input_output.save_tif_sequence(above_skull, input_folder + "Above_registered_skull\\")
+    input_output.save_tif_sequence(main_concentration_map, input_folder + "main_element_concentration_map\\")
+    input_output.save_tif_sequence(second_concentration_map, input_folder + "second_element_concentration_map\\")
+    input_output.save_tif_sequence(water_concentration_map, input_folder + "water_concentration_map\\")
 
 
-def quantify_nanoparticles_in_brain_pipeline(input_folder, main_element):
+def quantify_nanoparticles_in_brain_pipeline(input_folder, kedge_material):
+    """segments and quantifies nanoparticles using input concentration map
 
-    concentration_map_list_of_files = ratGistrationIO.create_list_of_files(input_folder + "main_element_concentration_map\\", 'tif')
-    concentration_map = ratGistrationIO.open_seq(concentration_map_list_of_files)
+    Args:
+        input_folder (str):   input concentration map path
+        kedge_material (str): material of interest (Au, I, Gd...)
 
-    skull_list_of_files = ratGistrationIO.create_list_of_files(input_folder + "Above_registered_skull\\", 'tif')
-    skull = ratGistrationIO.open_seq(skull_list_of_files)
+    Returns:
+        None
+    """
+
+    concentration_map_list_of_files = input_output.create_list_of_files(input_folder
+                                                                        + "main_element_concentration_map\\", 'tif')
+    concentration_map = input_output.open_sequence(concentration_map_list_of_files)
+
+    skull_list_of_files = input_output.create_list_of_files(input_folder + "Above_registered_skull\\", 'tif')
+    skull = input_output.open_sequence(skull_list_of_files)
 
     segmented_cells = segmentation.brain_nanoparticles_segmentation(concentration_map, skull, 0.0)
-    animationCreation.convert_image_to_mesh(segmented_cells)
-    animationCreation.saveGold(input_folder, concentration_map, segmented_cells, 0, main_element)
+    # animationCreation.convert_image_to_mesh(segmented_cells) TODO
+    # animationCreation.saveGold(input_folder, concentration_map, segmented_cells, 0, main_element) TODO
