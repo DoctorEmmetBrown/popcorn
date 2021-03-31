@@ -1,17 +1,28 @@
 import numpy as np
 import multiprocessing as mp
 import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 from itertools import product, chain
-from scipy.stats import pearsonr
-from scipy.interpolate import interp2d
+from scipy.interpolate import interp1d, interp2d
 from functools import partial
+from scipy.ndimage.filters import median_filter
 
 
 def processProjectionXSVT(experiment):
+    pixel_size = experiment.pixel
+    odd = experiment.dist_object_detector
+    k = experiment.getk()
 
-    result = speckle_vector_tracking(experiment.sample_images, experiment.reference_images, max_shift=experiment.max_shift)
+    diff_x, diff_y = speckle_vector_tracking(experiment.sample_images, experiment.reference_images, max_shift=experiment.max_shift)
 
-    return
+    if experiment.LCS_median_filter !=0:
+        diff_x = median_filter(diff_x, size=experiment.LCS_median_filter)
+        diff_y = median_filter(diff_y, size=experiment.LCS_median_filter)
+
+    dphix = diff_x * k * (pixel_size / odd)
+    dphiy = diff_y * k * (pixel_size / odd)
+
+    return {"Diff_x" : diff_x, "Diff_y" : diff_y}
 
 
 def speckle_vector_tracking(Isample, Iref, max_shift):
@@ -21,6 +32,7 @@ def speckle_vector_tracking(Isample, Iref, max_shift):
     Find maximum correlation using Pearson's correlation coefficient and produce maps of local displacement.
     max_shift can be set to the number of pixels for an "acceptable"
     speckle displacement.
+    Option to use multiprocessing on all available cores.
 
     :param Isample: A list  of measurements, with the sample aligned but speckles shifted
     :param Iref: A list of empty speckle measurements with the same displacement as Isample.
@@ -29,75 +41,194 @@ def speckle_vector_tracking(Isample, Iref, max_shift):
     Returns dx, dy
     """
 
-    print("Speckle vector tracking in process")
+    print("Speckle vector tracking started")
 
-    nb_images, px_x, px_y = Iref.shape
+    nb_images, px_rows, px_cols = Iref.shape
     paddedIref = np.array([np.pad(Iref[im, :, :], max_shift, 'constant') for im in range(0, nb_images)])
 
-    #px_x = px_y = 5
+    dx_px = []
+    dy_px = []
 
-    i = range(0, px_x)
-    j = range(0, px_y)
+    i = range(0, px_rows)
+    j = range(0, px_cols)
 
-    paramlist = list(product(i, j))
-    pool = mp.Pool(mp.cpu_count())
+    multiprocessing = True
 
-    # for i, j in product(range(px_x), range(px_y)):
-    #     print(i)
-    #     v_sample = Isample[:, i, j]
-    #
-    #     for l, m in product(range(2*max_shift+1), range(2*max_shift+1)):
-    #         v_ref = paddedIref[:, i+l, j+m]
-    #
-    #         pearson_map[l][m] = pearson_correlation(v_sample, v_ref)
-    #
-    #     dx_px, dy_px = [max_shift-idx for idx in np.unravel_index(pearson_map.argmax(), pearson_map.shape)]
-    #
-    #     dx[i, j] = dx_px
-    #     dy[i, j] = dy_px
+    if multiprocessing:
+        print("Multiprocessing on")
+        paramlist = list(product(i, j))
+        pool = mp.Pool(mp.cpu_count())
+        # Need to create partial function because multiprocessing.map only accepts one input parameter
+        func = partial(calc_dx_dy, Isample, paddedIref, max_shift)
+        result = pool.map(func, paramlist)
+        dx_px = list(chain(*result))[0::2]
+        dy_px = list(chain(*result))[1::2]
+        pool.close()
+    else:
+        for a, b in product(i, j):
+            results = calc_dx_dy(Isample, paddedIref, max_shift, [a, b])
+            dx_px.append(results[0])
+            dy_px.append(results[1])
 
-    func = partial(calc_dx_dy, Isample, paddedIref, max_shift)
-    result = pool.map(func, paramlist)
-    #result = pool.starmap(calc_dx_dy, [(Isample, paddedIref, max_shift, x) for x in paramlist])
+    dx = np.array(dx_px).reshape(px_rows, px_cols)
+    dy = np.array(dy_px).reshape(px_rows, px_cols)
 
-    dx_px = list(chain(*result))[0::2]
-    dy_px = list(chain(*result))[1::2]
+    print("End of speckle vector tracking")
 
-    dx = np.array(dx_px).reshape(px_x, px_y)
-    dy = np.array(dy_px).reshape(px_y, px_x)
-
-    pool.close()
-
-    plt.imshow(dx, cmap='gray')
-    plt.colorbar()
-    plt.show()
-
-    return "something"
+    return dx, dy
 
 
 def calc_dx_dy(sample_image, padded_ref_image, shift, params):
+    """
+    Compare speckle images with sample (Isample) and w/o sample
+    (Iref) pixel by pixel.
+    Find maximum correlation using Pearson's correlation coefficient and produce maps of local displacement.
+    max_shift can be set to the number of pixels for an "acceptable"
+    speckle displacement.
+
+    :param sample_image: A list  of measurements, with the sample aligned but speckles shifted
+    :param padded_ref_image: A list of empty speckle measurements with the same displacement as Isample, padded
+    on each side with number of pixels = shift so that resulting image is of the same size as input images
+    :param shift: Number of pixels to consider when comparing sample_image with padded_ref_image
+    :params: Size of sample_image
+
+    Returns diff_x, diff_y
+    """
+
     i = params[0]
     j = params[1]
 
     if j == 0:
         print(i)
 
-    pearson_map = np.zeros((2 * shift + 1, 2 * shift + 1))
+    # Vector of Isample intensity values for pixel (i, j)
     v_sample = sample_image[:, i, j]
 
-    pixel = np.linspace(0, 2 * shift, 2 * shift + 1)
-    subpixel = np.linspace(0, 2 * shift, 20 * shift + 1)  # 10th of a pixel resolution
+    # 2D array of Iref intensity values for pixel (i + l, j + m) where -shift <= l, m <= shift
+    v_ref = np.array([padded_ref_image[k, i + l, j + m] for k in range(padded_ref_image.shape[0]) for l in range(2 * shift +1) for m in range(2 * shift +1)])
+    v_ref = v_ref.reshape((padded_ref_image.shape[0], 2 * shift + 1, 2 * shift + 1))
 
-    for l, m in product(range(2 * shift +1), range(2 * shift + 1)):
-        v_ref = padded_ref_image[:, i + l, j + m]
-        pearson_map[l][m] = pearson_correlation(v_sample, v_ref)
+    # To have more points for the polynomial surface fit, we interpolate v_ref at every half-pixel
+    r = np.linspace(0, 2*shift, 2*shift+1)
+    c = np.linspace(0, 2*shift, 2*shift+1)
+    px2subpx = [interp2d(c, r, v_ref[n, :, :]) for n in range(v_ref.shape[0])]
+    rs = np.linspace(r[0], r[-1], 2 * len(r))
+    cs = np.linspace(c[0], c[-1], 2 * len(c))
+    v_ref_s = [f(cs, rs) for f in px2subpx]
+    v_ref = np.array(v_ref_s)
 
-    diff_x, diff_y = [shift - idx for idx in np.unravel_index(pearson_map.argmax(), pearson_map.shape)]
+    # Determine the correlation between v_sample and each value in v_ref
+    pearson_map = np.zeros((v_ref.shape[1], v_ref.shape[2]))
+    for l, m in product(range(v_ref.shape[1]), range(v_ref.shape[2])):
+        if np.std(v_ref[:, l, m]) == 0 or np.std(v_sample) == 0:
+            pearson_map[l][m] = 0.
+        else:
+            pearson_map[l][m] = pearson_correlation(v_sample, v_ref[:, l, m])
+
+    # Fit a polynomial surface to pearson_map and find the maximum correlation peak
+    fit_params = polyfit2d(pearson_map)
+    diffy, diffx = find_max(fit_params)
+
+    # Give the shift in terms of displacement (in terms of pixels) of v_sample relative to v_ref
+    diff_x = ((len(cs)-1)/2. - diffx) * 0.5
+    diff_y = ((len(rs)-1)/2. - diffy) * 0.5
+
+    plot = False
+
+    if plot:
+        a = fit_params
+        interp_points = 10
+
+        is0 = np.linspace(0, pearson_map.shape[0] - 1, interp_points * (pearson_map.shape[0] - 1) + 1)
+        js0 = np.linspace(0, pearson_map.shape[1] - 1, interp_points * (pearson_map.shape[1] - 1) + 1)
+
+        iss, jss = np.meshgrid(is0, js0)
+
+        IS = iss.flatten()
+        JS = jss.flatten()
+
+        fit = a[0] * IS ** 2 + a[1] * JS ** 2 + a[2] * IS * JS + a[3] * IS + a[4] * JS + a[5]
+        fit = fit.reshape((len(is0), len(js0)))
+
+        fig = plt.figure()
+        ax = fig.gca(projection='3d')
+        ax.scatter(i0, j0, pearson_map)
+        ax.scatter(diffx, diffy, 1)
+        ax.plot_surface(iss, jss, fit, cmap='plasma')
+        ax.set_zlim(0, np.max(pearson_map))
+        plt.show()
 
     return diff_x, diff_y
 
 
-def pearson_correlation(sample_vector, ref_vector):
-    pcoeff = 0 if np.isnan(abs(pearsonr(sample_vector, ref_vector)[0])) else abs(pearsonr(sample_vector, ref_vector)[0])
+def pearson_correlation(x, y):
+    """
+    Calculate the Pearson correlation of two vectors, x and y. The Pearson correlation
+    coefficient lies between -1 and 1, where p = 1 means that x and y are the same,
+    p = -1 corresponds to inverse correlation and p = 0 means that there is no correlation
+    between x and y.
 
-    return pcoeff
+    Note: this function is faster than scipy.stats.pearsonr due to the vectorised matrix multiplication
+    (numpy.matmul).
+
+    :param x: Vector of intensity values corresponding pixel to (i, j) of Isample
+    :param y: Vector of intensity values corresponding to pixel (i + m, j + l) of Iref
+
+    Returns p
+    """
+
+    xv = x - x.mean(axis=0)
+    yv = y - y.mean(axis=0)
+    xvss = (xv * xv).sum(axis=0)
+    yvss = (yv * yv).sum(axis=0)
+
+    # bound the values to -1 to 1 in the event of precision issues
+    if np.sqrt(np.outer(xvss, yvss)) == 0:
+        p = 0.
+    else:
+        result = np.matmul(xv.transpose(), yv) / np.sqrt(np.outer(xvss, yvss))
+        p = np.maximum(np.minimum(result, 1.0), -1.0)
+    return p
+
+
+def polyfit2d(pmap):
+    """
+    Fit a 2nd order polynomial surface (paraboloid) to the map of Pearson's correlation
+    coefficients (pmap) and return a list (a) containing the fit parameters.
+
+    Model: C(i, j) = a0*i*i + a1*j*j + a2*i*j + a3*i + a4*j + a5
+
+    where (i, j) are the rows and columns in pmap.
+
+    :param pmap: 2D array containing Pearson's correlation coefficients.
+
+    Returns a
+    """
+
+    i, j = np.indices(pmap.shape)
+    I = i.flatten()
+    J = j.flatten()
+    mf = pmap.flatten()
+
+    M = np.array([I ** 2, J ** 2, I * J, I, J, I * 0 + 1]).T
+    result = np.linalg.lstsq(M, mf)
+    a = result[0]
+
+    return a
+
+
+def find_max(a):
+    """
+    Find the coordinates (i0, j0) in terms of pixels of the maximum correlation peak from
+    the polynomial surface fit parameters
+
+    :param a: List of polynomial surface fit parameters returned by polyfit2d()
+
+    Returns i0, j0
+    """
+
+    i0 = ((a[2]*a[3]) - (2*a[0]*a[4])) / (4*a[0]*a[1] - a[2]**2)
+    j0 = ((a[2] * a[4]) - (2 * a[1] * a[3])) / (4 * a[0] * a[1] - a[2] ** 2)
+
+    return i0, j0
+
