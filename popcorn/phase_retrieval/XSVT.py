@@ -3,29 +3,45 @@ import multiprocessing as mp
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from itertools import product, chain
-from scipy.interpolate import interp1d, interp2d
+from scipy.interpolate import interp2d
 from functools import partial
 from scipy.ndimage.filters import median_filter
+import frankoChellappa as fc
+from OpticalFlow2020 import kottler, LarkinAnissonSheppard
 
 
 def processProjectionXSVT(experiment):
-    pixel_size = experiment.pixel
-    odd = experiment.dist_object_detector
-    k = experiment.getk()
 
-    diff_x, diff_y = speckle_vector_tracking(experiment.sample_images, experiment.reference_images, max_shift=experiment.max_shift)
+    nb_images, px_rows, px_cols = experiment.sample_images.shape
+    diff_x, diff_y, transmission, darkfield = start_tracking(experiment.sample_images, experiment.reference_images, max_shift=experiment.max_shift)
 
     if experiment.LCS_median_filter !=0:
         diff_x = median_filter(diff_x, size=experiment.LCS_median_filter)
         diff_y = median_filter(diff_y, size=experiment.LCS_median_filter)
 
-    dphix = diff_x * k * (pixel_size / odd)
-    dphiy = diff_y * k * (pixel_size / odd)
+    dphix = diff_x * experiment.getk() * (experiment.pixel / experiment.dist_object_detector)
+    dphiy = diff_y * experiment.getk() * (experiment.pixel / experiment.dist_object_detector)
 
-    return {"Diff_x" : diff_x, "Diff_y" : diff_y}
+    padForIntegration = True
+    padSize = 300
+    if padForIntegration:
+        dphix = np.pad(dphix, ((padSize, padSize), (padSize, padSize)), mode='reflect')  # voir is edge mieux que reflect
+        dphiy = np.pad(dphiy, ((padSize, padSize), (padSize, padSize)), mode='reflect')  # voir is edge mieux que reflect
+
+    # Compute the phase from phase gradients with 3 different methods (still trying to choose the best one)
+    phiFC = fc.frankotchellappa(dphiy, dphix, True) * experiment.pixel
+    phiK = kottler(dphiy, dphix) * experiment.pixel
+    phiLA = LarkinAnissonSheppard(dphiy, dphix) * experiment.pixel
+
+    if padSize > 0:
+        phiFC = phiFC[padSize:padSize + px_rows, padSize:padSize + px_cols]
+        phiK = phiK[padSize:padSize + px_rows, padSize:padSize + px_cols]
+        phiLA = phiLA[padSize:padSize + px_rows, padSize:padSize + px_cols]
+
+    return {"Diff_x" : diff_x, "Diff_y" : diff_y, "Transmission" : transmission, "Darkfield" : darkfield, "DPhi_x" : dphix, "DPhi_y" : dphiy, 'phiFC': phiFC.real, 'phiK': phiK.real,'phiLA': phiLA.real}
 
 
-def speckle_vector_tracking(Isample, Iref, max_shift):
+def start_tracking(Isample, Iref, max_shift):
     """
     Compare speckle images with sample (Isample) and w/o sample
     (Iref) pixel by pixel.
@@ -44,10 +60,7 @@ def speckle_vector_tracking(Isample, Iref, max_shift):
     print("Speckle vector tracking started")
 
     nb_images, px_rows, px_cols = Iref.shape
-    paddedIref = np.array([np.pad(Iref[im, :, :], max_shift, 'constant') for im in range(0, nb_images)])
-
-    dx_px = []
-    dy_px = []
+    paddedIref = np.array([np.pad(Iref[im, :, :], max_shift, 'edge') for im in range(0, nb_images)])
 
     i = range(0, px_rows)
     j = range(0, px_cols)
@@ -59,26 +72,37 @@ def speckle_vector_tracking(Isample, Iref, max_shift):
         paramlist = list(product(i, j))
         pool = mp.Pool(mp.cpu_count())
         # Need to create partial function because multiprocessing.map only accepts one input parameter
-        func = partial(calc_dx_dy, Isample, paddedIref, max_shift)
+        func = partial(speckle_vector_tracking, Isample, paddedIref, max_shift)
         result = pool.map(func, paramlist)
-        dx_px = list(chain(*result))[0::2]
-        dy_px = list(chain(*result))[1::2]
+        dx = list(chain(*result))[0::4]
+        dy = list(chain(*result))[1::4]
+        tr = list(chain(*result))[2::4]
+        df = list(chain(*result))[3::4]
         pool.close()
     else:
-        for a, b in product(i, j):
-            results = calc_dx_dy(Isample, paddedIref, max_shift, [a, b])
-            dx_px.append(results[0])
-            dy_px.append(results[1])
+        dx = []
+        dy = []
+        tr = []
+        df = []
 
-    dx = np.array(dx_px).reshape(px_rows, px_cols)
-    dy = np.array(dy_px).reshape(px_rows, px_cols)
+        for a, b in product(i, j):
+            results = speckle_vector_tracking(Isample, paddedIref, max_shift, [a, b])
+            dx.append(results[0])
+            dy.append(results[1])
+            tr.append(results[2])
+            df.append(results[3])
+
+    dx = np.array(dx).reshape(px_rows, px_cols)
+    dy = np.array(dy).reshape(px_rows, px_cols)
+    tr = np.array(tr).reshape(px_rows, px_cols)
+    df = np.array(df).reshape(px_rows, px_cols)
 
     print("End of speckle vector tracking")
 
-    return dx, dy
+    return dx, dy, tr, df
 
 
-def calc_dx_dy(sample_image, padded_ref_image, shift, params):
+def speckle_vector_tracking(sample_image, padded_ref_image, shift, params):
     """
     Compare speckle images with sample (Isample) and w/o sample
     (Iref) pixel by pixel.
@@ -109,11 +133,9 @@ def calc_dx_dy(sample_image, padded_ref_image, shift, params):
     v_ref = v_ref.reshape((padded_ref_image.shape[0], 2 * shift + 1, 2 * shift + 1))
 
     # To have more points for the polynomial surface fit, we interpolate v_ref at every half-pixel
-    r = np.linspace(0, 2*shift, 2*shift+1)
-    c = np.linspace(0, 2*shift, 2*shift+1)
+    r = c = np.linspace(0, 2*shift, 2*shift+1)
+    rs = cs = np.linspace(r[0], r[-1], 2 * len(r))
     px2subpx = [interp2d(c, r, v_ref[n, :, :]) for n in range(v_ref.shape[0])]
-    rs = np.linspace(r[0], r[-1], 2 * len(r))
-    cs = np.linspace(c[0], c[-1], 2 * len(c))
     v_ref_s = [f(cs, rs) for f in px2subpx]
     v_ref = np.array(v_ref_s)
 
@@ -139,8 +161,8 @@ def calc_dx_dy(sample_image, padded_ref_image, shift, params):
         a = fit_params
         interp_points = 10
 
-        is0 = np.linspace(0, pearson_map.shape[0] - 1, interp_points * (pearson_map.shape[0] - 1) + 1)
-        js0 = np.linspace(0, pearson_map.shape[1] - 1, interp_points * (pearson_map.shape[1] - 1) + 1)
+        i0 = j0 = np.linspace(0, pearson_map.shape[0] - 1, pearson_map.shape[0])
+        is0 = js0 = np.linspace(0, pearson_map.shape[0] - 1, interp_points * (pearson_map.shape[0] - 1) + 1)
 
         iss, jss = np.meshgrid(is0, js0)
 
@@ -158,7 +180,11 @@ def calc_dx_dy(sample_image, padded_ref_image, shift, params):
         ax.set_zlim(0, np.max(pearson_map))
         plt.show()
 
-    return diff_x, diff_y
+    v_ref_shifted = [f(diffx, diffy) for f in px2subpx]
+    transn = calc_transmission(v_sample, v_ref_shifted)
+    dark = calc_df(transn, v_sample, v_ref_shifted)
+
+    return diff_x, diff_y, transn, dark
 
 
 def pearson_correlation(x, y):
@@ -232,3 +258,9 @@ def find_max(a):
 
     return i0, j0
 
+def calc_transmission(vs, vr):
+    return np.mean(vs) / np.mean(vr)
+
+
+def calc_df(tr, vs, vr):
+    return (1/tr) * np.std(vs) / np.std(vr)
