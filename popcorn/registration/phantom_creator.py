@@ -1,5 +1,5 @@
 import numpy as np
-import ratGistrationIO
+
 import registration
 
 def create_phantom_line(nb_slices, height, width, first_point, last_point, type_of_structure = "square", radius = 5):

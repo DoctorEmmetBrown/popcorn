@@ -476,7 +476,37 @@ class Phase_Retrieval_Experiment:
         """
         TO BE DEFINED
         """
-        self.result_XSVT = processProjectionXSVT(self)
+        self.result_XSVT=processProjectionXSVT(self)
+
+        dx = self.result_XSVT["Diff_x"]
+        dy = self.result_XSVT["Diff_y"]
+        tr = self.result_XSVT["Transmission"]
+        df = self.result_XSVT["Darkfield"]
+        dphix = self.result_XSVT["DPhi_x"]
+        dphiy = self.result_XSVT["DPhi_y"]
+        phiFC = self.result_XSVT['phiFC']
+        phiK = self.result_XSVT['phiK']
+        phiLA = self.result_XSVT['phiLA']
+
+        padSize = self.pad_size
+        if padSize > 0:
+            width, height = dx.shape
+            phiFC = phiFC[padSize:padSize + width - 2 * padSize, padSize:padSize + height - 2 * padSize]
+            phiK = phiK[padSize:padSize + width - 2 * padSize, padSize:padSize + height - 2 * padSize]
+            phiLA = phiLA[padSize:padSize + width - 2 * padSize, padSize:padSize + height - 2 * padSize]
+
+        print(dx.shape)
+
+        print("Saving images")
+
+        saveEdf(dx, self.output_folder + '/Dx_XSVT.edf')
+        saveEdf(dy, self.output_folder + '/Dy_XSVT.edf')
+        saveEdf(tr, self.output_folder + '/Tr_XSVT.edf')
+        saveEdf(df, self.output_folder + '/Df_XSVT.edf')
+        saveEdf(phiFC, self.output_folder + '/phiFC_XSVT.edf')
+        saveEdf(phiK, self.output_folder + '/phiK_XSVT.edf')
+        saveEdf(phiLA, self.output_folder + '/phiLA_XSVT.edf')
+
         return
 
     def getk(self):

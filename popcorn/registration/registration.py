@@ -460,8 +460,8 @@ def apply_rotation_pipeline(image, local_triangle_angle, rotation_matrix, local_
     return image
 
 
-def registration_computation_with_mask(moving_image, reference_image, moving_mask, reference_mask,
-                                       is_translation_needed=True, is_rotation_needed=False, verbose=False):
+def registration_computation(moving_image, reference_image, moving_mask=None, reference_mask=None,
+                             is_translation_needed=True, is_rotation_needed=False, verbose=False):
     """registration calculation based on a mask
 
     Args:
@@ -483,15 +483,26 @@ def registration_computation_with_mask(moving_image, reference_image, moving_mas
     fixed_image_itk = Sitk.GetImageFromArray(reference_image.data)
     moving_image_itk = Sitk.GetImageFromArray(moving_image.data)
 
-    fixed_mask_itk = Sitk.GetImageFromArray(reference_mask.data)
-    moving_mask_itk = Sitk.GetImageFromArray(moving_mask.data)
+    if moving_mask is not None and reference_mask is not None:
+        fixed_mask_itk = Sitk.GetImageFromArray(reference_mask.data)
+        moving_mask_itk = Sitk.GetImageFromArray(moving_mask.data)
+    else:
+        fixed_mask_itk = None
+        moving_mask_itk = None
 
     # Initializing transformations
-    result_translation_transformation = Sitk.TranslationTransform(fixed_mask_itk.GetDimension())
-    result_rotation_transformation = Sitk.CenteredTransformInitializer(fixed_image_itk,
-                                                                       moving_image_itk,
-                                                                       Sitk.Euler3DTransform(),
-                                                                       Sitk.CenteredTransformInitializerFilter.GEOMETRY)
+    if is_translation_needed:
+        calculated_translation_transformation = Sitk.TranslationTransform(fixed_image_itk.GetDimension())
+    else:
+        calculated_translation_transformation = None
+    if is_rotation_needed:
+        calculated_rotation_transformation = \
+            Sitk.CenteredTransformInitializer(fixed_image_itk,
+                                              moving_image_itk,
+                                              Sitk.Euler3DTransform(),
+                                              Sitk.CenteredTransformInitializerFilter.GEOMETRY)
+    else:
+        calculated_rotation_transformation = None
 
     if is_translation_needed:
         # --------------------------------------------------
@@ -510,7 +521,7 @@ def registration_computation_with_mask(moving_image, reference_image, moving_mas
         translation_registration_method.SetOptimizerAsRegularStepGradientDescent(learningRate=10.0,
                                                                                  minStep=1e-3,
                                                                                  numberOfIterations=50,
-                                                                                 gradientMagnitudeTolerance=1e-5)
+                                                                                 gradientMagnitudeTolerance=1e-4)
 
         # 3 ---> INTERPOLATOR
         translation_registration_method.SetInterpolator(Sitk.sitkLinear)
@@ -520,23 +531,27 @@ def registration_computation_with_mask(moving_image, reference_image, moving_mas
         translation_registration_method.SetInitialTransform(tx)
 
         # MASK BASED METRIC CALCULATION
-        translation_registration_method.SetMetricFixedMask(fixed_mask_itk)
-        translation_registration_method.SetMetricMovingMask(moving_mask_itk)
+        if moving_mask is not None and reference_mask is not None:
+            translation_registration_method.SetMetricFixedMask(fixed_mask_itk)
+            translation_registration_method.SetMetricMovingMask(moving_mask_itk)
 
         # Registration execution
 
         if verbose:
             translation_registration_method.AddCommand(Sitk.sitkIterationEvent,
                                                        lambda: command_iteration(translation_registration_method))
-        result_translation_transformation = translation_registration_method.Execute(fixed_image_itk, moving_image_itk)
+        calculated_translation_transformation = translation_registration_method.Execute(fixed_image_itk,
+                                                                                        moving_image_itk)
 
-        print("Translation :", result_translation_transformation)
+        print("Translation :", calculated_translation_transformation)
 
         # Applying the first transformation to the first volume/mask
-        moving_mask_itk = Sitk.Resample(moving_mask_itk, fixed_mask_itk, result_translation_transformation,
-                                        Sitk.sitkNearestNeighbor, 0.0, fixed_image_itk.GetPixelIDValue())
-        moving_image_itk = Sitk.Resample(moving_image_itk, fixed_image_itk, result_translation_transformation,
-                                         Sitk.sitkLinear, 0.0, fixed_image_itk.GetPixelIDValue())
+        if moving_mask is not None and reference_mask is not None:
+            moving_mask_itk = Sitk.Resample(moving_mask_itk, fixed_mask_itk, calculated_translation_transformation,
+                                            Sitk.sitkNearestNeighbor, 0.0, fixed_image_itk.GetPixelIDValue())
+        moving_image_itk = Sitk.Resample(moving_image_itk, fixed_image_itk, calculated_translation_transformation,
+                                         Sitk.sitkLinear, 0.0,
+                                         fixed_image_itk.GetPixelIDValue())
 
     if is_rotation_needed:
         # --------------------------------------------------------------
@@ -563,20 +578,26 @@ def registration_computation_with_mask(moving_image, reference_image, moving_mas
                                                moving_image_itk,
                                                Sitk.Euler3DTransform(),
                                                Sitk.CenteredTransformInitializerFilter.GEOMETRY)
-        print(tx)
+
         rotation_registration_method.SetInitialTransform(tx)
 
         # MASK BASED METRIC CALCULATION
-        rotation_registration_method.SetMetricFixedMask(fixed_mask_itk)
-        rotation_registration_method.SetMetricMovingMask(moving_mask_itk)
+        if moving_mask is not None and reference_mask is not None:
+            rotation_registration_method.SetMetricFixedMask(fixed_mask_itk)
+            rotation_registration_method.SetMetricMovingMask(moving_mask_itk)
 
         # Registration execution
         if verbose:
-            rotation_registration_method.AddCommand(Sitk.sitkIterationEvent,
-                                                    lambda: command_iteration(rotation_registration_method))  # Verbose?
-        result_rotation_transformation = rotation_registration_method.Execute(fixed_image_itk, moving_image_itk)
+            rotation_registration_method.AddCommand(Sitk.sitkIterationEvent, lambda: command_iteration(
+                rotation_registration_method))  # Verbose ?
+        calculated_rotation_transformation = rotation_registration_method.Execute(fixed_image_itk, moving_image_itk)
 
-    return result_translation_transformation, result_rotation_transformation
+    if is_translation_needed and is_rotation_needed:
+        return calculated_translation_transformation, calculated_rotation_transformation
+    elif is_rotation_needed:
+        return calculated_rotation_transformation
+    elif is_translation_needed:
+        return calculated_translation_transformation
 
 
 def apply_itk_transformation(image, transformation, interpolation_type="linear", ref_img=None):
