@@ -115,8 +115,12 @@ class Material:
         return list_of_deltas
 
 
+
+
 if __name__ == '__main__':
-    gold = Material("Cortical Bone")
+    gold = Material("Nylon2")
+    Fromula= "C0.034000C0.155000N0.042000O0.435000Na0.001000Mg0.002000P0.103000S0.003000Ca0.225000"
+    density=1.920
     energies = np.array([10000, 35000, 40000, 45000, 50000])
     print("Mus :", gold.get_mu(energies))
     print("Beta :", gold.get_beta(int(energies[0]), 1.85))

@@ -193,12 +193,13 @@ class Phase_Retrieval_Experiment:
 
 
         # On cree un white a partir de la reference pour normaliser
-        # if len(whiteImage)==0:
-        #     white=gaussian_filter(np.mean(Ir, axis=0),50)
-        # else:
-        #     white=openSeq(whiteImage)[0]
+        if len(whiteImage)==0:
+            white=gaussian_filter(np.mean(Ir, axis=0),50)
+        else:
+            white=openSeq(whiteImage)[0]
         if len(darkImage)!=0:
             dark=openSeq(darkImage)[0]
+        
         # Ir=(Ir-dark)/(white-dark)
         # Is=(Is-dark)/(white-dark)
         self.reference_images=np.asarray(Ir, dtype=np.float64)#/white
