@@ -134,7 +134,8 @@ def speckle_vector_tracking(sample_image, padded_ref_image, shift, params):
 
     # To have more points for the polynomial surface fit, we interpolate v_ref at every half-pixel
     r = c = np.linspace(0, 2*shift, 2*shift+1)
-    rs = cs = np.linspace(r[0], r[-1], 2 * len(r))
+    n = 2  # We will interpolate v_ref to have values for sub-pixels of width 1/n*pixel
+    rs = cs = np.linspace(r[0], r[-1], int(n * r[-1] + 1))
     px2subpx = [interp2d(c, r, v_ref[n, :, :]) for n in range(v_ref.shape[0])]
     v_ref_s = [f(cs, rs) for f in px2subpx]
     v_ref = np.array(v_ref_s)
@@ -152,18 +153,19 @@ def speckle_vector_tracking(sample_image, padded_ref_image, shift, params):
     diffy, diffx = find_max(fit_params)
 
     # Give the shift in terms of displacement (in terms of pixels) of v_sample relative to v_ref
-    diff_x = ((len(cs)-1)/2. - diffx) * 0.5
-    diff_y = ((len(rs)-1)/2. - diffy) * 0.5
+    diff_x = ((len(cs)-1)/2. - diffx) * (1. / n)
+    diff_y = ((len(rs)-1)/2. - diffy) * (1. / n)
 
     plot = False
 
-    if plot:
+    if plot and i > 0 and j > 0:
         a = fit_params
         interp_points = 10
 
         i0 = j0 = np.linspace(0, pearson_map.shape[0] - 1, pearson_map.shape[0])
         is0 = js0 = np.linspace(0, pearson_map.shape[0] - 1, interp_points * (pearson_map.shape[0] - 1) + 1)
 
+        imesh, jmesh = np.meshgrid(i0, j0)
         iss, jss = np.meshgrid(is0, js0)
 
         IS = iss.flatten()
@@ -172,12 +174,21 @@ def speckle_vector_tracking(sample_image, padded_ref_image, shift, params):
         fit = a[0] * IS ** 2 + a[1] * JS ** 2 + a[2] * IS * JS + a[3] * IS + a[4] * JS + a[5]
         fit = fit.reshape((len(is0), len(js0)))
 
+        imesh = [(n * shift - v) * (1. / n) for v in imesh]
+        jmesh = [(n * shift - v) * (1. / n) for v in jmesh]
+        iss = [(n * shift - v) * (1. / n) for v in iss]
+        jss = [(n * shift - v) * (1. / n) for v in jss]
+
         fig = plt.figure()
         ax = fig.gca(projection='3d')
-        ax.scatter(i0, j0, pearson_map)
-        ax.scatter(diffx, diffy, 1)
-        ax.plot_surface(iss, jss, fit, cmap='plasma')
-        ax.set_zlim(0, np.max(pearson_map))
+        ax.scatter(imesh, jmesh, pearson_map, zorder=2)
+        surf = ax.plot_surface(iss, jss, fit, cmap='plasma', vmin=0.9, vmax=1, zorder=-10, alpha = 0.8)
+        ax.scatter(diff_x, diff_y, np.amax(fit), color='k', zorder=3)
+        ax.set_zlim(0, 1.2)
+        ax.set_xlabel(r'$\Delta$ x')
+        ax.set_ylabel(r'$\Delta$ y')
+        ax.set_zlabel('p')
+        plt.colorbar(surf)
         plt.show()
 
     v_ref_shifted = [f(diffx, diffy) for f in px2subpx]
