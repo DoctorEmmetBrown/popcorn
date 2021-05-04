@@ -3,10 +3,10 @@ import PyIPSDK.IPSDKIPLBinarization as Bin
 
 import numpy as np
 
-import segmentation
+from popcorn.registration import segmentation
 from popcorn.image_processing import resampling
-import registration
-import morphology
+from popcorn.registration import registration
+from popcorn.registration import morphology
 
 from popcorn import input_output
 from popcorn.spectral_imaging.material_decomposition import three_materials_decomposition
@@ -42,6 +42,62 @@ def conversion_pipeline(above_folder, below_folder, bin_factor, above_min, above
                                    + "\\Below_Acquisition\\")
 
 
+def new_registration_pipeline(input_folder, main_element="Au", second_element="I", translation_bool = False, rotation_bool=True):
+    """
+
+    Args:
+        input_folder ():
+        main_element ():
+        second_element ():
+        translation_bool ():
+        rotation_bool ():
+
+    Returns:
+
+    """
+
+    above_list_of_files = input_output.create_list_of_files(input_folder + "Above_Acquisition", 'tif')
+    above_image = input_output.open_seq(above_list_of_files)
+    print("Above image opened")
+    below_list_of_files = input_output.create_list_of_files(input_folder + "Below_Acquisition", 'tif')
+    below_image = input_output.open_seq(below_list_of_files)
+    print("Below image opened")
+
+    above_img_ipsdk = PyIPSDK.fromArray(above_image)
+    below_img_ipsdk = PyIPSDK.fromArray(below_image)
+
+    threshold_value = segmentation.find_threshold_value(main_element)
+
+    # -- Threshold computation
+    above_thresholded_img_ipsdk = Bin.thresholdImg(above_img_ipsdk, threshold_value, 3)
+    below_thresholded_img_ipsdk = Bin.thresholdImg(below_img_ipsdk, threshold_value, 3)
+
+    # -- Extracting skulls
+    above_skull, above_skull_bbox = segmentation.extract_skull(above_thresholded_img_ipsdk)
+    below_skull, below_skull_bbox = segmentation.extract_skull(below_thresholded_img_ipsdk)
+
+    translation_transform, rotation_transform = registration.registration_computation_with_mask(above_image,
+                                                                                                below_image,
+                                                                                                above_skull,
+                                                                                                below_skull,
+                                                                                                is_translation_needed=translation_bool,
+                                                                                                is_rotation_needed=rotation_bool,
+                                                                                                verbose=True)
+
+    # 1) Registering the above image
+    if translation_bool:
+        above_image = registration.apply_itk_transformation_with_ref_img(above_image, below_image, translation_transform,
+                                                                         "linear")
+    if rotation_bool:
+        above_image = registration.apply_itk_transformation(above_image, rotation_transform, "linear")
+
+    main_concentration_map, second_concentration_map, water_concentration_map\
+        = three_materials_decomposition(above_image, below_image, kedge_element=main_element, second_element=second_element)
+
+    input_output.save_tif_sequence(above_image, input_folder + "registered_above_acquisition/")
+    input_output.save_tif_sequence(main_concentration_map, input_folder + "main_concentration_map/")
+
+
 def aligning_skull_pipeline(input_above_folder, input_below_folder, element="Au"):
     """computes all the skull segmentation and rat aligning with z axis calculations
 
@@ -64,17 +120,13 @@ def aligning_skull_pipeline(input_above_folder, input_below_folder, element="Au"
     binning_factor = 2
     binned_image = resampling.bin_resize(above_image, binning_factor)
 
-    img_ipsdk = PyIPSDK.fromArray(binned_image)
-
     threshold_value = segmentation.find_threshold_value(element)
-
-    # -- Threshold computation
-    thresholded_img_ipsdk = Bin.thresholdImg(img_ipsdk, threshold_value, 3)
+    binned_mask = binned_image > threshold_value
 
     # -- Extracting skull
     above_skull, skull_bbox, \
         barycenter_jaw_one, barycenter_jaw_two, \
-        y_max_jaw_one, y_max_jaw_two = segmentation.extract_skull_and_jaws(thresholded_img_ipsdk)
+        y_max_jaw_one, y_max_jaw_two = segmentation.extract_skull_and_jaws(binned_mask)
 
     # 1) First rotation based on the position of skull/jaws
     print("... Beginning the first rotation ...")
@@ -84,29 +136,31 @@ def aligning_skull_pipeline(input_above_folder, input_below_folder, element="Au"
                                                                                               barycenter_jaw_one,
                                                                                               barycenter_jaw_two)
 
-    above_skull_ipsdk = PyIPSDK.fromArray(above_skull)
-    bbox = segmentation.skull_bounding_box_retriever(above_skull_ipsdk)
+    bbox = segmentation.skull_bounding_box_retriever(above_skull)
 
     # 2) Second rotation based on the position of the throat
     print("... Beginning the second rotation ...")
-    post_mortem = False
+    post_mortem = True
+    input_output.save_tif_sequence(straightened_image, input_output.remove_last_folder_in_path(input_above_folder) + "for_post_mortem\\")
     # segmentation of the throat
     if post_mortem:
         vector_director = np.array([-1., 4., 59.])
         throat_coordinates = np.array([313, 321, 0]).astype(np.uint32)
-        straightened_image, rotation_matrix, throat_coordinates, offset =\
-            registration.straight_throat_rotation(straightened_image, vector_director, throat_coordinates)
+        # vector_director = np.array([2., 10., 59.]²0]).astype(np.uint32)
+        straightened_image, rotation_matrix, throat_coordinates, offset = \
+            registration.straight_throat_rotation(straightened_image, direction_vector=vector_director,
+                                                  throat_coordinates=throat_coordinates, manual=True)
     else:
         throat_mask = segmentation.throat_segmentation(straightened_image, bbox, element)
         straightened_image, rotation_matrix, throat_coordinates, offset = \
-            registration.straight_throat_rotation(straightened_image, throat_mask)
+            registration.straight_throat_rotation(straightened_image, throat_mask_img=throat_mask)
 
     # We re-segment the skull/jaws
-    thresholded_img_ipsdk = Bin.thresholdImg(PyIPSDK.fromArray(straightened_image), threshold_value, 3)
+    binned_mask = straightened_image > threshold_value
 
     above_skull, skull_bbox, \
         barycenter_jaw_one, barycenter_jaw_two, \
-        y_max_jaw_one, y_max_jaw_two = segmentation.extract_skull_and_jaws(thresholded_img_ipsdk)
+        y_max_jaw_one, y_max_jaw_two = segmentation.extract_skull_and_jaws(binned_mask)
 
     # 3) Third rotation based on the symmetry of the skull
     print("... Beginning the third rotation ...")
@@ -124,8 +178,8 @@ def aligning_skull_pipeline(input_above_folder, input_below_folder, element="Au"
                                                              offset * binning_factor, symmetry_angle)
 
     final_above_image = final_above_image.astype(np.float32)
-    thresholded_final_above_image_ipsdk = Bin.thresholdImg(PyIPSDK.fromArray(final_above_image), threshold_value, 3)
-    final_above_skull, final_above_skull_bbox = segmentation.extract_skull(thresholded_final_above_image_ipsdk)
+    thresholded_final_above_image = final_above_image > threshold_value
+    final_above_skull, final_above_skull_bbox = segmentation.extract_skull(thresholded_final_above_image)
     print(" -> Applying transformations on original images")
 
     final_below_image = registration.apply_rotation_pipeline(below_image, triangle_angle, rotation_matrix,
@@ -133,8 +187,8 @@ def aligning_skull_pipeline(input_above_folder, input_below_folder, element="Au"
                                                              offset * binning_factor, symmetry_angle)
 
     final_below_image = final_below_image.astype(np.float32)
-    thresholded_final_below_image_ipsdk = Bin.thresholdImg(PyIPSDK.fromArray(final_below_image), threshold_value, 3)
-    final_below_skull, final_below_skull_bbox = segmentation.extract_skull(thresholded_final_below_image_ipsdk)
+    thresholded_final_below_image = final_below_image > threshold_value
+    final_below_skull, final_below_skull_bbox = segmentation.extract_skull(thresholded_final_below_image)
 
     # We take a bounding box containing both above and below bounding boxes
     final_bounding_box = np.array([min(final_above_skull_bbox[0], final_below_skull_bbox[0]),
@@ -153,14 +207,14 @@ def aligning_skull_pipeline(input_above_folder, input_below_folder, element="Au"
     output_folder = input_output.remove_last_folder_in_path(input_above_folder)
 
     input_output.save_tif_sequence_and_crop(final_above_image, final_bounding_box,
-                                            output_folder + "Above_img_for_registration\\")
+                                            output_folder + "Aligned_Above_Acquisition\\")
     input_output.save_tif_sequence_and_crop(final_above_skull, final_bounding_box,
-                                            output_folder + "Above_skull_for_registration\\")
+                                            output_folder + "Aligned_Above_Skull\\")
 
     input_output.save_tif_sequence_and_crop(final_below_image, final_bounding_box,
-                                            output_folder + "Below_img_for_registration\\")
+                                            output_folder + "Aligned_Below_Acquisition\\")
     input_output.save_tif_sequence_and_crop(final_below_skull, final_bounding_box,
-                                            output_folder + "Below_skull_for_registration\\")
+                                            output_folder + "Aligned_Below_Skull\\")
     print("-------------------------------------")
 
 
