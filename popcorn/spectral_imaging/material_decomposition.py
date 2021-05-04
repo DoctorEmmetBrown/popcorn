@@ -1,4 +1,4 @@
-import os
+import sys
 import glob
 
 import numpy as np
@@ -19,9 +19,9 @@ def loading_bar(iteration, total_iterations):
     percent = "{0:.1f}".format(100 * (float(iteration) / float(total_iterations)))
     filled_length = int(100 * float(iteration) // float(total_iterations))
     bar = '#' * filled_length + '-' * (100 - filled_length)
-
-    print("\r |" + bar + "| " + percent + "% ", end="")
+    print("\r |" + bar + "| " + percent + "% ", end="", flush=True)
     # Print New Line on Complete
+    sys.stdout.flush()
     if iteration == total_iterations:
         print()
 
