@@ -3,10 +3,8 @@ import PyIPSDK.IPSDKIPLBinarization as Bin
 
 import numpy as np
 
-from popcorn.registration import segmentation
-from popcorn.image_processing import resampling
-from popcorn.registration import registration
-from popcorn.registration import morphology
+from popcorn.image_processing import resampling, segmentation, mathematical_morphology
+from popcorn.spectral_imaging import registration
 
 from popcorn import input_output
 from popcorn.spectral_imaging.material_decomposition import three_materials_decomposition
@@ -254,8 +252,8 @@ def different_energies_registration_pipeline(input_folder, kedge_material="Au", 
                                                           is_rotation_needed=rotation_bool,
                                                           verbose=True)
 
-    above_image_unnecessary_voxels = morphology.dilate((above_image == 0).astype(np.int16), 3)
-    below_image_unnecessary_voxels = morphology.dilate((below_image == 0).astype(np.int16), 3)
+    above_image_unnecessary_voxels = mathematical_morphology.dilate((above_image == 0).astype(np.int16), 3)
+    below_image_unnecessary_voxels = mathematical_morphology.dilate((below_image == 0).astype(np.int16), 3)
 
     # 1) Registering the above image
     if translation_bool:

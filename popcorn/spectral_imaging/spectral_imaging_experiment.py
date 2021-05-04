@@ -1,8 +1,8 @@
 import popcorn.input_output as in_out
 import popcorn.image_processing.resampling as resampling
 import material_decomposition
-import popcorn.registration.registration as registration
-import popcorn.registration.segmentation as segmentation
+import popcorn.spectral_imaging.registration as registration
+import popcorn.image_processing.segmentation as segmentation
 
 from popcorn.registration.pipelines import aligning_skull_pipeline
 
@@ -10,7 +10,6 @@ import numpy as np
 import math
 
 import SimpleITK as Sitk
-from skimage import filters
 
 from skimage.measure import label, regionprops
 from skimage import img_as_ubyte

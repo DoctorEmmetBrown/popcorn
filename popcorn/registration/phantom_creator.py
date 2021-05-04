@@ -1,6 +1,7 @@
 import numpy as np
 
-import registration
+from popcorn.spectral_imaging import registration
+
 
 def create_phantom_line(nb_slices, height, width, first_point, last_point, type_of_structure = "square", radius = 5):
     """

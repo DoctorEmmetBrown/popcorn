@@ -134,7 +134,7 @@ def compute_3d_rotation(image, rotation_matrix, center_of_rotation, translation=
                                        rotation_matrix[0][1], rotation_matrix[1][1], rotation_matrix[2][1],
                                        rotation_matrix[0][2], rotation_matrix[1][2], rotation_matrix[2][2]))
 
-    if translation:
+    if translation is not None:
         rotation_transformation.SetTranslation((float(translation[0]), float(translation[1]), float(translation[2])))
 
     # Center of rotation
@@ -247,7 +247,7 @@ def straight_triangle_rotation(image, skull, skull_bounding_box, barycenter_jaw_
     return np.copy(resulting_image), np.copy(resulting_skull), float(angle)
 
 
-def straight_throat_rotation(image, throat_mask_img, direction_vector=None, throat_coordinates=None, manual=False):
+def straight_throat_rotation(image, throat_mask_img=None, direction_vector=None, throat_coordinates=None, manual=False):
     """ rotates the image based on the segmentation of the throat (so that is is aligned with a [0, 0, 1] vector)
 
     Args:
@@ -428,7 +428,7 @@ def command_iteration(method):
     Returns: None
 
     """
-    print("{0:3} = {1:10.5f}".format(method.GetOptimizerIteration(),
+    print("{0:3} = {1:10.8f}".format(method.GetOptimizerIteration(),
                                      method.GetMetricValue()))
     # print("Position = ", method.GetOptimizerPosition())
 
@@ -563,12 +563,13 @@ def registration_computation(moving_image, reference_image, moving_mask=None, re
         # 1 ---> METRIC
         # rotation_registration_method.SetMetricAsMeanSquares()
         rotation_registration_method.SetMetricAsCorrelation()
+        # rotation_registration_method.SetMetricAsJointHistogramMutualInformation()
 
         # 2 ---> OPTIMIZER
         rotation_registration_method.SetOptimizerAsRegularStepGradientDescent(learningRate=1e-3,
                                                                               minStep=1e-5,
                                                                               numberOfIterations=50,
-                                                                              gradientMagnitudeTolerance=1e-3)
+                                                                              gradientMagnitudeTolerance=1e-6)
 
         # 3 ---> INTERPOLATOR
         rotation_registration_method.SetInterpolator(Sitk.sitkLinear)
