@@ -280,7 +280,7 @@ def throat_segmentation(image, bbox, element):
     return np.copy(throat.array)
 
 
-def brain_nanoparticles_segmentation(concentration_map, skull, pixel_size, threshold=None):
+def brain_nanoparticles_segmentation(concentration_map, skull, pixel_size, threshold=None, filename=None, left_right=False):
     """segments brain injected nanoparticles from concentration map
 
     Args:
@@ -288,6 +288,7 @@ def brain_nanoparticles_segmentation(concentration_map, skull, pixel_size, thres
         skull (np.ndarray):             input skull mask
         pixel_size (float):             pixel size (in µm)
         threshold (float):              forced threshold value
+        filename (str):                 path to output file result of NPs quantification
 
     Returns:
         (np.ndarray) segmentation result
@@ -315,61 +316,183 @@ def brain_nanoparticles_segmentation(concentration_map, skull, pixel_size, thres
     skull_convex_hull = morphology.convex_hull_image(skull[best_index, :, :])
     skull_convex_hull_3d = np.repeat(skull_convex_hull[np.newaxis, :, :], skull.shape[0], axis=0)
     skull_convex_hull_3d_ipsdk = PyIPSDK.fromArray(skull_convex_hull_3d)
-    skull_convex_hull_3d_ipsdk = Bin.lightThresholdImg(skull_convex_hull_3d_ipsdk, 0.5)
+
 
     concentration_map_ipsdk = PyIPSDK.fromArray(concentration_map)
+    skull[concentration_map == 0] = 1
     skull_ipsdk = PyIPSDK.fromArray(skull)
 
     # We erode/open the skull's inverted mask (the inside and outside of the skull will be True)
     inverted_skull_ipsdk = Bin.darkThresholdImg(skull_ipsdk, 0.5)
 
-    eroding_sphere = PyIPSDK.sphericalSEXYZInfo(7)
+    eroding_sphere = PyIPSDK.sphericalSEXYZInfo(3)
     inverted_skull_ipsdk = Morpho.erode3dImg(inverted_skull_ipsdk, eroding_sphere)
 
-    opening_sphere = PyIPSDK.sphericalSEXYZInfo(80)
+    opening_sphere = PyIPSDK.sphericalSEXYZInfo(50)
     inverted_skull_ipsdk = Morpho.opening3dImg(inverted_skull_ipsdk, opening_sphere)
 
+    mask_for_brain_ipsdk = Logic.bitwiseAndImgImg(skull_convex_hull_3d_ipsdk, inverted_skull_ipsdk)
+
     # AND operation on convex hull and previously computed inverted masks gives us: the brain
-    brain_mask_ipsdk = AdvMorpho.keepBigShape3dImg(Logic.bitwiseAndImgImg(skull_convex_hull_3d_ipsdk,
-                                                                          inverted_skull_ipsdk), 1)
+    brain_mask_ipsdk = AdvMorpho.keepBigShape3dImg(mask_for_brain_ipsdk, 1)
+
+
+    brain_mask_without_nps = np.copy(brain_mask_ipsdk.array)
+    brain_mask_without_nps[brain_mask_without_nps > 3] = 0
+    brain_mask_without_nps_ipsdk = PyIPSDK.fromArray(brain_mask_without_nps)
+    brain_mask_without_nps_ipsdk = Bin.lightThresholdImg(brain_mask_without_nps_ipsdk, 0.5)
+
     # Standard deviation computation
-    brain_measure_results = GblMsr.statsMaskMsr3d(concentration_map_ipsdk, brain_mask_ipsdk)
+    brain_measure_results = GblMsr.statsMaskMsr3d(concentration_map_ipsdk, brain_mask_without_nps_ipsdk)
     brain_concentration_mask_ipsdk = Logic.maskImg(concentration_map_ipsdk, brain_mask_ipsdk)
+
 
     # if threshold is not specified, we use 3*standard_deviation as a threshold
     if threshold is None:
         print("Threshold :", 3 * brain_measure_results.stdDev, "mg/mL")
         segmented_cells_ipsdk = Bin.lightThresholdImg(brain_concentration_mask_ipsdk, 3 * brain_measure_results.stdDev)
+        threshold =  3 * brain_measure_results.stdDev
     else:
         print("Threshold :", threshold, "mg/mL")
         segmented_cells_ipsdk = Bin.lightThresholdImg(brain_concentration_mask_ipsdk, threshold)
 
-    segmented_cells_analysis(concentration_map, segmented_cells_ipsdk.array, pixel_size)
+    segmented_cells_analysis(concentration_map, segmented_cells_ipsdk.array, threshold, pixel_size=pixel_size, filename=filename, left_right=left_right)
 
     return np.copy(segmented_cells_ipsdk.array)
 
 
-def segmented_cells_analysis(material_concentration_map, cells_mask, pixel_size=21.4):
+def segmented_cells_analysis(material_concentration_map, cells_mask, threshold, pixel_size=21.4,  filename=None,
+                             left_right=False):
     """Computes mean concentration and other values on segmented nanoparticles
 
     Args:
         material_concentration_map (np.ndarray): concentration map
         cells_mask (np.ndarray):                 segmented cells mask
         pixel_size (float):                      pixel size (in µm)
+        threshold (float):                       threshold used for segmentation
+        filename (str):                          output file path for NPs quantification results
 
     Returns:
         None
     """
-    segmented_cells = material_concentration_map[cells_mask > 0]
+    if not left_right:
+        segmented_cells = material_concentration_map[cells_mask > 0]
 
-    mean_concentration = np.mean(segmented_cells)
-    nb_of_pixels = segmented_cells.size
-    print("***************** Results of segmentation *****************")
-    print("Segmented volume   :", nb_of_pixels * (pixel_size * pixel_size * pixel_size * 0.000000000001), "mL")
-    print("                  ->", nb_of_pixels * (pixel_size * pixel_size * pixel_size * 0.000000001), "µL")
-    print("Mean concentration :", np.mean(segmented_cells), "mg/mL")
-    total_sum = 0
-    for pixel in segmented_cells:
-        total_sum += (pixel - mean_concentration) * (pixel - mean_concentration)
-    print("Standard deviation :", math.sqrt(total_sum / nb_of_pixels), "mg/mL")
-    print("Mass of gold : ", 1000 * sum(segmented_cells) * (pixel_size * pixel_size * pixel_size * 0.000000000001))
+        mean_concentration = np.mean(segmented_cells)
+        nb_of_pixels = segmented_cells.size
+        if filename is not None:
+            file = open(filename, "w")
+            print("***************** Results of segmentation *****************")
+            file.write("Threshold          : " + str(threshold) + " mg/mL\n")
+            print("Segmented volume   :", nb_of_pixels * (pixel_size * pixel_size * pixel_size * 0.000000000001), "mL")
+            print("                  ->", nb_of_pixels * (pixel_size * pixel_size * pixel_size * 0.000000001), "µL")
+            print("Mean concentration :", np.mean(segmented_cells), "mg/mL")
+            file.write("Segmented volume   : " + str(nb_of_pixels * (pixel_size * pixel_size * pixel_size * 0.000000000001))
+                       + " mL\n")
+            file.write("                  -> " + str(nb_of_pixels * (pixel_size * pixel_size * pixel_size * 0.000000001))
+                       + " µL\n")
+            file.write("Mean concentration : " + str(np.mean(segmented_cells)) + " mg/mL\n")
+            total_sum = 0
+            for pixel in segmented_cells:
+                total_sum += (pixel - mean_concentration) * (pixel - mean_concentration)
+            print("Standard deviation :", math.sqrt(total_sum / nb_of_pixels), "mg/mL")
+            print("Mass of gold : ", 1000 * sum(segmented_cells) * (pixel_size * pixel_size * pixel_size * 0.000000000001))
+            file.write("Standard deviation : " + str(math.sqrt(total_sum / nb_of_pixels)) + " mg/mL\n")
+            file.write("Mass of NPs : " +
+                       str(1000 * sum(segmented_cells) * (pixel_size * pixel_size * pixel_size * 0.000000000001)) +"\n")
+            file.close()
+        else:
+            print("***************** Results of segmentation *****************")
+            print("Segmented volume   :", nb_of_pixels * (pixel_size * pixel_size * pixel_size * 0.000000000001), "mL")
+            print("                  ->", nb_of_pixels * (pixel_size * pixel_size * pixel_size * 0.000000001), "µL")
+            print("Mean concentration :", np.mean(segmented_cells), "mg/mL")
+            total_sum = 0
+            for pixel in segmented_cells:
+                total_sum += (pixel - mean_concentration) * (pixel - mean_concentration)
+            print("Standard deviation :", math.sqrt(total_sum / nb_of_pixels), "mg/mL")
+            print("Mass of NPs : ", 1000 * sum(segmented_cells) * (pixel_size * pixel_size * pixel_size * 0.000000000001))
+
+    else:
+        left_material_concentration_map = material_concentration_map[:, :, 0:material_concentration_map.shape[2]//2]
+        left_cells_mask = cells_mask[:, :, 0:material_concentration_map.shape[2]//2]
+        left_segmented_cells = left_material_concentration_map[left_cells_mask > 0]
+        left_mean_concentration = np.mean(left_segmented_cells)
+        left_nb_of_pixels = left_segmented_cells.size
+
+        right_material_concentration_map = material_concentration_map[:, :, material_concentration_map.shape[2]//2:]
+        right_cells_mask = cells_mask[:, :, material_concentration_map.shape[2]//2:]
+        right_segmented_cells = right_material_concentration_map[right_cells_mask > 0]
+        right_mean_concentration = np.mean(right_segmented_cells)
+        right_nb_of_pixels = right_segmented_cells.size
+
+        if filename is not None:
+            file = open(filename, "w")
+            if left_nb_of_pixels > 0:
+                print("***************** Results of LEFT PART segmentation *****************")
+                file.write("***************** Results of LEFT PART segmentation *****************\n")
+                file.write("Threshold          : " + str(threshold) + " mg/mL\n")
+                print("Segmented volume   :", left_nb_of_pixels * (pixel_size * pixel_size * pixel_size * 0.000000000001), "mL")
+                print("                  ->", left_nb_of_pixels * (pixel_size * pixel_size * pixel_size * 0.000000001), "µL")
+                print("Mean concentration :", np.mean(left_segmented_cells), "mg/mL")
+                file.write("Segmented volume   : " + str(left_nb_of_pixels * (pixel_size * pixel_size * pixel_size * 0.000000000001))
+                           + " mL\n")
+                file.write("                  -> " + str(left_nb_of_pixels * (pixel_size * pixel_size * pixel_size * 0.000000001))
+                           + " µL\n")
+                file.write("Mean concentration : " + str(np.mean(left_segmented_cells)) + " mg/mL\n")
+                total_sum = 0
+                for pixel in left_segmented_cells:
+                    total_sum += (pixel - left_mean_concentration) * (pixel - left_mean_concentration)
+                print("Standard deviation :", math.sqrt(total_sum / left_nb_of_pixels), "mg/mL")
+                print("Mass of gold : ", 1000 * sum(left_segmented_cells) * (pixel_size * pixel_size * pixel_size * 0.000000000001))
+                file.write("Standard deviation : " + str(math.sqrt(total_sum / left_nb_of_pixels)) + " mg/mL\n")
+                file.write("Mass of NPs : " +
+                           str(1000 * sum(left_segmented_cells) * (pixel_size * pixel_size * pixel_size * 0.000000000001)) +"\n")
+            if right_nb_of_pixels > 0:
+                print("***************** Results of RIGHT PART segmentation *****************")
+                file.write("***************** Results of RIGHT PART segmentation *****************\n")
+                file.write("Threshold          : " + str(threshold) + " mg/mL\n")
+                print("Segmented volume   :", right_nb_of_pixels * (pixel_size * pixel_size * pixel_size * 0.000000000001), "mL")
+                print("                  ->", right_nb_of_pixels * (pixel_size * pixel_size * pixel_size * 0.000000001), "µL")
+                print("Mean concentration :", np.mean(right_segmented_cells), "mg/mL")
+                file.write(
+                    "Segmented volume   : " + str(right_nb_of_pixels * (pixel_size * pixel_size * pixel_size * 0.000000000001))
+                    + " mL\n")
+                file.write(
+                    "                  -> " + str(right_nb_of_pixels * (pixel_size * pixel_size * pixel_size * 0.000000001))
+                    + " µL\n")
+                file.write("Mean concentration : " + str(np.mean(right_segmented_cells)) + " mg/mL\n")
+                total_sum = 0
+                for pixel in right_segmented_cells:
+                    total_sum += (pixel - right_mean_concentration) * (pixel - right_mean_concentration)
+                print("Standard deviation :", math.sqrt(total_sum / right_nb_of_pixels), "mg/mL")
+                print("Mass of gold : ",
+                      1000 * sum(right_segmented_cells) * (pixel_size * pixel_size * pixel_size * 0.000000000001))
+                file.write("Standard deviation : " + str(math.sqrt(total_sum / right_nb_of_pixels)) + " mg/mL\n")
+                file.write("Mass of NPs : " +
+                           str(1000 * sum(right_segmented_cells) * (
+                                       pixel_size * pixel_size * pixel_size * 0.000000000001)) + "\n")
+            file.close()
+        else:
+            if left_nb_of_pixels > 0:
+                print("***************** Results of LEFT PART segmentation *****************")
+                print("Segmented volume   :", left_nb_of_pixels * (pixel_size * pixel_size * pixel_size * 0.000000000001), "mL")
+                print("                  ->", left_nb_of_pixels * (pixel_size * pixel_size * pixel_size * 0.000000001), "µL")
+                print("Mean concentration :", np.mean(left_segmented_cells), "mg/mL")
+                total_sum = 0
+                for pixel in left_segmented_cells:
+                    total_sum += (pixel - left_mean_concentration) * (pixel - left_mean_concentration)
+                print("Standard deviation :", math.sqrt(total_sum / left_nb_of_pixels), "mg/mL")
+                print("Mass of NPs : ", 1000 * sum(left_segmented_cells) * (pixel_size * pixel_size * pixel_size * 0.000000000001))
+
+            if right_nb_of_pixels > 0:
+                print("***************** Results of RIGHT PART segmentation *****************")
+                print("Segmented volume   :", right_nb_of_pixels * (pixel_size * pixel_size * pixel_size * 0.000000000001), "mL")
+                print("                  ->", right_nb_of_pixels * (pixel_size * pixel_size * pixel_size * 0.000000001), "µL")
+                print("Mean concentration :", np.mean(right_segmented_cells), "mg/mL")
+                total_sum = 0
+                for pixel in right_segmented_cells:
+                    total_sum += (pixel - right_mean_concentration) * (pixel - right_mean_concentration)
+                print("Standard deviation :", math.sqrt(total_sum / right_nb_of_pixels), "mg/mL")
+                print("Mass of NPs : ", 1000 * sum(right_segmented_cells) * (pixel_size * pixel_size * pixel_size * 0.000000000001))
+
+        print(pixel_size)

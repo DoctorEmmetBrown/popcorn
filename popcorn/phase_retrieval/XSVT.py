@@ -1,3 +1,5 @@
+import time
+
 import numpy as np
 import multiprocessing as mp
 import matplotlib.pyplot as plt
@@ -5,7 +7,7 @@ from mpl_toolkits.mplot3d import Axes3D
 from itertools import product, chain
 from scipy.interpolate import interp2d
 from functools import partial
-from scipy.ndimage.filters import median_filter
+from scipy.ndimage.filters import median_filter, convolve
 import frankoChellappa as fc
 from OpticalFlow2020 import kottler, LarkinAnissonSheppard
 
@@ -60,20 +62,25 @@ def start_tracking(Isample, Iref, max_shift):
     print("Speckle vector tracking started")
 
     nb_images, px_rows, px_cols = Iref.shape
-    paddedIref = np.array([np.pad(Iref[im, :, :], max_shift, 'edge') for im in range(0, nb_images)])
 
     i = range(0, px_rows)
     j = range(0, px_cols)
 
     multiprocessing = True
 
+    window = 1  # odd number >1 for mixed-XSVT, 1 for XSVT
+
+    pm = int((window - 1) / 2) if window >= 1 else 0
+    paddedIref = np.array([np.pad(Iref[im, :, :], max_shift + pm, 'edge') for im in range(0, nb_images)])
+    paddedIsample = np.array([np.pad(Isample[im, :, :], pm, 'edge') for im in range(0, nb_images)])
+
     if multiprocessing:
         print("Multiprocessing on")
         paramlist = list(product(i, j))
         pool = mp.Pool(mp.cpu_count())
         # Need to create partial function because multiprocessing.map only accepts one input parameter
-        func = partial(speckle_vector_tracking, Isample, paddedIref, max_shift)
-        result = pool.map(func, paramlist)
+        pfunc = partial(speckle_vector_tracking, paddedIsample, paddedIref, max_shift, window)
+        result = pool.map(pfunc, paramlist)
         dx = list(chain(*result))[0::4]
         dy = list(chain(*result))[1::4]
         tr = list(chain(*result))[2::4]
@@ -86,7 +93,7 @@ def start_tracking(Isample, Iref, max_shift):
         df = []
 
         for a, b in product(i, j):
-            results = speckle_vector_tracking(Isample, paddedIref, max_shift, [a, b])
+            results = speckle_vector_tracking(paddedIsample, paddedIref, max_shift, window, [a, b])
             dx.append(results[0])
             dy.append(results[1])
             tr.append(results[2])
@@ -102,7 +109,7 @@ def start_tracking(Isample, Iref, max_shift):
     return dx, dy, tr, df
 
 
-def speckle_vector_tracking(sample_image, padded_ref_image, shift, params):
+def speckle_vector_tracking(sample_image, padded_ref_image, shift, w, params):
     """
     Compare speckle images with sample (Isample) and w/o sample
     (Iref) pixel by pixel.
@@ -122,39 +129,42 @@ def speckle_vector_tracking(sample_image, padded_ref_image, shift, params):
     i = params[0]
     j = params[1]
 
+    nb, rows, cols = padded_ref_image.shape
+    roi = 2 * shift + 1
+    pm = int((w - 1) / 2) if w >= 1 else 0
+
     if j == 0:
         print(i)
 
     # Vector of Isample intensity values for pixel (i, j)
-    v_sample = sample_image[:, i, j]
+    v_sample = sample_image[:, i:i+w, j:j+w]
+    v_ref = np.array(padded_ref_image[:, i:i+2*pm+roi, j:j+2*pm+roi])
 
-    # 2D array of Iref intensity values for pixel (i + l, j + m) where -shift <= l, m <= shift
-    v_ref = np.array([padded_ref_image[k, i + l, j + m] for k in range(padded_ref_image.shape[0]) for l in range(2 * shift +1) for m in range(2 * shift +1)])
-    v_ref = v_ref.reshape((padded_ref_image.shape[0], 2 * shift + 1, 2 * shift + 1))
-
-    # To have more points for the polynomial surface fit, we interpolate v_ref at every half-pixel
-    r = c = np.linspace(0, 2*shift, 2*shift+1)
-    n = 2  # We will interpolate v_ref to have values for sub-pixels of width 1/n*pixel
-    rs = cs = np.linspace(r[0], r[-1], int(n * r[-1] + 1))
-    px2subpx = [interp2d(c, r, v_ref[n, :, :]) for n in range(v_ref.shape[0])]
-    v_ref_s = [f(cs, rs) for f in px2subpx]
+    ## To have more points for the polynomial surface fit, we interpolate v_ref at every half-pixel
+    r = c = np.linspace(0, 2*shift+2*pm, roi+2*pm)
+    n = 1  # We will interpolate v_ref to have values for sub-pixels of width 1/n*pixel
+    #rs = cs = np.linspace(r[0], r[-1], int(n * r[-1] + 1))
+    px2subpx = [interp2d(c, r, v_ref[n, :, :]) for n in range(nb)]
+    #v_ref_s = [f(cs, rs) for f in px2subpx]
+    v_ref_s = v_ref
     v_ref = np.array(v_ref_s)
 
     # Determine the correlation between v_sample and each value in v_ref
-    pearson_map = np.zeros((v_ref.shape[1], v_ref.shape[2]))
-    for l, m in product(range(v_ref.shape[1]), range(v_ref.shape[2])):
-        if np.std(v_ref[:, l, m]) == 0 or np.std(v_sample) == 0:
+    pearson_map = np.zeros((v_ref.shape[1] - 2*pm, v_ref.shape[2] - 2*pm))
+    for l, m in product(range(v_ref.shape[1] - 2*pm), range(v_ref.shape[2] - 2*pm)):
+        if np.std(v_ref[:, l:l + w, m:m + w]) == 0 or np.std(v_sample) == 0:
             pearson_map[l][m] = 0.
         else:
-            pearson_map[l][m] = pearson_correlation(v_sample, v_ref[:, l, m])
+            #pearson_map[l][m] = pearson_correlation(v_sample, v_ref[:, l, m])
+            pearson_map[l][m] = nc(v_sample, v_ref[:, l:l + w, m:m + w])
 
     # Fit a polynomial surface to pearson_map and find the maximum correlation peak
     fit_params = polyfit2d(pearson_map)
     diffy, diffx = find_max(fit_params)
 
     # Give the shift in terms of displacement (in terms of pixels) of v_sample relative to v_ref
-    diff_x = ((len(cs)-1)/2. - diffx) * (1. / n)
-    diff_y = ((len(rs)-1)/2. - diffy) * (1. / n)
+    diff_x = ((pearson_map.shape[0]-1)/2. - diffx) * (1. / n)
+    diff_y = ((pearson_map.shape[0]-1)/2. - diffy) * (1. / n)
 
     plot = False
 
@@ -165,6 +175,8 @@ def speckle_vector_tracking(sample_image, padded_ref_image, shift, params):
         i0 = j0 = np.linspace(0, pearson_map.shape[0] - 1, pearson_map.shape[0])
         is0 = js0 = np.linspace(0, pearson_map.shape[0] - 1, interp_points * (pearson_map.shape[0] - 1) + 1)
 
+        print(i0, is0)
+
         imesh, jmesh = np.meshgrid(i0, j0)
         iss, jss = np.meshgrid(is0, js0)
 
@@ -174,10 +186,10 @@ def speckle_vector_tracking(sample_image, padded_ref_image, shift, params):
         fit = a[0] * IS ** 2 + a[1] * JS ** 2 + a[2] * IS * JS + a[3] * IS + a[4] * JS + a[5]
         fit = fit.reshape((len(is0), len(js0)))
 
-        imesh = [(n * shift - v) * (1. / n) for v in imesh]
-        jmesh = [(n * shift - v) * (1. / n) for v in jmesh]
-        iss = [(n * shift - v) * (1. / n) for v in iss]
-        jss = [(n * shift - v) * (1. / n) for v in jss]
+        imesh = [(i0[-1]/2 - v) * (1. / n) for v in imesh]
+        jmesh = [(j0[-1]/2 - v) * (1. / n) for v in jmesh]
+        iss = [(is0[-1]/2 - v) * (1. / n) for v in iss]
+        jss = [(js0[-1]/2 - v) * (1. / n) for v in jss]
 
         fig = plt.figure()
         ax = fig.gca(projection='3d')
@@ -213,7 +225,6 @@ def pearson_correlation(x, y):
 
     Returns p
     """
-
     xv = x - x.mean(axis=0)
     yv = y - y.mean(axis=0)
     xvss = (xv * xv).sum(axis=0)
@@ -226,6 +237,14 @@ def pearson_correlation(x, y):
         result = np.matmul(xv.transpose(), yv) / np.sqrt(np.outer(xvss, yvss))
         p = np.maximum(np.minimum(result, 1.0), -1.0)
     return p
+
+
+def nc(x, y):
+    xv = x - np.mean(x)
+    yv = y - np.mean(y)
+
+    r = (np.inner(xv.ravel(), yv.ravel()) / np.sqrt(np.outer(np.sum(xv**2), np.sum(yv**2))))
+    return r
 
 
 def polyfit2d(pmap):
@@ -275,3 +294,7 @@ def calc_transmission(vs, vr):
 
 def calc_df(tr, vs, vr):
     return (1/tr) * np.std(vs) / np.std(vr)
+
+
+def plot_pmap():
+    return
