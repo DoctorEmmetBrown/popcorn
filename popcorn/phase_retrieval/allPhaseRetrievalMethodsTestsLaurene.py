@@ -12,7 +12,7 @@ import time
 if __name__ == "__main__":
     
     # Parameters to tune
-    studied_case = 'MoucheSimapAout2017' # name of the experiment we want to work on
+    studied_case = 'TheoreticalStudy' # name of the experiment we want to work on
 
     do_LCS=True
     do_MISTII_2=False

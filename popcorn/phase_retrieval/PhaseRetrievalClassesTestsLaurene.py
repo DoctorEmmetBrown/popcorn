@@ -28,17 +28,12 @@ class Phase_Retrieval_Experiment:
 
     """Performs phase retrieval.s for an experiment."""
 
-    def __init__(self, exp_name):
+    def __init__(self, exp_name, npoint):
         """Initialize all experiment and algorithm parameters and load images.
-        
 
-        Args:
-            exp_name (STRING): the experiment name in the parameter xml files (default " ").
-
-        Returns:
-            None.
+        Keyword arguments:
+        exp_name -- the experiment name in the parameter xml files (default " ")
         """
-        
         # EXPERIMENT PARAMETERS
         self.xml_experiment_file_name="ExperimentParameters.xml"
         self.experiment_name=exp_name
@@ -80,6 +75,7 @@ class Phase_Retrieval_Experiment:
 
         self.define_experiment_values()
         self.define_algorithmic_values()
+        self.nb_of_point=npoint
 
         # We create a folder for each retrieval test
         now=datetime.datetime.now()
@@ -93,14 +89,10 @@ class Phase_Retrieval_Experiment:
 
     def define_experiment_values(self):
         """Get experiment parameters from xml file.
-        
 
-        Raises:
-            Exception: Correct experiment not found.
-
-        Returns:
-            None.
-
+        Keyword arguments:
+        real -- the real part (default 0.0)
+        imag -- the imaginary part (default 0.0)
         """
         xml_doc = minidom.parse(self.xml_experiment_file_name)
         for current_exp in xml_doc.documentElement.getElementsByTagName("experiment"):
@@ -129,15 +121,6 @@ class Phase_Retrieval_Experiment:
         
 
     def define_algorithmic_values(self):
-        """gets algorithmic parameters from xml file
-
-        Raises:
-            Exception: Correct experiment not found.
-
-        Returns:
-            None.
-
-        """
         xml_doc = minidom.parse(self.xml_algorithmic_file_name)
         for current_exp in xml_doc.documentElement.getElementsByTagName("experiment"):
             correct_exp = self.getText(current_exp.getElementsByTagName("experiment_name")[0])
@@ -156,24 +139,13 @@ class Phase_Retrieval_Experiment:
                 return
     
         raise Exception("Correct experiment not found")
-
+        return
 
     def getText(self,node):
-        """get the text situated in the node value
-
-        Args:
-            node (minidom node):
-
-        Returns:
-            STRING: DESCRIPTION.
-
-        """
         return node.childNodes[0].nodeValue
 
 
     def save_image(self):
-        """not implemented yet
-        """
         return
 
     def display_and_modify_parameters(self):
@@ -183,9 +155,6 @@ class Phase_Retrieval_Experiment:
         return
 
     def open_Is_Ir(self):
-        """Opens sample and reference images
-
-        """
         # Load the reference and sample images
         refFolder = self.exp_folder + 'ref/'
         sampleFolder = self.exp_folder + 'sample/'
@@ -244,10 +213,10 @@ class Phase_Retrieval_Experiment:
 
 
     def preProcessAndPadImages(self):
-        """pads images in Is and Ir
-
-        Notes:
-            Will eventually do more (Deconvolution, shot noise filtering...)
+        """
+        Simply pads images in Is and Ir using parameters in expDict
+        Returns Is and Ir padded
+        Will eventually do more (Deconvolution, shot noise filtering...)
         """
 
         nbImages, width, height = self.reference_images.shape
@@ -266,8 +235,6 @@ class Phase_Retrieval_Experiment:
         return
 
     def set_deconvolution(self):
-        """Applies deconvolution to every acquisitions
-        """
         print("starting deconvolution")
         for i in range(self.nb_of_point):
             self.reference_images[i]=deconvolve(self.reference_images[i], self.detector_PSF, self.deconvolution_type)
@@ -276,20 +243,10 @@ class Phase_Retrieval_Experiment:
         return self.reference_images, self.sample_images
     
     def boolean(self, boolStr):
-        """turns a string into a boolean
-
-        Args:
-            boolStr (str): string "True" or "False"
-
-        Returns:
-            boolean
-        """
         if boolStr=="True":
             return True
         elif boolStr=="False":
             return False
-        else :
-            raise Exception("The string you are trying to turn to a boolean is not 'True' or 'False'")
 
     # *******************************************************
     # ************PHASE RETRIEVAL METHODS******************
@@ -420,7 +377,7 @@ class Phase_Retrieval_Experiment:
         thickness = self.result_UMPA['thickness']
         df=self.result_UMPA['df']
         f=self.result_UMPA['f']
-        padSize = self.pad_size-self.umpaNw*2-self.max_shift*2
+        padSize = self.pad_size-self.umpaNw-self.max_shift
         if padSize > 0:
             width, height = dx.shape
             dx = dx[padSize:padSize + width - 2 * padSize, padSize:padSize + height - 2 * padSize+1]
@@ -554,12 +511,8 @@ class Phase_Retrieval_Experiment:
         return
 
     def getk(self):
-        """calculates the wavenumber of the experiment beam at the current energy
-
-        Returns:
-            k (TYPE): DESCRIPTION.
-        Note:
-            energy in eV
+        """
+        energy in eV
         """
         h=6.626e-34
         c=2.998e8

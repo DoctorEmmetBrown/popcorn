@@ -4,7 +4,7 @@
         <exp_folder>/Users/quenot/Data/SIMAP/MoucheSimapAout2017/selec16/</exp_folder>
         <output_folder>/Users/quenot/Documents/PhaseRetrieval/Results/MoucheSimapAout2017/</output_folder>
         <energy unit="keV">27</energy>
-        <pixel unit="um">44e-6</pixel>
+        <pixel unit="m">48e-6</pixel>
         <dist_object_detector unit="m">0.41</dist_object_detector>
         <dist_source_object unit="m">0.12</dist_source_object>
         <delta>2.97e-7</delta>
@@ -21,20 +21,60 @@
     
     <experiment>
         <experiment_name>Patte21_Simap_mars2021</experiment_name>
-        <exp_folder>/Users/quenot/Data/SIMAP/Patte21_OA3_calibree/16fps/</exp_folder>
+        <exp_folder>/Users/quenot/Data/SIMAP/Patte_Simap_20210322/dossiers_Robin/Patte21_OA_Calib/16im/</exp_folder>
         <output_folder>/Users/quenot/Documents/PhaseRetrieval/Results/Patte21_Simap_mars2021/</output_folder>
         <energy unit="keV">27</energy>
-        <pixel unit="um">127e-6</pixel>
+        <pixel unit="m">127e-6</pixel>
         <dist_object_detector unit="m">0.6385</dist_object_detector>
         <dist_source_object unit="m">0.0316</dist_source_object>
         <delta>3.49E-07</delta>
         <beta>3.57E-10</beta>
         <source_size unit="um">8</source_size>
-        <detector_PSF unit="pix">1.2</detector_PSF>
+        <detector_PSF unit="pix">2</detector_PSF>
         <crop_on>True</crop_on>
         <cropDebX unit="pix">130</cropDebX>
         <cropDebY unit="pix">490</cropDebY>
         <cropEndX unit="pix">1130</cropEndX>
+        <cropEndY unit="pix">-1</cropEndY>
+        
+    </experiment>
+    
+    <experiment>
+        <experiment_name>contrast_phantom_simulation_clinic</experiment_name>
+        <exp_folder>/Users/quenot/Documents/Simulations/CodePython_9042021/Results/Clinic_ContrastPhantom/RayTracing_20210409-142320/</exp_folder>
+        <output_folder>/Users/quenot/Documents/PhaseRetrieval/Results/contrast_phantom_simulation_clinic/</output_folder>
+        <energy unit="keV">18</energy>
+        <pixel unit="m">100e-6</pixel>
+        <dist_object_detector unit="m">1</dist_object_detector>
+        <dist_source_object unit="m">1</dist_source_object>
+        <delta>3.49E-07</delta>
+        <beta>3.57E-10</beta>
+        <source_size unit="um">50</source_size>
+        <detector_PSF unit="pix">1.2</detector_PSF>
+        <crop_on>False</crop_on>
+        <cropDebX unit="pix">0</cropDebX>
+        <cropDebY unit="pix">0</cropDebY>
+        <cropEndX unit="pix">-1</cropEndX>
+        <cropEndY unit="pix">-1</cropEndY>
+        
+    </experiment>
+    
+    <experiment>
+        <experiment_name>TheoreticalStudy</experiment_name>
+        <exp_folder>/Users/quenot/Documents/Simulations/gitPARESIS/PARESIS/Results/TheoreticalStudy/Fresnel_20210429-115112/</exp_folder>
+        <output_folder>/Users/quenot/Documents/PhaseRetrieval/Results/TheoreticalStudy/</output_folder>
+        <energy unit="keV">18</energy>
+        <pixel unit="m">75e-6</pixel>
+        <dist_object_detector unit="m">0.8</dist_object_detector>
+        <dist_source_object unit="m">0.2</dist_source_object>
+        <delta>3.49E-07</delta>
+        <beta>3.57E-10</beta>
+        <source_size unit="um">20</source_size>
+        <detector_PSF unit="pix">1.2</detector_PSF>
+        <crop_on>False</crop_on>
+        <cropDebX unit="pix">0</cropDebX>
+        <cropDebY unit="pix">0</cropDebY>
+        <cropEndX unit="pix">-1</cropEndX>
         <cropEndY unit="pix">-1</cropEndY>
         
     </experiment>

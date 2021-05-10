@@ -14,26 +14,31 @@ from phaseIntegration import kottler, LarkinAnissonSheppard
 
 
 def LCS(experiment):
-    """
-    Calculates the displacement images from sample and reference images using the LCS system
-    Returns:
-        Dx [numpy array]: the displacements along x axis
-        Dy [numpy array]: the displacements along y axis
-        absoprtion [numpy array]: the absorption 
-    """    
+    """Calculates the displacement images from sample and reference images using the LCS system
     
+
+    Args:
+        experiment (PhaseRetrievalClass): class with all parameters as attributes.
+
+    Returns:
+        Dx (NUMPY ARRAY): the displacements along x axis.
+        Dy (NUMPY ARRAY): the displacements along y axis.
+        absoprtion (NUMPY ARRAY): the absorption.
+
+    """
+
     Nz, Nx, Ny=experiment.reference_images.shape
     LHS=np.ones(((experiment.nb_of_point, Nx, Ny)))
     RHS=np.ones((((experiment.nb_of_point,3, Nx, Ny))))
     solution=np.ones(((3, Nx, Ny)))
-    
+
     #Prepare system matrices
     for i in range(experiment.nb_of_point):
         #Right handSide
         gX_IrIr,gY_IrIr=np.gradient(experiment.reference_images[i])
         RHS[i]=[experiment.sample_images[i],gX_IrIr, gY_IrIr]
         LHS[i]=experiment.reference_images[i]
-        
+
     #Solving system for each pixel 
     for i in range(Nx):
         for j in range(Ny):
@@ -68,11 +73,14 @@ def LCS(experiment):
 
 
 def processProjectionLCS(experiment):
-    """
-    this function calls pre-processing specific to the method (only deconvolution for now)
-    then calls the LCS_v2 wich returns displacement images
-    then calls 3 different function to integrate Dx, Dy into the phase image (frankotchellappa, kottler and LarkinArnisonSheppard)
-    It returns the displacement images, the three phase images and the absorption calculated.
+    """launches calculation of displacement maps and phase images from LCS, FC, LA and K.
+    
+    Args:
+        experiment (PHASERETRIEVALCLASS): class of the experiment.
+
+    Returns:
+        dict | NUMPY ARRAY : contains all the calculated images.
+
     """
     experiment.nb_of_point, Nx, Ny= experiment.sample_images.shape
     
@@ -80,11 +88,17 @@ def processProjectionLCS(experiment):
 
     # Compute the phase gradient from displacements (linear relationship)
     # magnification=(experiment['distSO']+experiment['distOD'])/experiment['distSO'] #Not sure I need to use this yet
+    
+    print("experiment pixel", experiment.pixel)
+    print("distance object detector", experiment.dist_object_detector)
+    print("k", experiment.getk())
+    
+    
     dphix=dx*(experiment.pixel/experiment.dist_object_detector)*experiment.getk()
     dphiy=dy*(experiment.pixel/experiment.dist_object_detector)*experiment.getk()
     
     padForIntegration=True
-    padSize=300
+    padSize=1000
     if padForIntegration:
         dphix = np.pad(dphix, ((padSize, padSize), (padSize, padSize)),mode='reflect')  # voir is edge mieux que reflect
         dphiy = np.pad(dphiy, ((padSize, padSize), (padSize, padSize)),mode='reflect')  # voir is edge mieux que reflect
