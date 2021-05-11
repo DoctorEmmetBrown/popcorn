@@ -66,6 +66,7 @@ class Phase_Retrieval_Experiment:
         self.result_OF={}
         self.result_Pavlov2020={}
         self.result_UMPA={}
+        self.result_XSVT={}
 
         # ALGORITHMIC PARAMETERS
         self.xml_algorithmic_file_name="AlgorithmParameter.xml"
@@ -153,6 +154,8 @@ class Phase_Retrieval_Experiment:
                 self.umpaNw=int(self.getText(current_exp.getElementsByTagName("umpaNw")[0]))
                 self.MIST_median_filter=int(self.getText(current_exp.getElementsByTagName("MIST_median_filter")[0]))
                 self.sigma_regularization=float(self.getText(current_exp.getElementsByTagName("sigma_regularization")[0]))
+                self.XSVT_Nw=int(self.getText(current_exp.getElementsByTagName("XSVT_Nw")[0]))
+                self.XSVT_median_filter=int(self.getText(current_exp.getElementsByTagName("XSVT_median_filter")[0]))
                 return
     
         raise Exception("Correct experiment not found")
