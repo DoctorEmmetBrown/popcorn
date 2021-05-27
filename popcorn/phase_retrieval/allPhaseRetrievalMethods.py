@@ -5,27 +5,14 @@ Created on Mon Mar 15 13:46:27 2021.
 
 @author: quenot
 """
-from saveParameters import saveParameters
+# from saveParameters import saveParameters
 from PhaseRetrievalClasses import Phase_Retrieval_Experiment
 import time
+import datetime
+import os
 
-if __name__ == "__main__":
+def launchPhaseRetrieval(phase_retrieval_experiment, do):
     
-    # Parameters to tune
-    studied_case = 'MoucheSimapAout2017' # name of the experiment we want to work on
-
-    do_LCS=True
-    do_MISTII_2=False
-    do_MISTII_1=False
-    do_MISTI=False
-    do_UMPA=False
-    do_OF=False
-    do_Pavlov=False
-    do_XSVT=False
-    do_save_parameters=True
-
-    phase_retrieval_experiment=Phase_Retrieval_Experiment(studied_case)
-
     processing_time={}
     processing_time['LCS']=0
     processing_time['UMPA']=0
@@ -36,40 +23,87 @@ if __name__ == "__main__":
     processing_time['MISTII_2']=0
     processing_time['XSVT']=0
     
-    if do_LCS:
+    if do['LCS']:
         time0=time.time()
-        phase_retrieval_experiment.process_LCS()
+        phase_retrieval_experiment.process_LCS_DF()
         processing_time['LCS']=time.time()-time0
-    if do_UMPA:
+    if do['UMPA']:
         time0=time.time()
         phase_retrieval_experiment.process_UMPA()
         processing_time['UMPA']=time.time()-time0
-    if do_OF:
+    if do['OF']:
         time0=time.time()
         phase_retrieval_experiment.process_OpticalFlow()
         processing_time['OF']=time.time()-time0
-    if do_Pavlov:
+    if do['Pavlov']:
         time0=time.time()
         phase_retrieval_experiment.process_Pavlov2020()
         processing_time['Pavlov']=time.time()-time0
-    if do_MISTI:
+    if do['MISTI']:
         time0=time.time()
         phase_retrieval_experiment.process_MISTI()
         processing_time['MISTI']=time.time()-time0
-    if do_MISTII_1:
+    if do['MISTII_1']:
         time0=time.time()
         phase_retrieval_experiment.process_MISTII_1()
         processing_time['MISTII_1']=time.time()-time0
-    if do_MISTII_2:
+    if do['MISTII_2']:
         time0=time.time()
         phase_retrieval_experiment.process_MISTII_2()
         processing_time['MISTII_2']=time.time()-time0
-    if do_XSVT:
+    if do['XSVT']:
         time0=time.time()
         phase_retrieval_experiment.process_XSVT()
         processing_time['XSVT']=time.time()-time0
         
-    print(processing_time)
+    return processing_time
+    
 
-    if do_save_parameters:
-        saveParameters(phase_retrieval_experiment, processing_time)
+
+if __name__ == "__main__":
+    
+    # Parameters to tune
+    studied_case = 'ContrastPhantom' # name of the experiment we want to work on
+    
+    do={}
+    do['LCS']=True
+    do['MISTII_2']=False
+    do['MISTII_1']=False
+    do['MISTI']=True
+    do['UMPA']=False
+    do['OF']=False
+    do['Pavlov']=False
+    do['XSVT']=True
+    do['save_parameters']=False
+
+    phase_retrieval_experiment=Phase_Retrieval_Experiment(studied_case)
+    # We create a folder for each retrieval test
+    now=datetime.datetime.now()
+    phase_retrieval_experiment.expID=now.strftime("%Y%m%d-%H%M%S") #
+    phase_retrieval_experiment.output_folder+=phase_retrieval_experiment.expID
+    os.mkdir(phase_retrieval_experiment.output_folder)
+    
+    if not phase_retrieval_experiment.tomo:
+        phase_retrieval_experiment.open_Is_Ir()
+        phase_retrieval_experiment.preProcessAndPadImages()
+        processing_time=launchPhaseRetrieval(phase_retrieval_experiment,do)
+        print(processing_time)
+    
+        if do['save_parameters']:
+            saveParameters(phase_retrieval_experiment, processing_time)
+        
+    if phase_retrieval_experiment.tomo:
+        outpurFolder0=phase_retrieval_experiment.output_folder
+        for iproj in range(phase_retrieval_experiment.proj_to_treat_start,phase_retrieval_experiment.proj_to_treat_end, 1):
+            iprojString='%4.4d'%iproj
+            print(iproj)
+            phase_retrieval_experiment.output_folder=outpurFolder0+ '/Proj_' + iprojString
+            os.mkdir(phase_retrieval_experiment.output_folder)
+            phase_retrieval_experiment.open_Is_Ir_tomo(iproj, phase_retrieval_experiment.number_of_projections)
+            phase_retrieval_experiment.preProcessAndPadImages()
+            processing_time=launchPhaseRetrieval(phase_retrieval_experiment, do)
+            
+        if do['save_parameters']:
+            saveParameters(phase_retrieval_experiment, processing_time)
+            
+            
