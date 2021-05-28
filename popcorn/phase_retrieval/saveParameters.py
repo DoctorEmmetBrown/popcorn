@@ -13,95 +13,108 @@ import os.path
 from os import path
 from xlutils.copy import copy
 
-def saveParameters(expParam):
-    xlsPath=expParam['outputFolder']+'.xls'
-    xlsFile=Workbook()
-    xlsSheet=xlsFile.add_sheet(expParam['expID'])
+def saveParameters(expParam, processing_time):
+    """Save all experiment and algorithm parameters
     
-    xlsSheet.write_merge(0,0,0,3,expParam['studiedCase']+' - '+expParam['expID'])
-    xlsSheet.write_merge(1,1,0,3,expParam['Comment'])
+
+    Args:
+        expParam (PhaseRetrievalClass): instance of the calss containing all parameters as atributes.
+        processing_time (DICTIONNARY): contains the processing times of all phase retrieval methods.
+
+    Returns:
+        None.
+
+    """
+    xlsPath=expParam.output_folder +'.xls'
+    xlsFile=Workbook()
+    xlsSheet=xlsFile.add_sheet(expParam.expID )
+    
+    xlsSheet.write_merge(0,0,0,3,expParam.experiment_name +' - '+expParam.expID )
+    # xlsSheet.write_merge(1,1,0,3,expParam.Comment )
     i=2
     
-    xlsSheet.write(2,0,"Output folder path")
-    xlsSheet.write(2,1,expParam['outputFolder'])
+    xlsSheet.write(i,0,"Output folder path")
+    xlsSheet.write(i,1,expParam.output_folder )
     i+=1
-    xlsSheet.write(3,0,"Data path")
-    xlsSheet.write(3,1,expParam['expFolder'])
+    xlsSheet.write(i,0,"Data path")
+    xlsSheet.write(i,1,expParam.exp_folder )
+    i+=2
+    xlsSheet.write_merge(i,i,0,3,"Experiment parameters")
     i+=1
-    xlsSheet.write(4,0,"Energy (keV)")
-    xlsSheet.write(4,1,expParam['energy'])
+    xlsSheet.write(i,0,"Energy (keV)")
+    xlsSheet.write(i,1,expParam.energy )
     i+=1
-    xlsSheet.write(5,0,"Pixel size (m)")
-    xlsSheet.write(5,1,expParam['pixel'])
+    xlsSheet.write(i,0,"Pixel size (m)")
+    xlsSheet.write(i,1,expParam.pixel )
     i+=1
-    xlsSheet.write(6,0,"Distance sample to detector (m)")
-    xlsSheet.write(6,1,expParam['distOD'])
+    xlsSheet.write(i,0,"Distance sample to detector (m)")
+    xlsSheet.write(i,1,expParam.dist_object_detector )
     i+=1
-    xlsSheet.write(7,0,"Distance source to sample (m)")
-    xlsSheet.write(7,1,expParam['distSO'])
+    xlsSheet.write(i,0,"Distance source to sample (m)")
+    xlsSheet.write(i,1,expParam.dist_source_object )
     i+=1
-    xlsSheet.write(8,0,"Delta")
-    xlsSheet.write(8,1,expParam['delta'])
+    xlsSheet.write(i,0,"Delta")
+    xlsSheet.write(i,1,expParam.delta )
     i+=1
-    xlsSheet.write(9,0,"Beta")
-    xlsSheet.write(9,1,expParam['beta'])
+    xlsSheet.write(i,0,"Beta")
+    xlsSheet.write(i,1,expParam.beta )
     i+=1
-    xlsSheet.write(10,0,"Source size (m)")
-    xlsSheet.write(10,1,expParam['sourceSize'])
+    xlsSheet.write(i,0,"Source size (m)")
+    xlsSheet.write(i,1,expParam.source_size )
     i+=1
-    xlsSheet.write(11,0,"Crop begginning x (pix)")
-    xlsSheet.write(11,1,expParam['cropDebX'])
+    xlsSheet.write(i,0,"Crop begginning x (pix)")
+    xlsSheet.write(i,1,expParam.cropDebX )
     i+=1
-    xlsSheet.write(12,0,"Crop begginning y (pix)")
-    xlsSheet.write(12,1,expParam['cropDebY'])
+    xlsSheet.write(i,0,"Crop begginning y (pix)")
+    xlsSheet.write(i,1,expParam.cropDebY )
     i+=1
-    xlsSheet.write(13,0,"Crop end x (pix)")
-    xlsSheet.write(13,1,expParam['cropEndX'])
+    xlsSheet.write(i,0,"Crop end x (pix)")
+    xlsSheet.write(i,1,expParam.cropEndX )
     i+=1
-    xlsSheet.write(14,0,"Crop end y (pix)")
-    xlsSheet.write(14,1,expParam['cropEndY'])
+    xlsSheet.write(i,0,"Crop end y (pix)")
+    xlsSheet.write(i,1,expParam.cropEndY )
+    i+=2
+    xlsSheet.write_merge(i,i,0,3,"Algorithm parameters")
     i+=1
-    xlsSheet.write(16,0,"Max shift (pix)")
-    xlsSheet.write(16,1,expParam['umpaMaxShift'])
+    xlsSheet.write(i,0,"Max shift (pix)")
+    xlsSheet.write(i,1,expParam.max_shift )
     i+=1
-    xlsSheet.write(17,0,"Padding size (pix)")
-    xlsSheet.write(17,1,expParam['padding'])
+    xlsSheet.write(i,0,"Padding size (pix)")
+    xlsSheet.write(i,1,expParam.pad_size )
     i+=1
-    xlsSheet.write(18,0,"Padding type")
-    xlsSheet.write(18,1,expParam['padType'])
+    xlsSheet.write(i,0,"Padding type")
+    xlsSheet.write(i,1,expParam.pad_type )
     i+=1
-    xlsSheet.write(19,0,"LCS median filter (pix)")
-    xlsSheet.write(19,1,expParam['LCS_median_filter'])
+    xlsSheet.write(i,0,"LCS median filter (pix)")
+    xlsSheet.write(i,1,expParam.LCS_median_filter )
     i+=1
-    xlsSheet.write(20,0,"LCS median filter (pix)")
-    xlsSheet.write(20,1,expParam['LCS_gaussian_filter'])
+    xlsSheet.write(i,0,"Number of points")
+    xlsSheet.write(i,1,expParam.nb_of_point )
     i+=1
-    xlsSheet.write(21,0,"Number of points")
-    xlsSheet.write(21,1,expParam['nbOfPoint'])
+    xlsSheet.write(i,0,"PSF detector")
+    xlsSheet.write(i,1,expParam.detector_PSF )
     i+=1
-    xlsSheet.write(22,0,"PSF detector")
-    xlsSheet.write(22,1,expParam['detectorPSF'])
+    xlsSheet.write(i,0,"Deconvolution")
+    xlsSheet.write(i,1,expParam.deconvolution )
     i+=1
-    xlsSheet.write(23,0,"Deconvolution")
-    xlsSheet.write(23,1,expParam['Deconvolution'])
+    xlsSheet.write(i,0,"Deconvolution algo")
+    xlsSheet.write(i,1,expParam.deconvolution_type )
     i+=1
-    xlsSheet.write(24,0,"Deconvolution algo")
-    xlsSheet.write(24,1,expParam['DeconvType'])
+    xlsSheet.write(i,0,"Absorption correction sigma")
+    xlsSheet.write(i,1,expParam.absorption_correction_sigma )
     i+=1
-    xlsSheet.write(25,0,"processing time LCSv2")
-    xlsSheet.write(25,1,expParam['processingtimeLCSv2'])
-    i+=1
-    xlsSheet.write(26,0,"processing Time PavlovDirDF")
-    xlsSheet.write(26,1,expParam['processingtimePavlovDirDF'])
-    i+=1
-    xlsSheet.write(27,0,"PavlovDirDF median filter parameter")
-    xlsSheet.write(27,1,expParam['PavlovDirDF_MedianFilter'])
-    i+=1
-    xlsSheet.write(28,0,"processing Time UMPA")
-    xlsSheet.write(28,1,expParam['processingTimeUMPA'])
-    i+=1
-    xlsSheet.write(29,0,"Absorption_correction_sigma")
-    xlsSheet.write(29,1,expParam['Absorption_correction_sigma'])
+    xlsSheet.write(i,0,"Fourier space filter sigma")
+    xlsSheet.write(i,1,expParam.sigma_regularization )
+    
+    i+=2
+    xlsSheet.write_merge(i,i,0,3,"PROCESSING TIMES (s)")
+    
+    processing_time_list=list(processing_time)
+    processing_time_values_list=list(processing_time.values())
+    for j in range(len(processing_time_list)):
+        i+=1
+        xlsSheet.write(i,0,processing_time_list[j])
+        xlsSheet.write(i,1,processing_time_values_list[j])
             
     print("Finished fiiling xls file just saving now")
     xlsFile.save(xlsPath)
