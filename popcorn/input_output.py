@@ -6,6 +6,7 @@ import fabio.edfimage as edf
 import fabio.tifimage as tif
 
 import numpy as np
+import imageio
 
 
 def create_directory(path):
@@ -148,30 +149,33 @@ def save_edf_sequence_and_crop(image, bounding_box, path):
         save_edf_image(slice_to_save, path + '{:04d}'.format(i) + '.edf')
 
 
-def save_tif_image(image, filename, bit=32, header=None):
+def save_tif_image(image, filename, bit=32, rgb=False, header=None):
     """saves an image to .tif format (either int16 or float32)
 
     Args:
         image (numpy.ndarray): 2D image
         filename (str):        file name
         bit (int):             16: int16, 32: float32
+        rgb (bool):            rgb format
         header (str):          header
 
     Returns:
         None
     """
     create_directory(remove_filename_in_path(filename))
-
-    if header:
-        if bit == 32:
-            tif.TifImage(data=image.astype(np.float32), header=header).write(filename + '.tif')
+    if not rgb:
+        if header:
+            if bit == 32:
+                tif.TifImage(data=image.astype(np.float32), header=header).write(filename + '.tif')
+            else:
+                tif.TifImage(data=image.astype(np.uint16), header=header).write(filename + '.tif')
         else:
-            tif.TifImage(data=image.astype(np.uint16), header=header).write(filename + '.tif')
+            if bit == 32:
+                tif.TifImage(data=image.astype(np.float32)).write(filename + '.tif')
+            else:
+                tif.TifImage(data=image.astype(np.uint16)).write(filename + '.tif')
     else:
-        if bit == 32:
-            tif.TifImage(data=image.astype(np.float32)).write(filename + '.tif')
-        else:
-            tif.TifImage(data=image.astype(np.uint16)).write(filename + '.tif')
+        imageio.imwrite(filename + '.tif', image)
 
 
 def save_tif_sequence(image, path, bit=32, header=None):
@@ -187,7 +191,7 @@ def save_tif_sequence(image, path, bit=32, header=None):
         None
     """
     for i in range(0, image.shape[0]):
-        image_path = path + '{:04d}'.format(i) + '.tif'
+        image_path = path + '{:04d}'.format(i)
         save_tif_image(image[i, :, :], image_path, bit, header)
 
 
