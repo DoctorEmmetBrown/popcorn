@@ -258,8 +258,8 @@ def straight_throat_rotation(image, throat_mask_img=None, direction_vector=None,
         manual (bool):                      False: uses throat mask, True: uses input vector and throat coordinates
 
     Returns:
-        (numpy.ndarray, numpy.ndarray, numpy.ndarray, int) the aligned image, the rotation matrix and the center of
-        rotation plus the offset (caused by the rotation)
+        (numpy.ndarray, numpy.ndarray, numpy.ndarray, int) the aligned image, the rotation matrix and the center
+    of rotation plus the offset (caused by the rotation)
 
     TODO:
         better use/calculation of the offset + add some comments
@@ -269,6 +269,8 @@ def straight_throat_rotation(image, throat_mask_img=None, direction_vector=None,
     if not manual:
         centroid_list = []
         vectors_list = []
+        list_of_ys = []
+        list_of_xs = []
         z_length = 0
 
         for nbSlice in range(0, throat_mask_img.shape[0]):
@@ -276,36 +278,56 @@ def straight_throat_rotation(image, throat_mask_img=None, direction_vector=None,
             nb_pixels_throat = np.sum(throat_mask_img[nbSlice, :, :])
             if nb_pixels_throat >= 1:
                 centroid = retrieve_throat_centroid(throat_mask_img[nbSlice, :, :])
-                centroid_list.append(centroid)
-                if nbSlice > 0:
-                    vectors_list.append(np.array([z_length,
+                centroid_list.append([centroid[0], centroid[1], nbSlice])
+                if len(centroid_list) > 1:
+                    vectors_list.append(np.array([centroid_list[-1][2] - centroid_list[-2][2],
                                                   centroid_list[-1][0] - centroid_list[-2][0],
                                                   centroid_list[-1][1] - centroid_list[-2][1]]))  # vector : [z, y, x]
-                z_length = 0
+                    list_of_ys.append(centroid_list[-1][0] - centroid_list[-2][0])
+                    list_of_xs.append(centroid_list[-1][1] - centroid_list[-2][1])
 
-        total_vector = sum_list_of_vectors(vectors_list)
+                z_length = 0
+        # print(centroid_list)
+        list_of_ys.sort()
+        list_of_xs.sort()
+        # total_vector = sum_list_of_vectors(vectors_list)
+        total_vector = [1, list_of_ys[len(list_of_ys)//2], list_of_xs[len(list_of_xs)//2]]
+        # print(centroid_list)
         normalized_total_vector = total_vector/np.linalg.norm(total_vector)
         normalized_current_vector = vectors_list[0]/np.linalg.norm(vectors_list[0])
-
+        for vector in vectors_list:
+            normalized_current_vector = vector/np.linalg.norm(vector)
+            # print(np.dot(normalized_total_vector, normalized_current_vector))
         while np.dot(normalized_total_vector, normalized_current_vector) < 0.92:
             del vectors_list[0]
-            total_vector = sum_list_of_vectors(vectors_list)
+            del centroid_list[0]
+            del list_of_ys[0]
+            del list_of_xs[0]
+            # total_vector = sum_list_of_vectors(vectors_list)
+            total_vector = [1, list_of_ys[len(list_of_ys)//2], list_of_xs[len(list_of_xs)//2]]
             normalized_total_vector = total_vector/np.linalg.norm(total_vector)
             normalized_current_vector = vectors_list[0] / np.linalg.norm(vectors_list[0])
 
-        total_vector = sum_list_of_vectors(vectors_list)
+        # total_vector = sum_list_of_vectors(vectors_list)
+        total_vector = [1, list_of_ys[len(list_of_ys)//2], list_of_xs[len(list_of_xs)//2]]
+        print(total_vector)
         normalized_total_vector = total_vector/np.linalg.norm(total_vector)
         normalized_current_vector = vectors_list[-1]/np.linalg.norm(vectors_list[-1])
+        print(centroid_list)
 
         while np.dot(normalized_total_vector, normalized_current_vector) < 0.92:
             del vectors_list[-1]
-            total_vector = sum_list_of_vectors(vectors_list)
+            del centroid_list[-1]
+            del list_of_ys[-1]
+            del list_of_xs[-1]
+            # total_vector = sum_list_of_vectors(vectors_list)
+            total_vector = [1, list_of_ys[len(list_of_ys)//2], list_of_xs[len(list_of_xs)//2]]
             normalized_total_vector = total_vector/np.linalg.norm(total_vector)
             normalized_current_vector = vectors_list[-1] / np.linalg.norm(vectors_list[-1])
 
         direction_vector = np.flip(np.copy(normalized_total_vector))
 
-        throat_coordinates = [centroid_list[0][1], centroid_list[0][0], 0]  # [x, y]
+        throat_coordinates = [centroid_list[0][1], centroid_list[0][0], centroid_list[0][2]]  # [x, y]
 
     rotation_matrix = calculate_rotation_matrix_between_3d_vectors(direction_vector, np.array([0, 0, 1]))
 
@@ -518,10 +540,10 @@ def registration_computation(moving_image, reference_image, moving_mask=None, re
         # translation_registration_method.SetMetricAsMeanSquares()
 
         # 2 ---> OPTIMIZER
-        translation_registration_method.SetOptimizerAsRegularStepGradientDescent(learningRate=10.0,
+        translation_registration_method.SetOptimizerAsRegularStepGradientDescent(learningRate=1.0,
                                                                                  minStep=1e-3,
                                                                                  numberOfIterations=50,
-                                                                                 gradientMagnitudeTolerance=1e-4)
+                                                                                 gradientMagnitudeTolerance=1e-8)
 
         # 3 ---> INTERPOLATOR
         translation_registration_method.SetInterpolator(Sitk.sitkLinear)
@@ -561,8 +583,8 @@ def registration_computation(moving_image, reference_image, moving_mask=None, re
         rotation_registration_method = Sitk.ImageRegistrationMethod()
 
         # 1 ---> METRIC
-        # rotation_registration_method.SetMetricAsMeanSquares()
-        rotation_registration_method.SetMetricAsCorrelation()
+        rotation_registration_method.SetMetricAsMeanSquares()
+        # rotation_registration_method.SetMetricAsCorrelation()
         # rotation_registration_method.SetMetricAsJointHistogramMutualInformation()
 
         # 2 ---> OPTIMIZER
