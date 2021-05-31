@@ -1,46 +1,69 @@
 import numpy as np
 
-from popcorn.spectral_imaging import registration
+from popcorn import input_output
+from scipy.ndimage import gaussian_filter
 
+def create_phantom_line(nb_slices, height, width, first_point, last_point, type_of_structure="square", size=5, gray_value=255, lowpass_filter=False, sigma=0):
+    """function creating squares/circles from point A to point B
 
-def create_phantom_line(nb_slices, height, width, first_point, last_point, type_of_structure = "square", radius = 5):
+    Args:
+        nb_slices (int):         z dimension
+        height (int):            y dimension
+        width (int):             x dimension
+        first_point (numpy.ndarray):  position of the starting point
+        last_point (numpy.ndarray):   position of the ending point
+        type_of_structure (str): circle ? square ?
+        size (int):              size of the structure (half of side for square, radius for circle)
+        gray_value (float):      gray value of the pixels
+        lowpass_filter (bool):   do we compute lowpass filter?
+
+    Returns:
+        (numpy.ndarray) The created phantom
     """
-    function creating squares from point A to point B
-    :param nb_slices: z dim
-    :param height: y dim
-    :param width: x dim
-    :param first_point: position of the first structure element
-    :param last_point: position of the first structure element
-    :param type_of_structure: circle ? square ?
-    :param radius: size of the structure
-    :return:
-    """
-    image = np.zeros((nb_slices, height, width)).astype(np.uint16)
+    image = np.zeros((nb_slices, height, width)).astype(np.float32)
     positions = np.linspace(first_point, last_point, nb_slices)
     for slice_nb in range(0, nb_slices):
         point2d = positions[slice_nb]
-        for x in range(int(point2d[0] - radius), int(point2d[0] + radius)):
-            for y in range(int(point2d[1] - radius), int(point2d[1] + radius)):
-                image[slice_nb, y, x] = 255
+        if type_of_structure == "square":
+            for x in range(int(point2d[0] - size), int(point2d[0] + size)):
+                for y in range(int(point2d[1] - size), int(point2d[1] + size)):
+
+                    image[slice_nb, y, x] = gray_value
+        elif type_of_structure == "circle":
+            for x in range(int(point2d[0] - size), int(point2d[0] + size)):
+                for y in range(int(point2d[1] - size), int(point2d[1] + size)):
+                    if ((point2d[0] - x) ** 2 + (point2d[1] - y) ** 2) ** 0.5 < size:
+                        image[slice_nb, y, x] = gray_value
+
+    if lowpass_filter:
+        if sigma == 0:
+            sigma = size/5
+        image = gaussian_filter(image, sigma=sigma)
     return np.copy(image)
 
 
 if __name__ == "__main__" :
 
-    phantom_x = create_phantom_line(50, 200, 200, np.array([50, 100]), np.array([100, 100]))
-    #ratGistrationIO.save_tif_sequence(phantom_x, "C:\\Users\\ctavakol\\Desktop\\test_for_ratGistration\\test_phantoms\\phantom_x\\")
+    phantom_circles_straight = create_phantom_line(100,
+                                                   200,
+                                                   200,
+                                                   np.array([100, 100]),
+                                                   np.array([100, 100]),
+                                                   type_of_structure="circle",
+                                                   size=50, gray_value=0.123,
+                                                   lowpass_filter=True,
+                                                   sigma=2)
+    input_output.save_tif_sequence(phantom_circles_straight, "C:\\Users\\ctavakol\\Desktop\\test_for_popcorn\\circles_straight\\")
 
-    phantom_y = create_phantom_line(50, 200, 200, np.array([100, 50]), np.array([100, 100]))
-    #ratGistrationIO.save_tif_sequence(phantom_y, "C:\\Users\\ctavakol\\Desktop\\test_for_ratGistration\\test_phantoms\\phantom_y\\")
+    phantom_circles_bias = create_phantom_line(100,
+                                               200,
+                                               200,
+                                               np.array([99, 100]),
+                                               np.array([100, 100]),
+                                               type_of_structure="circle",
+                                               size=50,
+                                               gray_value=0.123,
+                                               lowpass_filter=True,
+                                               sigma=2)
 
-    phantom_xy = create_phantom_line(50, 200, 200, np.array([50, 50]), np.array([100, 100]))
-    #ratGistrationIO.save_tif_sequence(phantom_xy, "C:\\Users\\ctavakol\\Desktop\\test_for_ratGistration\\test_phantoms\\phantom_xy\\")
-
-    reoriented_phantom_x = registration.two_vectors_3d_rotation(phantom_x, np.array([-0.714, 0, -0.699]), np.array([0, 0, -1]), [100, 100, 50])
-    #ratGistrationIO.save_tif_sequence(reoriented_phantom_x, "C:\\Users\\ctavakol\\Desktop\\test_for_ratGistration\\test_phantoms\\result_phantom_x\\")
-
-    reoriented_phantom_y = registration.two_vectors_3d_rotation(phantom_y, np.array([0, -0.714, -0.699]), np.array([0, 0, -1]), [100, 100, 50])
-    #ratGistrationIO.save_tif_sequence(reoriented_phantom_y, "C:\\Users\\ctavakol\\Desktop\\test_for_ratGistration\\test_phantoms\\result_phantom_y\\")
-
-    reoriented_phantom_xy = registration.two_vectors_3d_rotation(phantom_xy, np.array([-0.581, -0.581, -0.569]), np.array([0, 0, -1]), [100, 100, 50])
-    #ratGistrationIO.save_tif_sequence(reoriented_phantom_xy, "C:\\Users\\ctavakol\\Desktop\\test_for_ratGistration\\test_phantoms\\result_phantom_xy\\")
+    input_output.save_tif_sequence(phantom_circles_bias, "C:\\Users\\ctavakol\\Desktop\\test_for_popcorn\\circles_bias\\")
