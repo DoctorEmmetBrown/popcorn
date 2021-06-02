@@ -15,20 +15,23 @@ import numpy as np
 import math
 
 
-def find_threshold_value(energy_element):
+def find_threshold_value(energy_element="Au", modality="esrf"):
     """We return the energy corresponding attenuation value used for bone segmentation
 
     Args:
         energy_element (str): what k-edge element are we trying to quantify (Au, I, Gd..)
+        modality (str):       what modality was used for image acquisition
 
     Returns:
         (float) threshold value
     """
-    if energy_element == "Au":
-        return 0.26
-    elif energy_element == "I":
-        return 0.69
-
+    if modality.lower() == "esrf":
+        if energy_element == "Au":
+            return 0.26  # -- linear mass attenuation
+        elif energy_element == "I":
+            return 0.69  # -- linear mass attenuation
+    elif modality.lower() == "spcct":
+        return 1620  # -- Hounsfield unit
     return 0
 
 

@@ -284,26 +284,27 @@ def decomposition_equation_resolution(images, densities, material_attenuations, 
     vector_2d_matrix = np.transpose(vector_2d_matrix)
 
     solution_matrix = None
+    nb = 0
     if number_of_energies + volume_fraction_hypothesis * 1 == number_of_materials:
         system_3d_matrix = np.repeat(system_2d_matrix[np.newaxis, :], images[0, :].size, axis=0)
         solution_matrix = np.linalg.solve(system_3d_matrix, vector_2d_matrix)
     else:
         for vector in vector_2d_matrix:
 
-            Q, R = np.linalg.qr(system_2d_matrix)  # qr decomposition of A
-            Qb = np.dot(Q.T, vector)  # computing Q^T*b (project b onto the range of A)
-            solution_vector = np.linalg.solve(R, Qb)  # solving R*x = Q^T*b
-            # solution_vector = np.linalg.lstsq(system_2d_matrix, vector, rcond=None)
+            # Q, R = np.linalg.qr(system_2d_matrix)  # qr decomposition of A
+            # Qb = np.dot(Q.T, vector)  # computing Q^T*b (project b onto the range of A)
+            # solution_vector = np.linalg.solve(R, Qb)  # solving R*x = Q^T*b
+            solution_vector = np.linalg.lstsq(system_2d_matrix, vector, rcond=None)
 
             if solution_matrix is not None:
-                loading_bar(solution_matrix.size, images[0, :].size)
+                loading_bar(nb, vector_2d_matrix.size)
                 if solution_matrix.ndim == 2:
-                    solution_matrix = np.vstack([solution_matrix, solution_vector])
+                    solution_matrix = np.vstack([solution_matrix, solution_vector[0]])
                 else:
-                    solution_matrix = np.stack((solution_matrix, solution_vector), axis=0)
+                    solution_matrix = np.stack((solution_matrix, solution_vector[0]), axis=0)
             else:
-                solution_matrix = solution_vector
-
+                solution_matrix = solution_vector[0]
+            nb += 1
     if images.ndim == 3:
         concentration_maps = np.zeros((number_of_materials, images[0, :].shape[0], images[0, :].shape[1]))
     else:
