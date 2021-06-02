@@ -12,7 +12,7 @@
         <LCS_median_filter>3</LCS_median_filter>
         <umpaNw>5</umpaNw>
         <MIST_median_filter>3</MIST_median_filter>
-        <XSVT_Nw>3</XSVT_Nw>
+        <XSVT_Nw>1</XSVT_Nw>
         <XSVT_median_filter>3</XSVT_median_filter>
     </experiment>
 
