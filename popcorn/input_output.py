@@ -32,8 +32,14 @@ def create_list_of_files(folder_name, extension):
     Returns:
         (str): the list of files sorted
     """
-    list_of_files = glob.glob(folder_name + '/*' + extension)
-    list_of_files.sort()
+    if not os.path.exists(folder_name):
+        raise Exception('Error: Given path does not exist.')
+    else:
+        list_of_files = glob.glob(folder_name + '/*' + extension)
+        list_of_files.sort()
+        if len(list_of_files) == 0:
+            raise Exception('Error: No file corresponds to the given extension: .' + extension)
+
     return list_of_files
 
 
@@ -75,6 +81,8 @@ def open_sequence(filenames):
     Returns:
         (numpy.ndarray): sequence of 2D images
     """
+    if len(filenames) == 0:
+        raise Exception('Error: no file corresponds to the given path/extension')
     if len(filenames) > 0:
         data = open_image(str(filenames[0]))
         height, width = data.shape
@@ -85,7 +93,6 @@ def open_sequence(filenames):
             to_return[i, :, :] = data
             i += 1
         return to_return
-    raise Exception('spytlabIOError')
 
 
 def save_edf_image(image, filename):
