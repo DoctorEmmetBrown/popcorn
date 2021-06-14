@@ -1,17 +1,19 @@
 <list_experiments>
     <experiment>
         <experiment_name>MoucheSimapAout2017</experiment_name>
-        <nb_of_point>20</nb_of_point>
+        <nb_of_point>22</nb_of_point>
         <pad_size>0</pad_size>
         <pad_type>reflect</pad_type>
         <do_deconvolution>False</do_deconvolution>
         <deconvolution_type>unsupervised_wiener</deconvolution_type>
         <absorption_correction_sigma>15</absorption_correction_sigma>
-        <max_shift>1</max_shift>
+        <max_shift>2</max_shift>
         <sigma_regularization>1</sigma_regularization>
         <LCS_median_filter>3</LCS_median_filter>
         <umpaNw>5</umpaNw>
         <MIST_median_filter>3</MIST_median_filter>
+        <XSVT_Nw>1</XSVT_Nw>
+        <XSVT_median_filter>3</XSVT_median_filter>
     </experiment>
 
     <experiment>
@@ -19,43 +21,14 @@
         <nb_of_point>25</nb_of_point>
         <pad_size>0</pad_size>
         <pad_type>reflect</pad_type>
-        <do_deconvolution>True</do_deconvolution>
+        <do_deconvolution>False</do_deconvolution>
         <deconvolution_type>unsupervised_wiener</deconvolution_type>
         <absorption_correction_sigma>15</absorption_correction_sigma>
         <max_shift>1</max_shift>
         <sigma_regularization>5</sigma_regularization>
-        <LCS_median_filter>10</LCS_median_filter>
+        <LCS_median_filter>0</LCS_median_filter>
         <umpaNw>5</umpaNw>
         <MIST_median_filter>3</MIST_median_filter>
     </experiment>
-    
-    <experiment>
-        <experiment_name>contrast_phantom_simulation_clinic</experiment_name>
-        <nb_of_point>10</nb_of_point>
-        <pad_size>100</pad_size>
-        <pad_type>reflect</pad_type>
-        <do_deconvolution>True</do_deconvolution>
-        <deconvolution_type>unsupervised_wiener</deconvolution_type>
-        <absorption_correction_sigma>15</absorption_correction_sigma>
-        <max_shift>1</max_shift>
-        <sigma_regularization>5</sigma_regularization>
-        <LCS_median_filter>3</LCS_median_filter>
-        <umpaNw>5</umpaNw>
-        <MIST_median_filter>3</MIST_median_filter>
-    </experiment>
-    
-    <experiment>
-        <experiment_name>TheoreticalStudy</experiment_name>
-        <nb_of_point>10</nb_of_point>
-        <pad_size>100</pad_size>
-        <pad_type>reflect</pad_type>
-        <do_deconvolution>True</do_deconvolution>
-        <deconvolution_type>unsupervised_wiener</deconvolution_type>
-        <absorption_correction_sigma>15</absorption_correction_sigma>
-        <max_shift>1</max_shift>
-        <sigma_regularization>5</sigma_regularization>
-        <LCS_median_filter>3</LCS_median_filter>
-        <umpaNw>5</umpaNw>
-        <MIST_median_filter>3</MIST_median_filter>
-    </experiment>
+
 </list_experiments>
