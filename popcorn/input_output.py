@@ -34,11 +34,10 @@ def create_list_of_files(folder_name, extension):
     """
     if not os.path.exists(folder_name):
         raise Exception('Error: Given path does not exist.')
-    else:
-        list_of_files = glob.glob(folder_name + '/*' + extension)
-        list_of_files.sort()
-        if len(list_of_files) == 0:
-            raise Exception('Error: No file corresponds to the given extension: .' + extension)
+    list_of_files = glob.glob(folder_name + '/*' + extension)
+    list_of_files.sort()
+    if len(list_of_files) == 0:
+        raise Exception('Error: No file corresponds to the given extension: .' + extension)
 
     return list_of_files
 
@@ -53,8 +52,7 @@ def get_header(filename):
         (str): header
     """
     im = fabio.open(filename)
-    header = im.header
-    return header
+    return im.header
 
 
 def open_image(filename):
@@ -68,8 +66,7 @@ def open_image(filename):
     """
     filename = str(filename)
     im = fabio.open(filename)
-    imarray = im.data
-    return imarray
+    return im.data
 
 
 def open_sequence(filenames):
@@ -87,11 +84,9 @@ def open_sequence(filenames):
         data = open_image(str(filenames[0]))
         height, width = data.shape
         to_return = np.zeros((len(filenames), height, width), dtype=np.float32)
-        i = 0
-        for file in filenames:
+        for i, file in enumerate(filenames):
             data = open_image(str(file))
             to_return[i, :, :] = data
-            i += 1
         return to_return
 
 
@@ -123,14 +118,8 @@ def save_edf_sequence(image, path):
     """
     if not os.path.exists(path):
         os.makedirs(path)
-    for i in range(0, image.shape[0]):
-        if i < 10:
-            save_edf_image(image[i, :, :], path + '000' + str(i) + '.edf')
-        else:
-            if i < 100:
-                save_edf_image(image[i, :, :], path + '00' + str(i) + '.edf')
-            else:
-                save_edf_image(image[i, :, :], path + '0' + str(i) + '.edf')
+    for i in range(image.shape[0]):
+        save_edf_image(image[i, :, :], path + '{:04d}'.format(i) + '.edf')
 
 
 def save_edf_sequence_and_crop(image, bounding_box, path):
@@ -151,7 +140,7 @@ def save_edf_sequence_and_crop(image, bounding_box, path):
                           bounding_box[2]:bounding_box[3] + 1,
                           bounding_box[0]:bounding_box[1] + 1]
 
-    for i in range(0, cropped_image.shape[0]):
+    for i in range(cropped_image.shape[0]):
         slice_to_save = cropped_image[i, :, :]
         save_edf_image(slice_to_save, path + '{:04d}'.format(i) + '.edf')
 
@@ -170,19 +159,17 @@ def save_tif_image(image, filename, bit=32, rgb=False, header=None):
         None
     """
     create_directory(remove_filename_in_path(filename))
-    if not rgb:
-        if header:
-            if bit == 32:
-                tif.TifImage(data=image.astype(np.float32), header=header).write(filename + '.tif')
-            else:
-                tif.TifImage(data=image.astype(np.uint16), header=header).write(filename + '.tif')
-        else:
-            if bit == 32:
-                tif.TifImage(data=image.astype(np.float32)).write(filename + '.tif')
-            else:
-                tif.TifImage(data=image.astype(np.uint16)).write(filename + '.tif')
-    else:
+    if rgb:
         imageio.imwrite(filename + '.tif', image)
+    elif header:
+        if bit == 32:
+            tif.TifImage(data=image.astype(np.float32), header=header).write(filename + '.tif')
+        else:
+            tif.TifImage(data=image.astype(np.uint16), header=header).write(filename + '.tif')
+    elif bit == 32:
+        tif.TifImage(data=image.astype(np.float32)).write(filename + '.tif')
+    else:
+        tif.TifImage(data=image.astype(np.uint16)).write(filename + '.tif')
 
 
 def save_tif_sequence(image, path, bit=32, header=None):
@@ -197,7 +184,7 @@ def save_tif_sequence(image, path, bit=32, header=None):
     Returns:
         None
     """
-    for i in range(0, image.shape[0]):
+    for i in range(image.shape[0]):
         image_path = path + '{:04d}'.format(i)
         save_tif_image(image[i, :, :], image_path, bit, header)
 
@@ -219,7 +206,7 @@ def save_tif_sequence_and_crop(image, bounding_box, path, bit=32, header=None):
                           bounding_box[2]:bounding_box[3] + 1,
                           bounding_box[0]:bounding_box[1] + 1]
 
-    for i in range(0, cropped_image.shape[0]):
+    for i in range(cropped_image.shape[0]):
         cropped_slice = cropped_image[i, :, :]
         image_path = path + '{:04d}'.format(i) + '.tif'
         save_tif_image(cropped_slice, image_path, bit, header)
@@ -234,16 +221,9 @@ def remove_filename_in_path(path):
     Returns:
         complete path without the file name
     """
-    if len(path.split("\\")) > 1:
-        splitter = "\\"
-    else:
-        splitter = "/"
+    splitter = "\\" if len(path.split("\\")) > 1 else "/"
     path_list = path.split(splitter)[:-1]
-    new_path = ""
-    for elt in path_list:
-        new_path += elt + splitter
-
-    return new_path
+    return "".join(elt + splitter for elt in path_list)
 
 
 def remove_last_folder_in_path(path):
@@ -255,16 +235,9 @@ def remove_last_folder_in_path(path):
     Returns:
         complete path without the last folder
     """
-    if len(path.split("\\")) > 1:
-        splitter = "\\"
-    else:
-        splitter = "/"
+    splitter = "\\" if len(path.split("\\")) > 1 else "/"
     path_list = path.split(splitter)[:-2]
-    new_path = ""
-    for elt in path_list:
-        new_path += elt + splitter
-
-    return new_path
+    return "".join(elt + splitter for elt in path_list)
 
 
 def make_dark_mean(dark_fields):
