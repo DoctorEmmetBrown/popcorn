@@ -69,22 +69,39 @@ def open_image(filename):
     return im.data
 
 
-def open_sequence(filenames):
+def open_sequence(filenames_or_regex):
     """opens a sequence of images
 
     Args:
-        filenames (str): file names
+        filenames_or_regex (str): file names
 
     Returns:
         (numpy.ndarray): sequence of 2D images
     """
-    if len(filenames) == 0:
+    # If the given arg is empty, we raise an error
+    if len(filenames_or_regex) == 0:
         raise Exception('Error: no file corresponds to the given path/extension')
-    if len(filenames) > 0:
-        data = open_image(str(filenames[0]))
+    # We check if the given filenames is a regular expression of input files:
+    if type(filenames_or_regex) != list:
+        # We try opening either .tif files
+        list_of_files = create_list_of_files(filenames_or_regex, "tif")
+        # or .edf files
+        if len(list_of_files) == 0:
+            list_of_files = create_list_of_files(filenames_or_regex, "edf")
+    else:
+        list_of_files = filenames_or_regex
+    # If the created list_of_files is empty
+    if len(list_of_files) == 0:
+        raise Exception('Error: no file corresponds to the given path/extension')
+
+    # Next line is computed iff given regex/list of files correspond to existing files that can be opened
+    if len(list_of_files) > 0:
+        data = open_image(str(list_of_files[0]))
         height, width = data.shape
-        to_return = np.zeros((len(filenames), height, width), dtype=np.float32)
-        for i, file in enumerate(filenames):
+        # We create an empty image sequence
+        to_return = np.zeros((len(list_of_files), height, width), dtype=np.float32)
+        # We fill the created empty sequence
+        for i, file in enumerate(list_of_files):
             data = open_image(str(file))
             to_return[i, :, :] = data
         return to_return
@@ -186,7 +203,7 @@ def save_tif_sequence(image, path, bit=32, header=None):
     """
     for i in range(image.shape[0]):
         image_path = path + '{:04d}'.format(i)
-        save_tif_image(image[i, :, :], image_path, bit, header)
+        save_tif_image(image[i, :, :], image_path, bit, header=header)
 
 
 def save_tif_sequence_and_crop(image, bounding_box, path, bit=32, header=None):
@@ -209,7 +226,7 @@ def save_tif_sequence_and_crop(image, bounding_box, path, bit=32, header=None):
     for i in range(cropped_image.shape[0]):
         cropped_slice = cropped_image[i, :, :]
         image_path = path + '{:04d}'.format(i) + '.tif'
-        save_tif_image(cropped_slice, image_path, bit, header)
+        save_tif_image(cropped_slice, image_path, bit, header=header)
 
 
 def remove_filename_in_path(path):
@@ -238,30 +255,3 @@ def remove_last_folder_in_path(path):
     splitter = "\\" if len(path.split("\\")) > 1 else "/"
     path_list = path.split(splitter)[:-2]
     return "".join(elt + splitter for elt in path_list)
-
-
-def make_dark_mean(dark_fields):
-    """TODO
-
-    Args:
-        dark_fields (TODO): TODO
-
-    Returns:
-        TODO
-    """
-    mean_slice = np.mean(dark_fields, axis=0)
-    print('-----------------------  mean Dark calculation done ------------------------- ')
-    output_filename = '/Users/helene/PycharmProjects/spytlab/meanDarkTest.edf'
-    output_edf = edf.EdfFile(output_filename, access='wb+')
-    output_edf.WriteImage({}, mean_slice)
-
-    return mean_slice
-
-
-if __name__ == '__main__':
-    total_path = "/data/visitor/test/ok.tif"
-    print(remove_filename_in_path(total_path))
-    print(remove_last_folder_in_path(total_path))
-    total_path = "\\data\\visitor\\test\\ok.tif"
-    print(remove_filename_in_path(total_path))
-    print(remove_last_folder_in_path(total_path))
