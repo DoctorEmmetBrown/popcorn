@@ -79,7 +79,7 @@ def usage():
 
 
 if __name__ == "__main__":
-    inputFolder = '/data/visitor/md1217/id17/'
+    inputFolder = '/data/visitor/md1217/id17/volfloat/'
     mainOutputFolder = '/data/visitor/md1217/id17/voltif/'
     radix = 'HA750_6um_42kev_SP_023_PM'
 
@@ -132,9 +132,9 @@ if __name__ == "__main__":
 
     # SPECKLE : Parsing all the reconstructed folders and putting them in a list
     if speckleDone:
-        reconstructedFolders = glob.glob(inputFolder + '/volfloat/*' + radix + '*Propag_pag')
+        reconstructedFolders = glob.glob(inputFolder + '/*' + radix + '*Propag_pag')
     else:
-        reconstructedFolders = glob.glob(inputFolder + '/volfloat/*' + radix + '*pag')
+        reconstructedFolders = glob.glob(inputFolder + '/*' + radix + '*pag')
     reconstructedFolders.sort()
 
     # MIN-MAX : if not manual, parsing all floors histograms to determine min and max
@@ -145,7 +145,7 @@ if __name__ == "__main__":
     imageWidthList = []
     for inputFolder in reconstructedFolders:
         # We pick a random image
-        randomFilename = random.choice(glob.glob(inputFolder+'/*.tif')+glob.glob(inputFolder+'/*.edf'))
+        randomFilename = random.choice(glob.glob(inputFolder+'/*.tif*')+glob.glob(inputFolder+'/*.edf'))
         randomImage = open_image(randomFilename)
         imageWidthList.append(randomImage.shape[1])
     maxImageWidth = max(imageWidthList)
@@ -157,7 +157,7 @@ if __name__ == "__main__":
         print("Starting 16Bit conversion for folder ", str(folderNb) + "/" + str(len(reconstructedFolders)))
         folderNb += 1
         baseName = os.path.basename(inputFolder)
-        imageFiles = glob.glob(inputFolder + '/*.tif') + glob.glob(inputFolder + '/*.edf')
+        imageFiles = glob.glob(inputFolder + '/*.tif*') + glob.glob(inputFolder + '/*.edf')
         outputFolder = mainOutputFolder + baseName + '/'
 
         listOf16bitFolder.append(outputFolder)
