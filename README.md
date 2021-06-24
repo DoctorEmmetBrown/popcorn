@@ -1,4 +1,4 @@
-<h1 align="center">Pocporn</h1>
+<h1 align="center">Popcorn</h1>
 
 <div align="center">
   :rat::corn:
@@ -39,15 +39,15 @@ TODO
 ### Why is it called Popcorn?
 Don't ask me, I can't remember
 
-### Where can I find ISPDK?
+### Where can I find IPSDK?
 TODO
-
-### What if I have additional questions ?
-time's up sorry
 
 ### Is Popcorn development finished?
 no.
 
+### What if I have additional questions ?
+time's up sorry
+  
 ## API
 Section to come
 
@@ -60,7 +60,7 @@ $ ??????
 TODO
 
 ## Support
-No financial support is needed but emotional support is greatly appreciated
+No financial support is needed but emotional support is greatly appreciated.
 
 ## License
 [MIT](https://tldrlegal.com/license/mit-license)
