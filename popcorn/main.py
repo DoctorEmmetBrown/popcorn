@@ -138,7 +138,7 @@ if __name__ == "__main__":
     reconstructedFolders.sort()
 
     # MIN-MAX : if not manual, parsing all floors histograms to determine min and max
-    if not manualMinMax16bit:
+    if not manualMinMax16bit and sixteenBitConversion:
         minIm16Bit, maxIm16Bit = look_for_min_max_val(reconstructedFolders, 0.005)
 
     # PADDING : Checking if all images have the same size : Yes = we don't care, No = We pad (all image same size)

@@ -269,7 +269,6 @@ def look_for_maximum_correlation_band(first_image, second_image, band_size, with
     # If a thresholding is requested, we use Otsu thresholding on top 85% of the first image histogram
     if with_segmentation:
         thresh = filters.threshold_otsu(first_image_copy[first_image_copy > 0.15 * np.amax(first_image_copy)])
-        print((first_image_copy[first_image_copy > thresh]).size / first_image_copy.size)
         if (first_image_copy[first_image_copy > thresh]).size / first_image_copy.size < 0.005:
             thresh = filters.threshold_otsu(first_image_copy)
         mask = first_image_copy > thresh
@@ -322,7 +321,6 @@ def look_for_maximum_correlation_band(first_image, second_image, band_size, with
 
 
 if __name__ == "__main__":
-    print("Hello")
     imageAFolder = '/data/visitor/md1237/id17/volfloat/blablabla_001'
     imageBFolder = '/data/visitor/md1237/id17/volfloat/blablabla_002'
     imageAFiles = glob.glob(imageAFolder + '/*.tif')
