@@ -6,7 +6,9 @@ import shutil
 from skimage import filters
 import numpy as np
 
-from popcorn.input_output import open_sequence, save_tif_image
+from popcorn.input_output import create_list_of_files, open_image, open_sequence, save_tif_image
+from popcorn.spectral_imaging.registration import registration_computation
+
 
 
 def stitch_multiple_folders_into_one(list_of_folders, output_folder, delta_z, look_for_best_slice=True, copy_mode=0,
@@ -320,10 +322,83 @@ def look_for_maximum_correlation_band(first_image, second_image, band_size, with
     return computed_corresponding_slice_nb
 
 
+def two_tiles_stitching(first_image, second_image, side="right"):
+    """
+
+    Args:
+        first_image ():
+        second_image ():
+        side ():
+
+    Returns:
+
+    """
+    transformation = registration_computation(first_image, second_image, transform_type="translation", metric="cc",
+                                              verbose=True)
+    print(transformation.GetParameters())
+
+
+def multiple_sides_tiles_stitching(first_image, second_image, previous_side="none"):
+    """
+
+    Args:
+        first_image ():
+        second_image ():
+        previous_side ():
+
+    Returns:
+
+    """
+    if previous_side == "none":
+        potential_sides = ["left", "top", "right", "bottom"]
+    elif previous_side =="left":
+        potential_sides = ["left", "top", "bottom"]
+    elif previous_side =="top":
+        potential_sides = ["left", "top", "right"]
+    elif previous_side =="right":
+        potential_sides = ["top", "right", "bottom"]
+    elif previous_side =="bottom":
+        potential_sides = ["left", "right", "bottom"]
+
+    score_list = []
+    offset_position_list = []
+    for stitching_side in potential_sides:
+        current_side_score, offset_position = two_tiles_stitching(first_image, second_image, stitching_side)
+        score_list.append(current_side_score)
+        offset_position_list.append(offset_position)
+
+    best_score_index = score_list.index(max(score_list))
+    return offset_position_list[best_score_index], potential_sides[best_score_index]
+
+
+
+
+
+
+def multiple_tile_registration(input_folder, output_file_path, type_of_files="tif"):
+    """
+
+    Args:
+        input_folder ():
+        output_file_path ():
+        type_of_files ():
+
+    Returns:
+
+    """
+    list_of_images = create_list_of_files(input_folder, type_of_files)
+    print(list_of_images)
+    image_to_stitch = open_image(list_of_images.pop(0))
+    print(list_of_images)
+    nb = 0
+    for file_to_stitch in list_of_images:
+        current_image = np.copy(image_to_stitch).astype(np.float32)
+        image_to_stitch = open_image(file_to_stitch).astype(np.float32)
+        multiple_sides_tiles_stitching(current_image, image_to_stitch)
+        print("image nb", nb)
+        nb += 1
+
+
 if __name__ == "__main__":
-    imageAFolder = '/data/visitor/md1237/id17/volfloat/blablabla_001'
-    imageBFolder = '/data/visitor/md1237/id17/volfloat/blablabla_002'
-    imageAFiles = glob.glob(imageAFolder + '/*.tif')
-    imageBFiles = glob.glob(imageAFolder + '/*.tif')
-    imageA = open_sequence(imageAFiles)
-    imageB = open_sequence(imageBFiles)
+    input_folder = "C:\\Users\\ctavakol\\Desktop\\tiles_to_stitch\\"
+    multiple_tile_registration(input_folder, input_folder)

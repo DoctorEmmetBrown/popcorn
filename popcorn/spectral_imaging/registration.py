@@ -499,7 +499,8 @@ def set_transform_metric(method, metric):
     return method
 
 
-def set_registration_parameters(method, metric, transform_type="translation", ref_image=None, moving_image=None):
+def set_registration_parameters(method, metric, transform_type="translation", ref_image=None, moving_image=None,
+                                dimension=3):
     """defines sitk registration parameters based on given metric and transform type
 
     Args:
@@ -508,6 +509,7 @@ def set_registration_parameters(method, metric, transform_type="translation", re
         transform_type (str):                  translation or rotation
         ref_image (Sitk.GetImageFromArray):    ref image (sitk)
         moving_image (Sitk.GetImageFromArray): moving image (sitk)
+        dimension (int):                       nb of dimensions
 
     Returns:
         (Sitk.ImageRegistrationMethod): defined method
@@ -523,9 +525,9 @@ def set_registration_parameters(method, metric, transform_type="translation", re
     if transform_type == "translation":
         method.SetOptimizerAsRegularStepGradientDescent(learningRate=1.0,
                                                         minStep=1e-3,
-                                                        numberOfIterations=50,
+                                                        numberOfIterations=500,
                                                         gradientMagnitudeTolerance=1e-8)
-        transform = Sitk.TranslationTransform(3)
+        transform = Sitk.TranslationTransform(dimension)
     else:
         method.SetOptimizerAsRegularStepGradientDescent(learningRate=1e-3,
                                                         minStep=1e-5,
@@ -557,7 +559,7 @@ def registration_computation(moving_image, ref_image, transform_type="rotation",
         verbose (bool):            False: no output but the result, True: prints each iteration metric
 
     Returns:
-        (Sitk.ImageRegistrationMethod): computed transformation
+        (Sitk.Transform): computed transformation
     """
     # itk image conversion
     ref_image_itk = Sitk.GetImageFromArray(ref_image)
@@ -568,7 +570,7 @@ def registration_computation(moving_image, ref_image, transform_type="rotation",
 
     # Setting needed parameters for registration
     registration_method = set_registration_parameters(registration_method, metric, transform_type, ref_image_itk,
-                                                      moving_image_itk)
+                                                      moving_image_itk, dimension=moving_image.ndim)
 
     # Mask-based registration computation ?
     if moving_mask is not None and ref_mask is not None:
@@ -578,9 +580,11 @@ def registration_computation(moving_image, ref_image, transform_type="rotation",
     # Registration execution
     if verbose:
         registration_method.AddCommand(Sitk.sitkIterationEvent, lambda: command_iteration(registration_method))
+
     calculated_transform = registration_method.Execute(ref_image_itk, moving_image_itk)
 
     print("Transform :", calculated_transform)
+    print("Transform :", calculated_transform.GetParameters())
 
     return calculated_transform
 
