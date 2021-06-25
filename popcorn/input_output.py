@@ -69,27 +69,27 @@ def open_image(filename):
     return im.data
 
 
-def open_sequence(filenames_or_regex):
+def open_sequence(filenames_or_input_folder):
     """opens a sequence of images
 
     Args:
-        filenames_or_regex (str): file names
+        filenames_or_input_folder (str): file names
 
     Returns:
         (numpy.ndarray): sequence of 2D images
     """
     # If the given arg is empty, we raise an error
-    if len(filenames_or_regex) == 0:
+    if len(filenames_or_input_folder) == 0:
         raise Exception('Error: no file corresponds to the given path/extension')
     # We check if the given filenames is a regular expression of input files:
-    if type(filenames_or_regex) != list:
+    if type(filenames_or_input_folder) != list:
         # We try opening either .tif files
-        list_of_files = create_list_of_files(filenames_or_regex, "tif")
+        list_of_files = create_list_of_files(filenames_or_input_folder, "tif")
         # or .edf files
         if len(list_of_files) == 0:
-            list_of_files = create_list_of_files(filenames_or_regex, "edf")
+            list_of_files = create_list_of_files(filenames_or_input_folder, "edf")
     else:
-        list_of_files = filenames_or_regex
+        list_of_files = filenames_or_input_folder
     # If the created list_of_files is empty
     if len(list_of_files) == 0:
         raise Exception('Error: no file corresponds to the given path/extension')
