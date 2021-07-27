@@ -6,8 +6,9 @@ import shutil
 from skimage import filters
 import numpy as np
 
-from popcorn.input_output import create_list_of_files, open_image, open_sequence, save_tif_image
-from popcorn.spectral_imaging.registration import registration_computation
+from popcorn.input_output import open_image, open_sequence, save_tif_image, open_cropped_sequence, save_tif_sequence, \
+    open_cropped_image, create_list_of_files
+from popcorn.spectral_imaging.registration import registration_computation, apply_itk_transformation
 
 
 
@@ -227,7 +228,7 @@ def look_for_maximum_correlation(first_image, second_image):
 
     # We compute what we need for normalized cross correlation (second image)
     centered_second_image = np.copy(second_image)
-    for slice_nb in range(0, second_nb_slices):
+    for slice_nb in range(second_nb_slices):
         centered_second_image[slice_nb, :, :] = centered_second_image[slice_nb, :, :] \
                                                 - np.mean(centered_second_image[slice_nb, :, :])
     centered_images_multiplication_result = first_image_middle_slice * centered_second_image
@@ -278,7 +279,7 @@ def look_for_maximum_correlation_band(first_image, second_image, band_size, with
         centered_second_image = mask * centered_second_image
 
     # We compute what we need for normalized cross correlation (second image)
-    for slice_nb in range(0, nb_slices):
+    for slice_nb in range(nb_slices):
         second_image_slice = centered_second_image[slice_nb, :, :]
         if with_segmentation:
             centered_second_image[slice_nb, :, :] = \
@@ -304,7 +305,7 @@ def look_for_maximum_correlation_band(first_image, second_image, band_size, with
         centered_images_multiplication_result = first_image_middle_slice * centered_second_image
 
         # We parse every slice of second image to compute normalized cross-correlations
-        for slice_nb in range(0, nb_slices):
+        for slice_nb in range(nb_slices):
             centered_second_image_std = np.std(centered_second_image[slice_nb, :, :])
             sum_of_multiplied_images = np.sum(centered_images_multiplication_result[slice_nb, :, :])
 
@@ -371,34 +372,159 @@ def multiple_sides_tiles_stitching(first_image, second_image, previous_side="non
     return offset_position_list[best_score_index], potential_sides[best_score_index]
 
 
+def rearrange_folders_list(starting_position, number_of_lines, number_of_columns):
+    list_of_folders = list(range(0, number_of_lines * number_of_columns))
+    for nb_line in range(number_of_lines):
+        if (nb_line + ("left" in starting_position) * 1) % 2 == 0:
+            list_of_folders[nb_line * number_of_columns: nb_line * number_of_columns + number_of_columns] = list(reversed(list_of_folders[nb_line * number_of_columns: nb_line * number_of_columns + number_of_columns]))
+
+    if "bottom" in starting_position:
+        new_list_of_folders = list(range(1, number_of_lines * number_of_columns+1))
+        for nb_line in range(0, number_of_lines):
+            if nb_line * number_of_columns + 1 > 1:
+                new_list_of_folders[nb_line * number_of_columns:
+                                    nb_line * number_of_columns + number_of_columns] = \
+                    list_of_folders[-(nb_line * number_of_columns + number_of_columns):
+                                    -(nb_line * number_of_columns)]
+            else:
+                new_list_of_folders[nb_line * number_of_columns:
+                                    nb_line * number_of_columns + number_of_columns] = \
+                    list_of_folders[-(nb_line * number_of_columns + number_of_columns):]
+    else:
+        new_list_of_folders = list_of_folders
+    return new_list_of_folders
 
 
-
-
-def multiple_tile_registration(input_folder, output_file_path, type_of_files="tif"):
+def multiple_tile_registration(input_folder, radix, starting_position="top-left", number_of_lines=4, number_of_columns=3,
+                               supposed_overlap=120):
     """
 
     Args:
         input_folder ():
-        output_file_path ():
-        type_of_files ():
+        starting_position ():
+        number_of_lines ():
+        number_of_columns ():
+        supposed_overlap ():
 
     Returns:
 
     """
-    list_of_images = create_list_of_files(input_folder, type_of_files)
-    print(list_of_images)
-    image_to_stitch = open_image(list_of_images.pop(0))
-    print(list_of_images)
-    nb = 0
-    for file_to_stitch in list_of_images:
-        current_image = np.copy(image_to_stitch).astype(np.float32)
-        image_to_stitch = open_image(file_to_stitch).astype(np.float32)
-        multiple_sides_tiles_stitching(current_image, image_to_stitch)
-        print("image nb", nb)
-        nb += 1
+    folders_indices = rearrange_folders_list(starting_position, number_of_lines, number_of_columns)
+    # Opening files / checking files size
+    list_of_folders = glob.glob(input_folder + radix + "*")
+    reference_image_path = glob.glob(list_of_folders[0] + "\\" + "*")[0]
+    reference_image = open_image(reference_image_path)
+    nb_of_slices = len(glob.glob(list_of_folders[0] + "\\" + "*"))
+    ref_height = reference_image.shape[0]
+    ref_width = reference_image.shape[1]
+
+    ref_image_coordinates = [[0, nb_of_slices - 1],
+                             [0, reference_image.shape[0] - 1],
+                             [max(reference_image.shape[1] - supposed_overlap, 0), reference_image.shape[1] - 1]]
+
+    moving_image_coordinates = [[0, nb_of_slices - 1],
+                                [0, reference_image.shape[0] - 1],
+                                [0, min(supposed_overlap, reference_image.shape[1] - 1)]]
+    list_of_transformations = []
+    for nb_line in range(number_of_lines):
+        for nb_col in range(number_of_columns - 1):
+            image_number = nb_line*number_of_columns + nb_col
+
+            print("stitching tile number", folders_indices[image_number], "and tile number", folders_indices[image_number + 1])
+            ref_image = open_cropped_sequence(glob.glob(list_of_folders[folders_indices[image_number]] + "\\*"),
+                                              ref_image_coordinates)
+            threshold = filters.threshold_otsu(ref_image)
+            ref_mask = np.copy(ref_image)
+            ref_mask[ref_mask <= threshold] = 0
+            ref_mask[ref_mask > threshold] = 1
+
+            moving_image = open_cropped_sequence(glob.glob(list_of_folders[folders_indices[image_number + 1]] + "\\*"),
+                                                 moving_image_coordinates)
+            moving_mask = np.copy(moving_image)
+
+            moving_mask[moving_mask <= threshold] = 0
+            moving_mask[moving_mask > threshold] = 1
+            transformation = registration_computation(moving_image=moving_image, ref_image=ref_image, ref_mask=ref_mask,
+                                                      moving_mask=moving_mask, transform_type="translation",
+                                                      metric="msq", verbose=False)
+            list_of_transformations.append(transformation)
+            print("Offset :", transformation.GetParameters())
+
+    for nb_line in range(number_of_lines):
+        empty_image = np.zeros((nb_of_slices,
+                                ref_height,
+                                ref_width*number_of_columns - (number_of_columns - 1)*supposed_overlap
+                                ))
+        for nb_col in range(number_of_columns):
+            image_number = nb_line*number_of_columns + nb_col
+            if nb_col ==0:
+                empty_image[:,:,0:ref_width-supposed_overlap//2 + 1] = open_cropped_sequence(glob.glob(list_of_folders[folders_indices[image_number]] + "\\*"),
+                                                                                         [[0,-1], [0,-1], [0,ref_width-supposed_overlap//2]])
+                new_position = ref_width-supposed_overlap//2
+            else:
+            # elif nb_col < number_of_columns - 1:
+                image_to_register = open_sequence(glob.glob(list_of_folders[folders_indices[image_number]] + "\\*"))
+                for transformation_nb in range(nb_col):
+                    image_to_register = apply_itk_transformation(image_to_register, list_of_transformations[nb_line*(number_of_columns-1) + transformation_nb])
+                image_to_register = image_to_register[:, :, supposed_overlap-supposed_overlap//2:ref_width-supposed_overlap//2]
+                empty_image[:,:,new_position: new_position+image_to_register.shape[2]] = image_to_register
+                new_position += image_to_register.shape[2] - 1
+        print("Saving line number", nb_line)
+        save_tif_sequence(empty_image, input_folder + "combined_line_" + str(nb_line) +"\\")
+        print("Line number", nb_line, "saved !")
+
+    list_of_transformations = []
+    for nb_line in range(number_of_lines - 1):
+        ref_image = open_cropped_sequence(input_folder + "combined_line_" + str(nb_line) +"\\",
+                                          [[0,-1],[-supposed_overlap,-1],[0,-1]])
+        threshold = filters.threshold_otsu(ref_image)
+        ref_mask = np.copy(ref_image)
+        ref_mask[ref_mask <= threshold] = 0
+        ref_mask[ref_mask > threshold] = 1
+
+        moving_image = open_cropped_sequence(input_folder + "combined_line_" + str(nb_line+1) +"\\",
+                                          [[0, -1], [0, supposed_overlap], [0, -1]])
+        threshold = filters.threshold_otsu(moving_image)
+        moving_mask = np.copy(moving_image)
+        moving_mask[moving_mask <= threshold] = 0
+        moving_mask[moving_mask > threshold] = 1
+        transformation = registration_computation(moving_image=moving_image, ref_image=ref_image,
+                                                  ref_mask=ref_mask,
+                                                  moving_mask=moving_mask, transform_type="translation",
+                                                  metric="msq", verbose=False)
+        list_of_transformations.append(transformation)
+        print("Offset :", transformation.GetParameters())
+
+    for nb_line in range(number_of_lines - 1):
+        line = open_sequence(input_folder + "combined_line_" + str(nb_line+1) +"\\")
+        for nb_transformation in range(nb_line + 1):
+            line = apply_itk_transformation(line, list_of_transformations[nb_transformation])
+        save_tif_sequence(line, input_folder + "registered_line_" + str(nb_line) +"\\")
+        print("Registered line number", nb_line, "saved !")
+
+    list_of_list_of_line_images = []
+    list_of_len = []
+    for nb_line in range(number_of_lines):
+        if nb_line == 0:
+            list_of_list_of_line_images.append(create_list_of_files(input_folder + "combined_line_" + str(nb_line) +"\\", "tif"))
+            list_of_len.append(len(list_of_list_of_line_images[-1]))
+        else:
+            list_of_list_of_line_images.append(create_list_of_files(input_folder + "registered_line_" + str(nb_line - 1) +"\\", "tif"))
+            list_of_len.append(len(list_of_list_of_line_images[-1]))
+
+    empty_image = np.zeros((number_of_lines*ref_height - supposed_overlap*(number_of_lines-1), ref_width*number_of_columns - supposed_overlap*(number_of_columns-1)))
+    for nb_image in range(min(list_of_len)):
+        for nb_line in range(number_of_lines):
+            slice = open_image(list_of_list_of_line_images[nb_line][nb_image])
+            if nb_line == 0:
+                empty_image[0: slice.shape[0] - supposed_overlap//2, :] = slice[0:slice.shape[0] - supposed_overlap//2, :]
+            else:
+                empty_image[nb_line*(ref_height - supposed_overlap//2) - (nb_line - 1)*supposed_overlap//2:
+                            nb_line * (ref_height - supposed_overlap // 2) - (nb_line + 1) * supposed_overlap // 2 + slice.shape[0], :] = slice[supposed_overlap//2:slice.shape[0] - supposed_overlap//2, :]
+        save_tif_image(empty_image, input_folder + "final_image\\" + '{:04d}'.format(nb_image))
 
 
 if __name__ == "__main__":
-    input_folder = "C:\\Users\\ctavakol\\Desktop\\tiles_to_stitch\\"
-    multiple_tile_registration(input_folder, input_folder)
+
+    input_folder = "C:\\Users\\ctavakol\\Desktop\\binned_tiles\\"
+    multiple_tile_registration(input_folder, radix="binned kiir 1-26 zone saine.czi - kiir 1-26 zS ")
