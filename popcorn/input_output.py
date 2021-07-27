@@ -65,8 +65,12 @@ def open_image(filename):
         (numpy.ndarray): 2D image
     """
     filename = str(filename)
-    im = fabio.open(filename)
-    return im.data
+    if "edf" in filename:
+        im = fabio.open(filename)
+        return im.data
+    elif "tif" in filename or "tiff" in filename:
+        im = imageio.imread(filename)
+        return im
 
 
 def open_sequence(filenames_or_input_folder):
@@ -96,15 +100,91 @@ def open_sequence(filenames_or_input_folder):
 
     # Next line is computed iff given regex/list of files correspond to existing files that can be opened
     if len(list_of_files) > 0:
-        data = open_image(str(list_of_files[0]))
-        height, width = data.shape
+        reference_image = open_image(str(list_of_files[0]))
+        height, width = reference_image.shape
         # We create an empty image sequence
-        to_return = np.zeros((len(list_of_files), height, width), dtype=np.float32)
+        sequence = np.zeros((len(list_of_files), height, width), dtype=np.float32)
         # We fill the created empty sequence
         for i, file in enumerate(list_of_files):
-            data = open_image(str(file))
-            to_return[i, :, :] = data
-        return to_return
+            image = open_image(str(file))
+            sequence[i, :, :] = image
+        return sequence
+
+
+def open_cropped_image(filename, min_max_y_x_list):
+    """
+
+    Args:
+        filename (str):          file name
+        min_max_y_x_list (list): list of [min,max] for y, x
+
+    Returns:
+        (numpy.ndarray): cropped image
+    """
+
+    ref_image = open_image(filename)
+    # In case of negative coordinates, we get the reverse position (max - val)
+    for coors_nb, coordinates in enumerate(min_max_y_x_list):
+        for coor_nb, coordinate in enumerate(coordinates):
+            if coordinate < 0:
+                min_max_y_x_list[coors_nb][coor_nb] += ref_image.shape[coors_nb]
+
+    image = ref_image[min_max_y_x_list[0][0]: min_max_y_x_list[0][1] + 1,
+                      min_max_y_x_list[1][0]: min_max_y_x_list[1][1] + 1]
+
+    return image
+
+
+def open_cropped_sequence(filenames_or_input_folder, min_max_z_y_x_list):
+    """opens a sequence of images and returns a cropped version. Major default : opens the full image
+
+    Args:
+        filenames_or_input_folder (str): file names
+        min_max_z_y_x_list (list):       list of [min,max] for z, y, x
+
+    Returns:
+        (numpy.ndarray): sequence of 2D images
+    """
+    # If the given arg is empty, we raise an error
+    if len(filenames_or_input_folder) == 0:
+        raise Exception('Error: no file corresponds to the given path/extension')
+    # We check if the given filenames is a regular expression of input files:
+    if type(filenames_or_input_folder) != list:
+        # We try opening either .tif files
+        list_of_files = create_list_of_files(filenames_or_input_folder, "tif")
+        # or .edf files
+        if len(list_of_files) == 0:
+            list_of_files = create_list_of_files(filenames_or_input_folder, "edf")
+    else:
+        list_of_files = filenames_or_input_folder
+    # If the created list_of_files is empty
+    if len(list_of_files) == 0:
+        raise Exception('Error: no file corresponds to the given path/extension')
+
+    if len(min_max_z_y_x_list) < 3:
+        raise Exception('Error: please specify 3 dimensions crop information for min_max_z_y_x_list parameter')
+    # Next line is computed iff given regex/list of files correspond to existing files that can be opened
+    if len(list_of_files) > 0:
+        ref_image = open_image(str(list_of_files[0]))
+        # In case of negative coordinates, we get the reverse position (max - val)
+        for coors_nb, coordinates in enumerate(min_max_z_y_x_list):
+            for coor_nb, coordinate in enumerate(coordinates):
+                if coordinate < 0:
+                    if coors_nb > 0:
+                        min_max_z_y_x_list[coors_nb][coor_nb] += ref_image.shape[coors_nb - 1]
+                    else:
+                        min_max_z_y_x_list[coors_nb][coor_nb] += len(list_of_files)
+        nb_of_files = min_max_z_y_x_list[0][1] - min_max_z_y_x_list[0][0] + 1
+        height = min_max_z_y_x_list[1][1] - min_max_z_y_x_list[1][0] + 1
+        width = min_max_z_y_x_list[2][1] - min_max_z_y_x_list[2][0] + 1
+        # We create an empty image sequence
+        sequence = np.zeros((nb_of_files, height, width), dtype=np.float32)
+        # We fill the created empty sequence
+        for i, file in enumerate(list_of_files):
+            if min_max_z_y_x_list[0][0] <= i <= min_max_z_y_x_list[0][1]:
+                sequence[i - min_max_z_y_x_list[0][0], :, :] = open_cropped_image(file, [min_max_z_y_x_list[1],
+                                                                                         min_max_z_y_x_list[2]])
+        return sequence
 
 
 def save_edf_image(image, filename):
