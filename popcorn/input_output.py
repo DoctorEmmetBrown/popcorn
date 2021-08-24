@@ -73,12 +73,12 @@ def open_image(filename):
         return im
 
 
-def open_sequence(filenames_or_input_folder):
+def open_sequence(filenames_or_input_folder, imtype=np.float32):
     """opens a sequence of images
 
     Args:
         filenames_or_input_folder (str): file names
-
+        imtype (dtype):
     Returns:
         (numpy.ndarray): sequence of 2D images
     """
@@ -103,7 +103,7 @@ def open_sequence(filenames_or_input_folder):
         reference_image = open_image(str(list_of_files[0]))
         height, width = reference_image.shape
         # We create an empty image sequence
-        sequence = np.zeros((len(list_of_files), height, width), dtype=np.float32)
+        sequence = np.zeros((len(list_of_files), height, width), dtype=imtype)
         # We fill the created empty sequence
         for i, file in enumerate(list_of_files):
             image = open_image(str(file))
@@ -135,12 +135,13 @@ def open_cropped_image(filename, min_max_y_x_list):
     return image
 
 
-def open_cropped_sequence(filenames_or_input_folder, min_max_z_y_x_list):
+def open_cropped_sequence(filenames_or_input_folder, min_max_z_y_x_list, imtype=np.float32):
     """opens a sequence of images and returns a cropped version. Major default : opens the full image
 
     Args:
         filenames_or_input_folder (str): file names
         min_max_z_y_x_list (list):       list of [min,max] for z, y, x
+        imtype (dtype):
 
     Returns:
         (numpy.ndarray): sequence of 2D images
@@ -178,12 +179,12 @@ def open_cropped_sequence(filenames_or_input_folder, min_max_z_y_x_list):
         height = min_max_z_y_x_list[1][1] - min_max_z_y_x_list[1][0] + 1
         width = min_max_z_y_x_list[2][1] - min_max_z_y_x_list[2][0] + 1
         # We create an empty image sequence
-        sequence = np.zeros((nb_of_files, height, width), dtype=np.float32)
+        sequence = np.zeros((nb_of_files, height, width), dtype=imtype)
         # We fill the created empty sequence
         for i, file in enumerate(list_of_files):
             if min_max_z_y_x_list[0][0] <= i <= min_max_z_y_x_list[0][1]:
                 sequence[i - min_max_z_y_x_list[0][0], :, :] = open_cropped_image(file, [min_max_z_y_x_list[1],
-                                                                                         min_max_z_y_x_list[2]])
+                                                                                         min_max_z_y_x_list[2]], imtype=imtype)
         return sequence
 
 
