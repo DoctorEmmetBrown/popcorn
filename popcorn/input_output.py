@@ -184,7 +184,7 @@ def open_cropped_sequence(filenames_or_input_folder, min_max_z_y_x_list, imtype=
         for i, file in enumerate(list_of_files):
             if min_max_z_y_x_list[0][0] <= i <= min_max_z_y_x_list[0][1]:
                 sequence[i - min_max_z_y_x_list[0][0], :, :] = open_cropped_image(file, [min_max_z_y_x_list[1],
-                                                                                         min_max_z_y_x_list[2]], imtype=imtype)
+                                                                                         min_max_z_y_x_list[2]])
         return sequence
 
 
