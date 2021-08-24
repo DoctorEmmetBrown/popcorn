@@ -5,6 +5,7 @@ import glob
 import shutil
 import time
 
+import SimpleITK
 from skimage import filters
 import numpy as np
 # import cupy as np
@@ -454,8 +455,18 @@ def multiple_tile_registration(input_folder, radix, starting_position="top-left"
             transformation = registration_computation(moving_image=moving_image, ref_image=ref_image, ref_mask=ref_mask,
                                                       moving_mask=moving_mask, transform_type="translation",
                                                       metric="msq", verbose=False)
-            list_of_transformations.append(transformation)
             print("Offset :", transformation.GetParameters())
+            offset_computed = transformation.GetParameters()
+            offset_max = (35, 35, 10)
+            if any(np.abs(x) > y for x, y in zip(offset_computed, offset_max)):
+                new_offset_computed = list(offset_computed)
+                for x in range(len(offset_computed)):
+                    if np.abs(offset_computed[x]) > offset_max[x]:
+                        new_offset_computed[x] = 0
+                offset_computed = tuple(new_offset_computed)
+                transformation.SetParameters(offset_computed)
+                print("Final Offset (after correction):", transformation.GetParameters())
+            list_of_transformations.append(transformation)
     print("Line Registration Done, Time spent from start: ----%.2f (sec)----" % (time.time() - st))
 
     for nb_line in range(number_of_lines):
