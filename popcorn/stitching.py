@@ -423,6 +423,7 @@ def multiple_tile_registration(input_folder, radix, starting_position="top-left"
     nb_of_slices = len(glob.glob(list_of_folders[0] + "\\" + "*"))
     ref_height = reference_image.shape[0]
     ref_width = reference_image.shape[1]
+    offset_max = (60, 60, 20)
 
     ref_image_coordinates = [[0, nb_of_slices - 1],
                              [0, reference_image.shape[0] - 1],
@@ -457,7 +458,6 @@ def multiple_tile_registration(input_folder, radix, starting_position="top-left"
                                                       metric="msq", verbose=False)
             print("Offset :", transformation.GetParameters())
             offset_computed = transformation.GetParameters()
-            offset_max = (35, 35, 10)
             if any(np.abs(x) > y for x, y in zip(offset_computed, offset_max)):
                 new_offset_computed = list(offset_computed)
                 for x in range(len(offset_computed)):
@@ -561,8 +561,18 @@ def multiple_tile_registration(input_folder, radix, starting_position="top-left"
                                                   ref_mask=ref_mask,
                                                   moving_mask=moving_mask, transform_type="translation",
                                                   metric="msq", verbose=False)
-        list_of_transformations.append(transformation)
         print("Offset :", transformation.GetParameters())
+        offset_computed = transformation.GetParameters()
+        if any(np.abs(x) > y for x, y in zip(offset_computed, offset_max)):
+            new_offset_computed = list(offset_computed)
+            for x in range(len(offset_computed)):
+                if np.abs(offset_computed[x]) > offset_max[x]:
+                    new_offset_computed[x] = 0
+            offset_computed = tuple(new_offset_computed)
+            transformation.SetParameters(offset_computed)
+            print("Final Offset (after correction):", transformation.GetParameters())
+        list_of_transformations.append(transformation)
+
     print("Total Registration Done, Time spent from start: ----%.2f (sec)----" % (time.time() - st))
 
     for nb_line in range(number_of_lines - 1):
