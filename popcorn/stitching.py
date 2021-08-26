@@ -524,13 +524,13 @@ def multiple_tile_registration(input_folder, radix, starting_position="top-left"
             w_2d_W = np.tile(w_1d_W, (ref_height, 1))
 
             for nb_col in range(number_of_columns):
-                slice = open_image(list_of_list_of_tile_images[nb_col][nb_slice])
+                out_slice = open_image(list_of_list_of_tile_images[nb_col][nb_slice])
                 image_number = nb_line * number_of_columns + nb_col
                 # The first tile doesn't need any registration
                 if nb_col == 0:
                     x_position = ref_width - supposed_overlap
-                    empty_slice[:, 0:x_position] = slice[:, 0:x_position]
-                    overlapped_ref_slice = slice[:, x_position:]
+                    empty_slice[:, 0:x_position] = out_slice[:, 0:x_position]
+                    overlapped_ref_slice = out_slice[:, x_position:]
 
                 # The next tile need to be registered/cropped
                 else:
@@ -538,7 +538,7 @@ def multiple_tile_registration(input_folder, radix, starting_position="top-left"
                     # Apply weight to each overlapping parts
                     woverlapped_ref_slice = overlapped_ref_slice * w_2d_W
                     # After registration comes the cropping part (based on initial supposed overlap)
-                    overlapped_mov_slice = slice[:, 0:supposed_overlap]
+                    overlapped_mov_slice = out_slice[:, 0:supposed_overlap]
                     woverlapped_mov_slice = overlapped_mov_slice * (1 - w_2d_W)
 
                     # Compute the sum of the two weighted overlapping parts and copy it to the final image
@@ -549,11 +549,11 @@ def multiple_tile_registration(input_folder, radix, starting_position="top-left"
                     x_position += supposed_overlap
                     # -- Manage non-overlapping part
                     # Copy non-overlapping part as it is
-                    slice_to_copy = slice[:, supposed_overlap:]
+                    slice_to_copy = out_slice[:, supposed_overlap:]
                     empty_slice[:, x_position:x_position + slice_to_copy.shape[1]] = slice_to_copy
                     # Prepare for next column if there is
                     x_position += slice_to_copy.shape[1] - supposed_overlap
-                    overlapped_ref_slice = slice[:, slice.shape[1] - supposed_overlap:]
+                    overlapped_ref_slice = out_slice[:, out_slice.shape[1] - supposed_overlap:]
             if verbose:
                 print("-> Saving slice number", nb_slice, "in folder", input_folder + "combined_line_" + str(nb_line) + "\\")
             save_tif_image(empty_slice,
@@ -644,7 +644,7 @@ def multiple_tile_registration(input_folder, radix, starting_position="top-left"
             out_slice = open_image(list_of_line_images[nb_line][nb_slice])
             # The first tile doesn't need any registration
             if nb_line == 0:
-                y_position = slice.shape[0] - supposed_overlap
+                y_position = out_slice.shape[0] - supposed_overlap
                 empty_slice[0:y_position, :] = out_slice[0:y_position, :]
                 overlapped_ref_slice = out_slice[y_position:, :]
             else:
@@ -667,7 +667,7 @@ def multiple_tile_registration(input_folder, radix, starting_position="top-left"
                 empty_slice[y_position:y_position + slice_to_copy.shape[0], :] = slice_to_copy
                 # Prepare for next column if there is
                 y_position += slice_to_copy.shape[0] - supposed_overlap
-                overlapped_ref_slice = slice[slice.shape[0] - supposed_overlap:, :]
+                overlapped_ref_slice = out_slice[out_slice.shape[0] - supposed_overlap:, :]
 
         save_tif_image(empty_slice, input_folder + "final_image\\" + '{:04d}'.format(nb_slice), bit=16)
 
