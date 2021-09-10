@@ -4,6 +4,8 @@ import gc
 import glob
 import shutil
 import time
+import tkinter as tk
+from tkinter import filedialog, simpledialog
 
 from skimage import filters
 import numpy as np
@@ -398,8 +400,8 @@ def compute_two_tiles_registration(ref_image_input_folder, ref_image_coordinates
                                     metric="msq", verbose=False)
 
 
-def multiple_tile_registration(input_folder, radix, starting_position="top-left", number_of_lines=4,
-                               number_of_columns=3,
+def multiple_tile_registration(input_folder, radix, starting_position="top-left",
+                               number_of_lines=4, number_of_columns=3,
                                supposed_overlap=120, integer_values_for_offset=False, verbose=False):
     """Stitches multiple 3D tiles altogether and saves the result in a "final image" folder
 
@@ -421,15 +423,32 @@ def multiple_tile_registration(input_folder, radix, starting_position="top-left"
     # Sorts indices of input tiles so that every tile is registered from left to right & from top to bottom.
     folders_indices = rearrange_folders_list(starting_position, number_of_lines, number_of_columns)
 
-    # Listing input folders
-    list_of_folders = glob.glob(input_folder + radix + "*")
-    reference_image_path = glob.glob(list_of_folders[0] + "\\" + "*")[0]
+    # Get info if there are several channels
+    list_of_channels = glob.glob(input_folder + "*")
+    number_of_channels = len(list_of_channels)
 
-    # Opening a reference image for reference height/width
+    list_of_channels_folders = []
+    for n in range(number_of_channels):
+        # Listing input folders
+        temp_parent = os.path.join(list_of_channels[n], radix + "*", "")
+        list_of_channels_folders.append(glob.glob(temp_parent))
+    # Path to the very first slide of the very first tile of the first channel (upper left corner)
+    reference_image_path = glob.glob(list_of_channels_folders[0][0]+"*")[0]
+    # Opening the reference image for reference height/width (should be 1920x1920 in HR)
     reference_image = open_image(reference_image_path)
-    nb_of_slices = len(glob.glob(list_of_folders[0] + "\\" + "*"))
+    # Get the number of slices
+    temp_list = glob.glob(list_of_channels_folders[0][0]+"*")
+    nb_of_slices = len(temp_list)
+    # Check that the number of slice is the same for all channels
+    for n in range(number_of_channels):
+        temp_list = glob.glob(list_of_channels_folders[n][0]+"*")
+        if len(temp_list) != nb_of_slices:
+            print("The number of slice in channel ", n, "is different from the first channel")
+            exit()
+
     ref_height = reference_image.shape[0]
     ref_width = reference_image.shape[1]
+    # Define the maximum value for displacement
     offset_max = (60, 60, 20)
 
     # Registration is computed on a subpart of each tile,
@@ -447,19 +466,23 @@ def multiple_tile_registration(input_folder, radix, starting_position="top-left"
         print("1. Introduction time:", (time.time() - time_start))
 
     time_start = time.time()
-    # 1. Registration computation, for each line of the final grid, we compute the offset between each neighboring tiles
+
+    # 1. Registration computation, for each line of the final grid, we compute the offset between each neighbour tiles
+    # Registration is computed on the first channel (channel 0)
+    # Registered tile are saved in registered_tile__XX folders
     for nb_line in range(number_of_lines):
-        for nb_col in range(number_of_columns - 1):  # We compute registration on number_of_columns -1 pairs of images
+        for nb_col in range(number_of_columns - 1):  # We compute registration on number_of_columns - 1 pairs of images
             image_number = nb_line * number_of_columns + nb_col  # We keep track of the ref_image number we're working on
 
             print("stitching tile number", folders_indices[image_number],
                   "and tile number", folders_indices[image_number + 1])
 
             reg_start = time.time()
-            transformation = compute_two_tiles_registration(list_of_folders[folders_indices[image_number]],
-                                                            ref_image_coordinates,
-                                                            list_of_folders[folders_indices[image_number + 1]],
-                                                            moving_image_coordinates)
+            transformation = compute_two_tiles_registration(
+                list_of_channels_folders[0][folders_indices[image_number]],
+                ref_image_coordinates,
+                list_of_channels_folders[0][folders_indices[image_number + 1]],
+                moving_image_coordinates)
             print("Registration time:", (time.time() - reg_start))
             # If we want to avoid interpolation -> integer offset
             if integer_values_for_offset:
@@ -476,20 +499,22 @@ def multiple_tile_registration(input_folder, radix, starting_position="top-left"
                 offset_computed = tuple(new_offset_computed)
                 transformation.SetParameters(offset_computed)
                 print("Final Offset (after correction):", transformation.GetParameters())
-
             list_of_transformations.append(transformation)
 
+    # Application of the computed transformation on each channel
     for nb_line in range(number_of_lines):
         for nb_col in range(number_of_columns):
-            idx = nb_line * number_of_columns + nb_col
-            gc.collect()
-            tile = open_sequence(list_of_folders[idx] + "\\", imtype=np.uint16)
-            if nb_col > 0:
-                range_trsf = np.arange(nb_line * (number_of_columns - 1), nb_line * (number_of_columns - 1) + nb_col)
-                for nb_transformation in range_trsf:
-                    tile = apply_itk_transformation(tile, list_of_transformations[nb_transformation])
-            save_tif_sequence(tile, input_folder + "registered_tile_" + str(idx) + "\\", bit=16)
-            print("Registered tile number", idx, "saved !")
+            image_number = nb_line * number_of_columns + nb_col
+            for n in range(number_of_channels):
+                gc.collect()
+                tile = open_sequence(list_of_channels_folders[n][image_number] + "\\", imtype=np.uint16)
+                if nb_col > 0:
+                    range_trsf = np.arange(nb_line * (number_of_columns - 1), nb_line * (number_of_columns - 1) + nb_col)
+                    for nb_transformation in range_trsf:
+                        tile = apply_itk_transformation(tile, list_of_transformations[nb_transformation])
+                temp_folder = os.path.join(list_of_channels[n], "registered_tile_" + str(image_number), "")
+                save_tif_sequence(tile, temp_folder, bit=16)
+                print("Registered tile number", image_number, "channel", n, "saved !")
 
     if verbose:
         print("2. First Registrations time:", (time.time() - time_start))
@@ -497,88 +522,92 @@ def multiple_tile_registration(input_folder, radix, starting_position="top-left"
 
     # 2. Concatenation of same line tiles, line are saved in combined_line_XX folders
     for nb_line in range(number_of_lines):
-        x_position = 0
-        list_of_list_of_tile_images = []
-        list_of_len_tile = []
-        # We add each tile on after the other, slice by slice
-        for nb_col in range(number_of_columns):
-            idx = nb_line * number_of_columns + nb_col
-            list_of_list_of_tile_images.append(
-                create_list_of_files(input_folder + "registered_tile_" + str(folders_indices[idx]) + "\\", "tif"))
-            list_of_len_tile.append(len(list_of_list_of_tile_images[-1]))
-
-        for nb_slice in range(min(list_of_len_tile)):
-            full_width = ref_width * number_of_columns - supposed_overlap * (number_of_columns - 1)
-            empty_slice = np.zeros((ref_height, full_width), dtype=np.uint16)
-            overlapped_ref_slice = np.zeros((ref_height, supposed_overlap), dtype=np.uint16)
-            overlapped_mov_slice = np.zeros((ref_height, supposed_overlap), dtype=np.uint16)
-            woverlapped_ref_slice = np.zeros((ref_height, supposed_overlap), dtype=np.uint16)
-            woverlapped_mov_slice = np.zeros((ref_height, supposed_overlap), dtype=np.uint16)
-
-            # Compute weight matrix for overlapping part along the width axis
-            mixing_size = supposed_overlap - (2 * supposed_overlap // 3)
-            x = np.arange(mixing_size) + mixing_size
-            y = -1 / (x[-1] - x[0]) * (x - x[-1])
-            w_1d_W = np.concatenate((np.ones(supposed_overlap // 3), y, np.zeros(supposed_overlap // 3)))
-            w_1d_W = w_1d_W.astype('e')
-            w_2d_W = np.tile(w_1d_W, (ref_height, 1))
-
+        for n in range(number_of_channels):
+            x_position = 0
+            list_of_list_of_tile_images = []
+            list_of_len_tile = []
+            # We add each tile on after the other, slice by slice
             for nb_col in range(number_of_columns):
-                out_slice = open_image(list_of_list_of_tile_images[nb_col][nb_slice])
-                image_number = nb_line * number_of_columns + nb_col
-                # The first tile doesn't need any registration
-                if nb_col == 0:
-                    x_position = ref_width - supposed_overlap
-                    empty_slice[:, 0:x_position] = out_slice[:, 0:x_position]
-                    overlapped_ref_slice = out_slice[:, x_position:]
+                idx = nb_line * number_of_columns + nb_col
+                temp_folder = os.path.join(list_of_channels[n], "registered_tile_" + str(folders_indices[idx]), "")
+                list_of_list_of_tile_images.append(create_list_of_files(temp_folder, "tif"))
+                list_of_len_tile.append(len(list_of_list_of_tile_images[-1]))
 
-                # The next tile need to be registered/cropped
-                else:
-                    # -- Manage overlapping part
-                    # Apply weight to each overlapping parts
-                    woverlapped_ref_slice = overlapped_ref_slice * w_2d_W
-                    # After registration comes the cropping part (based on initial supposed overlap)
-                    overlapped_mov_slice = out_slice[:, 0:supposed_overlap]
-                    woverlapped_mov_slice = overlapped_mov_slice * (1 - w_2d_W)
+            for nb_slice in range(min(list_of_len_tile)):
+                full_width = ref_width * number_of_columns - supposed_overlap * (number_of_columns - 1)
+                empty_slice = np.zeros((ref_height, full_width), dtype=np.uint16)
+                overlapped_ref_slice = np.zeros((ref_height, supposed_overlap), dtype=np.uint16)
+                overlapped_mov_slice = np.zeros((ref_height, supposed_overlap), dtype=np.uint16)
+                woverlapped_ref_slice = np.zeros((ref_height, supposed_overlap), dtype=np.uint16)
+                woverlapped_mov_slice = np.zeros((ref_height, supposed_overlap), dtype=np.uint16)
 
-                    # Compute the sum of the two weighted overlapping parts and copy it to the final image
-                    overlapped_section = np.nansum(np.array([woverlapped_ref_slice, woverlapped_mov_slice]), axis=0)
-                    # Copy the resulting overlap part
-                    empty_slice[:, x_position:x_position + supposed_overlap] = overlapped_section
-                    #
-                    x_position += supposed_overlap
-                    # -- Manage non-overlapping part
-                    # Copy non-overlapping part as it is
-                    slice_to_copy = out_slice[:, supposed_overlap:]
-                    empty_slice[:, x_position:x_position + slice_to_copy.shape[1]] = slice_to_copy
-                    # Prepare for next column if there is
-                    x_position += slice_to_copy.shape[1] - supposed_overlap
-                    overlapped_ref_slice = out_slice[:, out_slice.shape[1] - supposed_overlap:]
-            if verbose:
-                print("-> Saving slice number", nb_slice, "in folder", input_folder + "combined_line_" + str(nb_line) + "\\")
-            save_tif_image(empty_slice,
-                           input_folder + "combined_line_" + str(nb_line) + "\\" + '{:04d}'.format(nb_slice), bit=16)
-            if verbose:
-                print("--> Slice number", nb_line, "saved !")
-            del empty_slice
-            del overlapped_ref_slice, overlapped_mov_slice
-            del woverlapped_ref_slice, woverlapped_mov_slice
-            del w_1d_W, w_2d_W
-            gc.collect()
+                # Compute weight matrix for overlapping part along the width axis
+                mixing_size = supposed_overlap - (2 * supposed_overlap // 3)
+                x = np.arange(mixing_size) + mixing_size
+                y = -1 / (x[-1] - x[0]) * (x - x[-1])
+                w_1d_W = np.concatenate((np.ones(supposed_overlap // 3), y, np.zeros(supposed_overlap // 3)))
+                w_1d_W = w_1d_W.astype('e')
+                w_2d_W = np.tile(w_1d_W, (ref_height, 1))
+
+                for nb_col in range(number_of_columns):
+                    out_slice = open_image(list_of_list_of_tile_images[nb_col][nb_slice])
+                    image_number = nb_line * number_of_columns + nb_col
+                    # The first tile doesn't need any registration
+                    if nb_col == 0:
+                        x_position = ref_width - supposed_overlap
+                        empty_slice[:, 0:x_position] = out_slice[:, 0:x_position]
+                        overlapped_ref_slice = out_slice[:, x_position:]
+
+                    # The next tile need to be registered/cropped
+                    else:
+                        # -- Manage overlapping part
+                        # Apply weight to each overlapping parts
+                        woverlapped_ref_slice = overlapped_ref_slice * w_2d_W
+                        # After registration comes the cropping part (based on initial supposed overlap)
+                        overlapped_mov_slice = out_slice[:, 0:supposed_overlap]
+                        woverlapped_mov_slice = overlapped_mov_slice * (1 - w_2d_W)
+
+                        # Compute the sum of the two weighted overlapping parts and copy it to the final image
+                        overlapped_section = np.nansum(np.array([woverlapped_ref_slice, woverlapped_mov_slice]), axis=0)
+                        # Copy the resulting overlap part
+                        empty_slice[:, x_position:x_position + supposed_overlap] = overlapped_section
+                        #
+                        x_position += supposed_overlap
+                        # -- Manage non-overlapping part of the moving tile
+                        # Copy non-overlapping part as it is
+                        slice_to_copy = out_slice[:, supposed_overlap:]
+                        empty_slice[:, x_position:x_position + slice_to_copy.shape[1]] = slice_to_copy
+                        # Prepare for next column if there is
+                        x_position += slice_to_copy.shape[1] - supposed_overlap
+                        overlapped_ref_slice = out_slice[:, out_slice.shape[1] - supposed_overlap:]
+
+                temp_folder = os.path.join(list_of_channels[n], "combined_line_" + str(nb_line), "")
+                if verbose:
+                    print("-> Saving slice number", nb_slice, "in folder", temp_folder)
+                save_tif_image(empty_slice, temp_folder + '{:04d}'.format(nb_slice), bit=16)
+                if verbose:
+                    print("--> Slice number", nb_slice, "saved !")
+                del empty_slice
+                del overlapped_ref_slice, overlapped_mov_slice
+                del woverlapped_ref_slice, woverlapped_mov_slice
+                del w_1d_W, w_2d_W
+                gc.collect()
 
     if verbose:
         print("2. Line saving time:", (time.time() - time_start))
         time_start = time.time()
 
     # 3. Registration computation, we compute the offset between each neighboring lines
+    # Registration is computed on the first channel (channel 0)
     list_of_transformations = []
     for nb_line in range(number_of_lines - 1):
         # This time, the registration is vertical, not horizontal. The overlapping parts correspond to the
         # bottom/upper-end of each line
-        transformation = compute_two_tiles_registration(input_folder + "combined_line_" + str(nb_line),
-                                                        [[0, -1], [-supposed_overlap, -1], [0, -1]],
-                                                        input_folder + "combined_line_" + str(nb_line + 1),
-                                                        [[0, -1], [0, supposed_overlap], [0, -1]])
+        transformation = compute_two_tiles_registration(
+            os.path.join(list_of_channels[0], "combined_line_" + str(nb_line)),
+            [[0, -1], [-supposed_overlap, -1], [0, -1]],
+            os.path.join(list_of_channels[0], "combined_line_" + str(nb_line+1)),
+            [[0, -1], [0, supposed_overlap], [0, -1]])
         # If we want to avoid interpolation -> integer offset
         if integer_values_for_offset:
             transformation.SetOffset((round(transformation.GetOffset()[0]),
@@ -597,105 +626,153 @@ def multiple_tile_registration(input_folder, radix, starting_position="top-left"
         list_of_transformations.append(transformation)
 
     # 4. Registration of each line (Because of memory limitations)
+    # Application of the registration on each channel
+    # Registered line are saved in registered_line_XX folders (expect line 0 which has no transformation)
     for nb_line in range(number_of_lines - 1):
-        gc.collect()
-        line = open_sequence(input_folder + "combined_line_" + str(nb_line + 1) + "\\", imtype=np.uint16)
-        for nb_transformation in range(nb_line + 1):
-            line = apply_itk_transformation(line, list_of_transformations[nb_transformation])
-        save_tif_sequence(line, input_folder + "registered_line_" + str(nb_line) + "\\", bit=16)
-        print("Registered line number", nb_line, "saved !")
-
-    if verbose :
+        for n in range(number_of_channels):
+            gc.collect()
+            line = open_sequence(os.path.join(list_of_channels[n], "combined_line_" + str(nb_line + 1), ""), imtype=np.uint16)
+            for nb_transformation in range(nb_line + 1):
+                line = apply_itk_transformation(line, list_of_transformations[nb_transformation])
+            save_tif_sequence(line, os.path.join(list_of_channels[n], "registered_line_" + str(nb_line), ""), bit=16)
+            print("Registered line number", nb_line, "saved !")
+    if verbose:
         print("3. Second Registrations time:", (time.time() - time_start))
         time_start = time.time()
-    # 5. Concatenation of every lines of the final grid
-    list_of_line_images = []
-    list_of_len = []
 
-    # For this purpose, we need to list all input slices
-    for nb_line in range(number_of_lines):
-        if nb_line == 0:
-            list_of_line_images.append(create_list_of_files(input_folder + "combined_line_" + str(nb_line) + "\\",
-                                                            "tif"))
-        else:
-            list_of_line_images.append(create_list_of_files(input_folder + "registered_line_" + str(nb_line - 1) + "\\",
-                                                            "tif"))
-        list_of_len.append(len(list_of_line_images[-1]))
+    # 5. Concatenation of every lines of the final grid, one channel at a time
+    for n in range(number_of_channels):
+        list_of_line_images = []
+        list_of_len = []
 
-    for nb_slice in range(min(list_of_len)):
-        y_position = 0
-        full_width = ref_width * number_of_columns - supposed_overlap * (number_of_columns - 1)
-        full_height = ref_height * number_of_lines - supposed_overlap * (number_of_lines - 1)
-        empty_slice = np.zeros((full_height, full_width), dtype=np.uint16)
-        overlapped_ref_slice = np.zeros((supposed_overlap, full_width), dtype=np.uint16)
-        overlapped_mov_slice = np.zeros((supposed_overlap, full_width), dtype=np.uint16)
-
-        # Compute weight matrix for overlapping part along the height axis
-        mixing_size = supposed_overlap - (2 * supposed_overlap // 3)
-        x = np.arange(mixing_size) + mixing_size
-        y = -1 / (x[-1] - x[0]) * (x - x[-1])
-        w_1d_H = np.concatenate((np.ones(supposed_overlap // 3), y, np.zeros(supposed_overlap // 3)))
-        w_1d_H = w_1d_H.astype('e')
-        w_1d_H = np.reshape(w_1d_H, (-1, 1))
-        w_2d_H = np.tile(w_1d_H, (1, full_width))
-
-        # Concatenation
+        # For this purpose, we need to list all input slices
         for nb_line in range(number_of_lines):
-            out_slice = open_image(list_of_line_images[nb_line][nb_slice])
-            # The first tile doesn't need any registration
             if nb_line == 0:
-                y_position = out_slice.shape[0] - supposed_overlap
-                empty_slice[0:y_position, :] = out_slice[0:y_position, :]
-                overlapped_ref_slice = out_slice[y_position:, :]
+                temp_folder = os.path.join(list_of_channels[n], "combined_line_" + str(nb_line), "")
+                list_of_line_images.append(create_list_of_files(temp_folder, "tif"))
             else:
-                # -- Manage overlapping part
-                # Apply weight to each overlapping parts
-                # overlapped_ref_slice[overlapped_ref_slice == 0] = np.nan
-                woverlapped_ref_slice = overlapped_ref_slice * w_2d_H
+                temp_folder = os.path.join(list_of_channels[n], "registered_line_" + str(nb_line-1), "")
+                list_of_line_images.append(create_list_of_files(temp_folder, "tif"))
+            list_of_len.append(len(list_of_line_images[-1]))
 
-                overlapped_mov_slice = out_slice[0:supposed_overlap, :]
-                woverlapped_mov_slice = overlapped_mov_slice * (1 - w_2d_H)
-                # Compute the sum of the two weighted overlapping parts and copy it to the final image
-                overlapped_section = np.nansum(np.array([woverlapped_ref_slice, woverlapped_mov_slice]), axis=0)
-                # Copy the resulting overlap part
-                empty_slice[y_position:y_position + supposed_overlap, :] = overlapped_section
-                #
-                y_position += supposed_overlap
-                # -- Manage non-overlapping part
-                # Copy non-overlapping part as it is
-                slice_to_copy = out_slice[supposed_overlap:, :]
-                empty_slice[y_position:y_position + slice_to_copy.shape[0], :] = slice_to_copy
-                # Prepare for next column if there is
-                y_position += slice_to_copy.shape[0] - supposed_overlap
-                overlapped_ref_slice = out_slice[out_slice.shape[0] - supposed_overlap:, :]
+        for nb_slice in range(min(list_of_len)):
+            y_position = 0
+            full_width = ref_width * number_of_columns - supposed_overlap * (number_of_columns - 1)
+            full_height = ref_height * number_of_lines - supposed_overlap * (number_of_lines - 1)
+            empty_slice = np.zeros((full_height, full_width), dtype=np.uint16)
+            overlapped_ref_slice = np.zeros((supposed_overlap, full_width), dtype=np.uint16)
+            overlapped_mov_slice = np.zeros((supposed_overlap, full_width), dtype=np.uint16)
 
-        save_tif_image(empty_slice, input_folder + "final_image\\" + '{:04d}'.format(nb_slice), bit=16)
+            # Compute weight matrix for overlapping part along the height axis
+            mixing_size = supposed_overlap - (2 * supposed_overlap // 3)
+            x = np.arange(mixing_size) + mixing_size
+            y = -1 / (x[-1] - x[0]) * (x - x[-1])
+            w_1d_H = np.concatenate((np.ones(supposed_overlap // 3), y, np.zeros(supposed_overlap // 3)))
+            w_1d_H = w_1d_H.astype('e')
+            w_1d_H = np.reshape(w_1d_H, (-1, 1))
+            w_2d_H = np.tile(w_1d_H, (1, full_width))
 
-        del empty_slice
-        del overlapped_ref_slice, overlapped_mov_slice
-        del woverlapped_ref_slice, woverlapped_mov_slice
-        del w_1d_H, w_2d_H
-        gc.collect()
+            # Concatenation
+            for nb_line in range(number_of_lines):
+                out_slice = open_image(list_of_line_images[nb_line][nb_slice])
+                # The first tile doesn't need any registration
+                if nb_line == 0:
+                    y_position = out_slice.shape[0] - supposed_overlap
+                    empty_slice[0:y_position, :] = out_slice[0:y_position, :]
+                    overlapped_ref_slice = out_slice[y_position:, :]
+                else:
+                    # -- Manage overlapping part
+                    # Apply weight to each overlapping parts
+                    # overlapped_ref_slice[overlapped_ref_slice == 0] = np.nan
+                    woverlapped_ref_slice = overlapped_ref_slice * w_2d_H
+
+                    overlapped_mov_slice = out_slice[0:supposed_overlap, :]
+                    woverlapped_mov_slice = overlapped_mov_slice * (1 - w_2d_H)
+                    # Compute the sum of the two weighted overlapping parts and copy it to the final image
+                    overlapped_section = np.nansum(np.array([woverlapped_ref_slice, woverlapped_mov_slice]), axis=0)
+                    # Copy the resulting overlap part
+                    empty_slice[y_position:y_position + supposed_overlap, :] = overlapped_section
+                    #
+                    y_position += supposed_overlap
+                    # -- Manage non-overlapping part
+                    # Copy non-overlapping part as it is
+                    slice_to_copy = out_slice[supposed_overlap:, :]
+                    empty_slice[y_position:y_position + slice_to_copy.shape[0], :] = slice_to_copy
+                    # Prepare for next column if there is
+                    y_position += slice_to_copy.shape[0] - supposed_overlap
+                    overlapped_ref_slice = out_slice[out_slice.shape[0] - supposed_overlap:, :]
+
+            temp_folder = os.path.join(list_of_channels[n], "final_image", radix + '{:04d}'.format(nb_slice))
+            save_tif_image(empty_slice, temp_folder, bit=16)
+
+            del empty_slice
+            del overlapped_ref_slice, overlapped_mov_slice
+            del woverlapped_ref_slice, woverlapped_mov_slice
+            del w_1d_H, w_2d_H
+            gc.collect()
 
     if verbose:
         print("4. Second Concatenation time:", (time.time() - time_start))
         print("Total:", (time.time() - full_time_start))
 
-    list_of_directory_to_remove = glob.glob(input_folder + "\\" + "registered_*")
-    list_of_directory_to_remove += glob.glob(input_folder + "\\" + "combined_*")
-
+    # 6. Delete intermediate directories
+    list_of_directory_to_remove = glob.glob(os.path.join(input_folder, "*", "registered_*"))
+    list_of_directory_to_remove += glob.glob(os.path.join(input_folder, "*", "combined*"))
     for nb_dir in range(len(list_of_directory_to_remove)):
         print("dir to remove", list_of_directory_to_remove[nb_dir])
         shutil.rmtree(list_of_directory_to_remove[nb_dir])
 
 
 if __name__ == "__main__":
-    folder = "C:\\Users\\Marine Breuilly\\Documents\\DATA\\Projet_COEUR\\1.26 ZS\\binned_tiles\\"
+
+    # # INPUT GUI
+    # input_gui = tk.Tk()
+    # tk.Label(input_gui, text="Input directory").grid(row=0)
+    # tk.Label(input_gui, text="Number of lines").grid(row=1)
+    # tk.Label(input_gui, text="Number of columns").grid(row=2)
+    # tk.Label(input_gui, text="Number of overlapping pixels").grid(row=3)
+    #
+    # e1 = tk.Entry(input_gui)
+    # e2 = tk.Entry(input_gui)
+    # e3 = tk.Entry(input_gui)
+    # e4 = tk.Entry(input_gui)
+    #
+    # e1.grid(row=0, column=1)
+    # e2.grid(row=1, column=1)
+    # e2.grid(row=2, column=1)
+    # e2.grid(row=3, column=1)
+    #
+    # tk.Button(input_gui,
+    #           text='Quit',
+    #           command=input_gui.quit).grid(row=5,
+    #                                     column=0,
+    #                                     sticky=tk.W,
+    #                                     pady=4)
+    # input_gui.mainloop()
+    #
+    # window_gui = tk.Tk()
+    # window_gui.withdraw()
+    # # Input dialog
+    # folder = filedialog.askdirectory(parent=window_gui, initialdir="/", title='Please select a directory')
+    # if len(folder) > 0:
+    #     print("You chose %s", folder)
+    #
+    # user_input = simpledialog.askinteger(title='Please enter number of lines', prompt='Number of lines')
+    # print(user_input)
+    # # nb_of_lines = int(user_input.get())
+    # # nb_of_columns = int(user_input.get())
+    # # pix_overlap = int(user_input.get())
+    #
+    # exit()
+
+    folder = "I:\\Marine Breuilly\\DATA_KIIR\\TIFF\\KIIR_1-26_zS\\"  #"C:\\Users\\Marine Breuilly\\Documents\\DATA\\Projet_COEUR\\1.26 ZS\\binned_tiles\\"
+    subdir_short = "kiir_1-26_zS_"  # "kiir 1-26 zone saine.czi - kiir 1-26 zS ", #
+    nb_of_lines = 4
+    nb_of_columns = 3
+    pix_overlap = 240
+
     st = time.time()
-    multiple_tile_registration(folder,
-                               radix="kiir_1-26_zS_",  # "kiir 1-26 zone saine.czi - kiir 1-26 zS ", #
-                               number_of_lines=2,
-                               number_of_columns=2,
-                               supposed_overlap=120,
-                               verbose=False)
+    multiple_tile_registration(folder, radix=subdir_short,
+                               number_of_lines=nb_of_lines, number_of_columns=nb_of_columns,
+                               supposed_overlap=pix_overlap, verbose=False)
     print("Total Time spent: ----%.2f (sec)----" % (time.time() - st))
