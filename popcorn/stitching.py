@@ -6,6 +6,7 @@ import shutil
 import time
 import tkinter as tk
 from tkinter import filedialog, simpledialog
+import PySimpleGUI as sg
 
 from skimage import filters
 import numpy as np
@@ -433,15 +434,15 @@ def multiple_tile_registration(input_folder, radix, starting_position="top-left"
         temp_parent = os.path.join(list_of_channels[n], radix + "*", "")
         list_of_channels_folders.append(glob.glob(temp_parent))
     # Path to the very first slide of the very first tile of the first channel (upper left corner)
-    reference_image_path = glob.glob(list_of_channels_folders[0][0]+"*")[0]
+    reference_image_path = glob.glob(list_of_channels_folders[0][0] + "*")[0]
     # Opening the reference image for reference height/width (should be 1920x1920 in HR)
     reference_image = open_image(reference_image_path)
     # Get the number of slices
-    temp_list = glob.glob(list_of_channels_folders[0][0]+"*")
+    temp_list = glob.glob(list_of_channels_folders[0][0] + "*")
     nb_of_slices = len(temp_list)
     # Check that the number of slice is the same for all channels
     for n in range(number_of_channels):
-        temp_list = glob.glob(list_of_channels_folders[n][0]+"*")
+        temp_list = glob.glob(list_of_channels_folders[n][0] + "*")
         if len(temp_list) != nb_of_slices:
             print("The number of slice in channel ", n, "is different from the first channel")
             exit()
@@ -509,7 +510,8 @@ def multiple_tile_registration(input_folder, radix, starting_position="top-left"
                 gc.collect()
                 tile = open_sequence(list_of_channels_folders[n][image_number] + "\\", imtype=np.uint16)
                 if nb_col > 0:
-                    range_trsf = np.arange(nb_line * (number_of_columns - 1), nb_line * (number_of_columns - 1) + nb_col)
+                    range_trsf = np.arange(nb_line * (number_of_columns - 1),
+                                           nb_line * (number_of_columns - 1) + nb_col)
                     for nb_transformation in range_trsf:
                         tile = apply_itk_transformation(tile, list_of_transformations[nb_transformation])
                 temp_folder = os.path.join(list_of_channels[n], "registered_tile_" + str(image_number), "")
@@ -601,12 +603,14 @@ def multiple_tile_registration(input_folder, radix, starting_position="top-left"
     # Registration is computed on the first channel (channel 0)
     list_of_transformations = []
     for nb_line in range(number_of_lines - 1):
+        print("stitching line number", nb_line, "and line number", nb_line + 1)
+
         # This time, the registration is vertical, not horizontal. The overlapping parts correspond to the
         # bottom/upper-end of each line
         transformation = compute_two_tiles_registration(
             os.path.join(list_of_channels[0], "combined_line_" + str(nb_line)),
             [[0, -1], [-supposed_overlap, -1], [0, -1]],
-            os.path.join(list_of_channels[0], "combined_line_" + str(nb_line+1)),
+            os.path.join(list_of_channels[0], "combined_line_" + str(nb_line + 1)),
             [[0, -1], [0, supposed_overlap], [0, -1]])
         # If we want to avoid interpolation -> integer offset
         if integer_values_for_offset:
@@ -631,7 +635,8 @@ def multiple_tile_registration(input_folder, radix, starting_position="top-left"
     for nb_line in range(number_of_lines - 1):
         for n in range(number_of_channels):
             gc.collect()
-            line = open_sequence(os.path.join(list_of_channels[n], "combined_line_" + str(nb_line + 1), ""), imtype=np.uint16)
+            line = open_sequence(os.path.join(list_of_channels[n], "combined_line_" + str(nb_line + 1), ""),
+                                 imtype=np.uint16)
             for nb_transformation in range(nb_line + 1):
                 line = apply_itk_transformation(line, list_of_transformations[nb_transformation])
             save_tif_sequence(line, os.path.join(list_of_channels[n], "registered_line_" + str(nb_line), ""), bit=16)
@@ -651,7 +656,7 @@ def multiple_tile_registration(input_folder, radix, starting_position="top-left"
                 temp_folder = os.path.join(list_of_channels[n], "combined_line_" + str(nb_line), "")
                 list_of_line_images.append(create_list_of_files(temp_folder, "tif"))
             else:
-                temp_folder = os.path.join(list_of_channels[n], "registered_line_" + str(nb_line-1), "")
+                temp_folder = os.path.join(list_of_channels[n], "registered_line_" + str(nb_line - 1), "")
                 list_of_line_images.append(create_list_of_files(temp_folder, "tif"))
             list_of_len.append(len(list_of_line_images[-1]))
 
@@ -724,52 +729,41 @@ def multiple_tile_registration(input_folder, radix, starting_position="top-left"
 
 
 if __name__ == "__main__":
+    # INPUT GUI
+    sg.theme("DarkTeal6")
+    layout = [
+        [sg.T("Please enter the features for registration and merge")],
+        [sg.Text("Select Input Directory to TIFF image: "),
+         sg.InputText(key="-IODIR-", default_text="E:\\KIIR\\Marine Breuilly\\DATA_KIIR\\TIFF\\KIIR_1-22_zs"),
+         sg.FolderBrowse(key="-IN-")],
+        [sg.Text("Radix (ex \"kiir_1-22_zs_\"): "), sg.InputText(key="-RADIX-", default_text='kiir_1-22_zs_')],
+        [sg.Text("Nb of columns: "), sg.In(size=(8, 1), key='-COL-', default_text='2')],
+        [sg.Text("Nb of lines: "), sg.In(size=(8, 1), key='-ROW-', default_text='4')],
+        [sg.Text("Nb of overlapping pixels): "), sg.In(size=(8, 1), key='-OVERLAP-', default_text='240')],
+        [sg.Submit(button_text='Register'), sg.Cancel()]
+    ]
+    # Building Window
+    window = sg.Window('Register and Merge Mosaic', layout, size=(800, 600))
 
-    # # INPUT GUI
-    # input_gui = tk.Tk()
-    # tk.Label(input_gui, text="Input directory").grid(row=0)
-    # tk.Label(input_gui, text="Number of lines").grid(row=1)
-    # tk.Label(input_gui, text="Number of columns").grid(row=2)
-    # tk.Label(input_gui, text="Number of overlapping pixels").grid(row=3)
-    #
-    # e1 = tk.Entry(input_gui)
-    # e2 = tk.Entry(input_gui)
-    # e3 = tk.Entry(input_gui)
-    # e4 = tk.Entry(input_gui)
-    #
-    # e1.grid(row=0, column=1)
-    # e2.grid(row=1, column=1)
-    # e2.grid(row=2, column=1)
-    # e2.grid(row=3, column=1)
-    #
-    # tk.Button(input_gui,
-    #           text='Quit',
-    #           command=input_gui.quit).grid(row=5,
-    #                                     column=0,
-    #                                     sticky=tk.W,
-    #                                     pady=4)
-    # input_gui.mainloop()
-    #
-    # window_gui = tk.Tk()
-    # window_gui.withdraw()
-    # # Input dialog
-    # folder = filedialog.askdirectory(parent=window_gui, initialdir="/", title='Please select a directory')
-    # if len(folder) > 0:
-    #     print("You chose %s", folder)
-    #
-    # user_input = simpledialog.askinteger(title='Please enter number of lines', prompt='Number of lines')
-    # print(user_input)
-    # # nb_of_lines = int(user_input.get())
-    # # nb_of_columns = int(user_input.get())
-    # # pix_overlap = int(user_input.get())
-    #
-    # exit()
+    while True:
+        event, values = window.read()
+        if event == sg.WIN_CLOSED or event == "Cancel":
+            break
+            # exit()
+        elif event == "Register":
+            try:
+                folder = os.path.join(values['-IODIR-'], "")
+                subdir_short = values['-RADIX-']
+                nb_of_columns = np.uint16(values['-COL-'])
+                nb_of_lines = np.uint16(values['-ROW-'])
+                pix_overlap = np.int16(values['-OVERLAP-'])
+            except:
+                output = 'Following arguments should be integers: nb of columns, lines or overlapping pixels'
+                print(output)
+                exit()
 
-    folder = "I:\\Marine Breuilly\\DATA_KIIR\\TIFF\\KIIR_1-26_zS\\"  #"C:\\Users\\Marine Breuilly\\Documents\\DATA\\Projet_COEUR\\1.26 ZS\\binned_tiles\\"
-    subdir_short = "kiir_1-26_zS_"  # "kiir 1-26 zone saine.czi - kiir 1-26 zS ", #
-    nb_of_lines = 4
-    nb_of_columns = 3
-    pix_overlap = 240
+            print(values["-IN-"])
+            window.close()
 
     st = time.time()
     multiple_tile_registration(folder, radix=subdir_short,
