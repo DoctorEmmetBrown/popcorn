@@ -1,9 +1,9 @@
 import numpy as np
 
-from popcorn.image_processing import resampling, segmentation, mathematical_morphology
+from popcorn.image_processing import segmentation, mathematical_morphology
 from popcorn.spectral_imaging import registration
 
-from popcorn import input_output
+from popcorn import input_output, resampling
 from popcorn.spectral_imaging.material_decomposition import three_materials_decomposition
 
 import skimage.io as io

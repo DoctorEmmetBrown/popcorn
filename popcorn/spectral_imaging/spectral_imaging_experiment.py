@@ -1,13 +1,15 @@
 import popcorn.input_output as in_out
-import popcorn.image_processing.resampling as resampling
+import popcorn.resampling as resampling
 import material_decomposition
 import popcorn.spectral_imaging.registration as registration
 import popcorn.image_processing.segmentation as segmentation
 
 from popcorn.spectral_imaging.pipelines import skull_alignment_pipeline
 
+import sys
 import numpy as np
 import math
+import time
 
 import SimpleITK as Sitk
 
@@ -20,6 +22,10 @@ import PyIPSDK.IPSDKIPLMorphology as Morpho
 import PyIPSDK.IPSDKIPLAdvancedMorphology as AdvMorpho
 import PyIPSDK.IPSDKIPLShapeAnalysis as ShapeAnalysis
 
+def conversion_pipeline(image, bin_factor, min, max):
+    if bin_factor > 1:
+        image = resampling.bin_resize(image, bin_factor)
+    return resampling.conversion_uint16_to_float32(image, min, max)
 
 def retrieve_min_max_from_path(path):
     """looks for min and max float in path
@@ -88,31 +94,44 @@ class SpectralImagingExperiment:
         self.bin_factor = bin_factor
 
     def conversion(self):
+        """Converts images from uint16 to float32 using the sample's name min/max inb4 binning them using defined bin
+        factor
+        Returns:
+            None
+        """
         for material in self.materials:
-            print("material :", material)
+            print("Conversion of :", material)
+            # We retrieve float min and max from given path
             above_image_filenames = in_out.create_list_of_files(self.path + "*Above*" + material + "*", "tif")
             above_min, above_max = retrieve_min_max_from_path(in_out.remove_filename_in_path(above_image_filenames[0]))
-            print("Above min -> ", above_min)
-            print("Above max -> ", above_max)
 
             for index in range(len(above_image_filenames)//self.bin_factor):
+                # [1/5] Opening
                 image_to_bin = in_out.open_sequence(above_image_filenames[:self.bin_factor])
+                # [2/5] Deleting opened files from previous list of files
                 del above_image_filenames[:self.bin_factor]
+                # [3/5] Binning
                 binned_image = resampling.bin_resize(image_to_bin, self.bin_factor)
+                # [4/5] Conversion
                 converted_image = resampling.conversion_uint16_to_float32(binned_image, above_min, above_max)
+                # [5/5] Saving
                 in_out.save_tif_image(converted_image[0],
                                       self.path + material + "\\Above_Acquisition\\" + '{:04d}'.format(index))
 
+            # We retrieve float min and max from given path
             below_image_filenames = in_out.create_list_of_files(self.path + "*Below*" + material + "*", "tif")
             below_min, below_max = retrieve_min_max_from_path(in_out.remove_filename_in_path(below_image_filenames[0]))
-            print("Below min -> ", below_min)
-            print("Below max -> ", below_max)
 
             for index in range(len(below_image_filenames)//self.bin_factor):
+                # [1/5] Opening
                 image_to_bin = in_out.open_sequence(below_image_filenames[:self.bin_factor])
+                # [2/5] Deleting opened files from previous list of files
                 del below_image_filenames[:self.bin_factor]
+                # [3/5] Binning
                 binned_image = resampling.bin_resize(image_to_bin, self.bin_factor)
+                # [4/5] Conversion
                 converted_image = resampling.conversion_uint16_to_float32(binned_image, below_min, below_max)
+                # [5/5] Saving
                 in_out.save_tif_image(converted_image[0],
                                       self.path + material + "\\Below_Acquisition\\" + '{:04d}'.format(index))
 
@@ -141,70 +160,88 @@ class SpectralImagingExperiment:
                                                                            transform_type="rotation",
                                                                            metric="msq",
                                                                            moving_mask=above_skull,
-                                                                           reference_mask=below_skull,
+                                                                           ref_mask=below_skull,
                                                                            verbose=True)
 
                 # Registering the above image
                 above_image = registration.apply_itk_transformation(above_image, rotation_transform, "linear")
                 in_out.save_tif_sequence(above_image,
-                                      self.path + material + "\\Above_Acquisition_Registered\\")
+                                         self.path + material + "\\Above_Acquisition_Registered\\")
                 skull_alignment_pipeline(self.path + material + "\\Above_Acquisition_Registered\\",
                                          self.path + material + "\\Below_Acquisition\\", material)
         elif self.type == "mouse knee":
             for material in self.materials:
-                if material == "I":
-                    print("--------", "Registering", material, "--------")
-                    above_filenames = in_out.create_list_of_files(self.path + material + "\\Above_Acquisition\\",
-                                                                  "tif")
-                    below_filenames = in_out.create_list_of_files(self.path + material + "\\Below_Acquisition\\",
-                                                                  "tif")
-                    above_image = in_out.open_sequence(above_filenames)
-                    below_image = in_out.open_sequence(below_filenames)
+                print("--------", "Registering", material, "--------")
+                above_filenames = in_out.create_list_of_files(self.path + material + "\\Above_Acquisition_Binned\\",
+                                                              "tif")
+                below_filenames = in_out.create_list_of_files(self.path + material + "\\Below_Acquisition_Binned\\",
+                                                              "tif")
+                above_image = in_out.open_sequence(above_filenames)
+                below_image = in_out.open_sequence(below_filenames)
 
-                    # -- Threshold computation
-                    above_threshold_value = segmentation.find_threshold_value(material, "above", "esrf")
-                    above_mask = np.copy(above_image)
-                    above_mask[above_mask > above_threshold_value] = 1
-                    above_mask[above_mask <= above_threshold_value] = 0
-                    below_threshold_value = segmentation.find_threshold_value(material, "below", "esrf")
-                    below_mask = np.copy(below_image)
-                    below_mask[below_mask > below_threshold_value] = 1
-                    below_mask[below_mask <= below_threshold_value] = 0
-                    translation_transform = registration.registration_computation(above_image,
-                                                                                  below_image,
-                                                                                  transform_type="translation",
-                                                                                  metric="cc",
-                                                                                  moving_mask=above_mask,
-                                                                                  reference_mask=below_mask,
-                                                                                  verbose=True)
+                # -- Threshold computation
+                above_threshold_value = segmentation.find_threshold_value(material, "above", "esrf")
+                above_mask = np.copy(above_image)
+                above_mask[above_mask > above_threshold_value] = 1
+                above_mask[above_mask <= above_threshold_value] = 0
+                below_threshold_value = segmentation.find_threshold_value(material, "below", "esrf")
+                below_mask = np.copy(below_image)
+                below_mask[below_mask > below_threshold_value] = 1
+                below_mask[below_mask <= below_threshold_value] = 0
+                translation_transform = registration.registration_computation(above_image,
+                                                                              below_image,
+                                                                              transform_type="translation",
+                                                                              metric="msq",
+                                                                              moving_mask=above_mask,
+                                                                              ref_mask=below_mask,
+                                                                              verbose=True)
 
-                    rotation_transform = registration.registration_computation(above_image,
-                                                                               below_image,
-                                                                               transform_type="rotation",
-                                                                               metric="msq",
-                                                                               moving_mask=above_mask,
-                                                                               reference_mask=below_mask,
-                                                                               verbose=True)
+                rotation_transform = registration.registration_computation(above_image,
+                                                                           below_image,
+                                                                           transform_type="rotation",
+                                                                           metric="msq",
+                                                                           moving_mask=above_mask,
+                                                                           ref_mask=below_mask,
+                                                                           verbose=True)
 
-                    # Registering the above image
-                    above_image = registration.apply_itk_transformation(above_image, translation_transform, "linear")
-                    above_mask = registration.apply_itk_transformation(above_mask, translation_transform,
-                                                                       "nearestneighbor")
+                image_to_register = in_out.open_sequence(self.path + material + "\\Above_Acquisition\\")
 
-                    above_image = registration.apply_itk_transformation(above_image, rotation_transform, "linear")
-                    above_mask = registration.apply_itk_transformation(above_mask, rotation_transform,
-                                                                       "nearestneighbor")
+                # Registering the above image
+                translation_parameters = translation_transform.GetParameters()
+                translation_transform.SetParameters((translation_parameters[0]*2,
+                                                     translation_parameters[1]*2,
+                                                     translation_parameters[2]*2))
 
-                    print("\r[1/3] Saving registered image :", end="", flush=True)
-                    in_out.save_tif_sequence(above_image,
-                                             self.path + material + "\\Above_Acquisition_Registered\\")
-                    print("\r[2/3] Saving registered mask :", end="", flush=True)
-                    in_out.save_tif_sequence(above_mask,
-                                             self.path + material + "\\Above_Mask_Registered\\")
-                    print("\r[3/3] Saving below mask :", end="", flush=True)
-                    in_out.save_tif_sequence(below_mask,
-                                             self.path + material + "\\Below_Mask\\")
-                    print("\n")
+                image_to_register = registration.apply_itk_transformation(image_to_register,
+                                                                          translation_transform,
+                                                                          "linear")
+
+                image_to_register_itk = Sitk.GetImageFromArray(image_to_register)
+                actual_rotation = Sitk.CenteredTransformInitializer(image_to_register_itk,
+                                                                    image_to_register_itk,
+                                                                    Sitk.Euler3DTransform(),
+                                                                    Sitk.CenteredTransformInitializerFilter.GEOMETRY)
+                rotation_parameters = rotation_transform.GetParameters()
+                actual_rotation.SetParameters((rotation_parameters[0],
+                                               rotation_parameters[1],
+                                               rotation_parameters[2],
+                                               rotation_parameters[3] * 2,
+                                               rotation_parameters[4] * 2,
+                                               rotation_parameters[5] * 2))
+                image_to_register = registration.apply_itk_transformation(image_to_register, actual_rotation, "linear")
+
+                print("\r[1/2] Saving registered image :", end="", flush=True)
+                in_out.save_tif_sequence(image_to_register,
+                                         self.path + material + "\\Above_Acquisition_Registered\\")
+
+                image_to_register = None
+                below_image = in_out.open_sequence(self.path + material + "\\Below_Acquisition\\")
+                below_image[below_image > below_threshold_value] = 1
+                below_image[below_image <= below_threshold_value] = 0
+                print("\r[2/2] Saving below mask :", end="", flush=True)
+                in_out.save_tif_sequence(below_image,
+                                         self.path + material + "\\Below_Mask\\")
+                print("\n")
         elif self.type == "phantom":
             for material in self.materials:
                 print("--------", "Registering", material, "--------")
@@ -216,8 +253,6 @@ class SpectralImagingExperiment:
                 below_image = in_out.open_sequence(below_filenames)
 
                 # -- Threshold computation
-                above_threshold_value = segmentation.find_threshold_value(material, "esrf")
-                above_threshold_value = 0.2
                 above_mask = np.ones(above_image.shape)
 
                 above_mask[above_image > 0.18] = 0
@@ -229,20 +264,24 @@ class SpectralImagingExperiment:
                 below_mask[below_image < 0.14] = 0
 
                 rotation_transform = registration.registration_computation(above_image,
-                                                                              below_image,
-                                                                              transform_type="rotation",
-                                                                              metric="msq",
-                                                                              moving_mask=above_mask,
-                                                                              reference_mask=below_mask,
-                                                                              verbose=True)
+                                                                           below_image,
+                                                                           transform_type="rotation",
+                                                                           metric="msq",
+                                                                           moving_mask=above_mask,
+                                                                           ref_mask=below_mask,
+                                                                           verbose=True)
 
                 # Registering the above image
                 above_image = registration.apply_itk_transformation(above_image, rotation_transform, "linear")
                 in_out.save_tif_sequence(above_image,
                                          self.path + material + "\\Above_Acquisition_Registered\\")
 
-
     def manual_registration(self, slice_of_interest):
+        """Function made for manual registration tests
+
+        Args:
+            slice_of_interest (int): around which slice we want to test our shit
+        """
         for material in self.materials:
             if material == "Au":
                 densities = np.array([19.3, 1.0])
@@ -267,36 +306,52 @@ class SpectralImagingExperiment:
                                                 above_image_itk.GetPixelIDValue())
                 registered_image = Sitk.GetArrayFromImage(above_image_itk)
                 images = np.stack((registered_image[slice_of_interest-5:slice_of_interest+6], belowsimage), axis=0)
-                concentration_maps = material_decomposition.decomposition_equation_resolution(images, densities,
-                                                                                              material_attenuations,
-                                                                                              volume_fraction_hypothesis=False,
-                                                                                              verbose=False)
-                in_out.save_tif_sequence(concentration_maps[0], self.path + material + "\\manual_registrationz_" + str(z/10 - 1) + "\\")
-    def material_decomposition(self, registration=False):
+                concentration_maps = \
+                    material_decomposition.decomposition_equation_resolution(images, densities, material_attenuations,
+                                                                             volume_fraction_hypothesis=False,
+                                                                             verbose=False)
+                in_out.save_tif_sequence(concentration_maps[0],
+                                         self.path + material + "\\manual_registrationz_" + str(z/10 - 1) + "\\")
+
+    def material_decomposition(self, registration_done=False):
+        """material decomposition method
+
+        Args:
+            registration_done (bool): did we use registration ?
+
+        Returns:
+            None
+        """
         if len(self.materials) == 1:
             material = self.materials[0]
             if self.type == "phantom":
-                if registration:
-                    above_filenames = in_out.create_list_of_files(self.path + self.materials[0] + "\\Above_Acquisition_Registered\\",
-                                                                 "tif")
+                if registration_done:
+                    above_filenames = \
+                        in_out.create_list_of_files(self.path + self.materials[0] + "\\Above_Acquisition_Registered\\",
+                                                    "tif")
                 else:
-                    above_filenames = in_out.create_list_of_files(self.path + self.materials[0] + "\\Above_Acquisition\\",
-                                                                 "tif")
+                    above_filenames = \
+                        in_out.create_list_of_files(self.path + self.materials[0] + "\\Above_Acquisition\\",
+                                                    "tif")
 
                 below_filenames = in_out.create_list_of_files(self.path + self.materials[0] + "\\Below_Acquisition\\",
                                                               "tif")
             elif self.type == "rat brain":
-                above_filenames = in_out.create_list_of_files(self.path + self.materials[0] + "\\Aligned_Above_Acquisition\\",
-                                                              "tif")
+                above_filenames = \
+                    in_out.create_list_of_files(self.path + self.materials[0] + "\\Aligned_Above_Acquisition\\",
+                                                "tif")
 
-                below_filenames = in_out.create_list_of_files(self.path + self.materials[0] + "\\Aligned_Below_Acquisition\\",
-                                                              "tif")
-            elif self.type == "mouse knee":
-                above_filenames = in_out.create_list_of_files(self.path + self.materials[0] + "\\Above_Acquisition_Registered\\",
-                                                              "tif")
+                below_filenames = \
+                    in_out.create_list_of_files(self.path + self.materials[0] + "\\Aligned_Below_Acquisition\\",
+                                                "tif")
+            else:
+                above_filenames = \
+                    in_out.create_list_of_files(self.path + self.materials[0] + "\\Above_Acquisition_Registered\\",
+                                                "tif")
 
                 below_filenames = in_out.create_list_of_files(self.path + self.materials[0] + "\\Below_Acquisition\\",
                                                               "tif")
+            time_list = []
             for filename_index in range(min(len(above_filenames), len(below_filenames))):
                 above_image = in_out.open_image(above_filenames[filename_index])
                 below_image = in_out.open_image(below_filenames[filename_index])
@@ -309,26 +364,35 @@ class SpectralImagingExperiment:
                     densities = np.array([4.93, 1.0])
                     material_attenuations = np.array([[170.9231, 000.3188],
                                                       [033.6370, 000.3307]])
-                concentration_maps = material_decomposition.decomposition_equation_resolution(images, densities,
-                                                                                              material_attenuations,
-                                                                                              volume_fraction_hypothesis=False,
-                                                                                              verbose=False)
-
+                concentration_maps = \
+                    material_decomposition.decomposition_equation_resolution(images, densities, material_attenuations,
+                                                                             volume_fraction_hypothesis=False,
+                                                                             verbose=False)
+                start_time = time.time()
                 material_decomposition.loading_bar(filename_index, min(len(above_filenames), len(below_filenames)))
                 in_out.save_tif_image(concentration_maps[0], self.path + material + "\\"
-                                      + material + "_decomposition\\" + '{:04d}'.format(filename_index))
-                in_out.save_tif_image(concentration_maps[1], self.path + material + "\\"
-                                      + "Water_decomposition\\" + '{:04d}'.format(filename_index))
+                                      + material + "2materials_decomposition\\" + '{:04d}'.format(filename_index))
+                # in_out.save_tif_image(concentration_maps[1], self.path + material + "\\"
+                #                       + "Bone_decomposition\\" + '{:04d}'.format(filename_index))
+                # in_out.save_tif_image(concentration_maps[2], self.path + material + "\\"
+                #                       + "Water_decomposition\\" + '{:04d}'.format(filename_index))
+                time_list.append(time.time() - start_time)
+            print("")
+            print("Average time for decomposition  :", sum(time_list)/len(time_list), "s")
+            print("Min time for decomposition      :", min(time_list), "s")
+            print("Evolution of decomposition time :", (time_list[-1] - time_list[0])/len(time_list), "s")
         elif len(self.materials) == 2:
             for material in self.materials:
                 if material == "I":
                     if self.type == "phantom":
-                        if registration:
-                            above_filenames = in_out.create_list_of_files(self.path + material + "\\Above_Acquisition_Registered\\",
-                                                                         "tif")
+                        if registration_done:
+                            above_filenames = in_out.create_list_of_files(self.path + material +
+                                                                          "\\Above_Acquisition_Registered\\",
+                                                                          "tif")
                         else:
-                            above_filenames = in_out.create_list_of_files(self.path + material + "\\Above_Acquisition\\",
-                                                                         "tif")
+                            above_filenames = in_out.create_list_of_files(self.path + material +
+                                                                          "\\Above_Acquisition\\",
+                                                                          "tif")
                         below_filenames = in_out.create_list_of_files(
                             self.path + material + "\\Below_Acquisition\\",
                             "tif")
@@ -340,7 +404,7 @@ class SpectralImagingExperiment:
                         below_filenames = in_out.create_list_of_files(
                             self.path + material + "\\Aligned_Below_Acquisition\\",
                             "tif")
-                    elif self.type == "mouse knee":
+                    else:
                         above_filenames = in_out.create_list_of_files(
                             self.path + material + "\\Above_Acquisition_Registered\\",
                             "tif")
@@ -361,11 +425,13 @@ class SpectralImagingExperiment:
                             densities = np.array([4.93, 19.3, 1.0])
                             material_attenuations = np.array([[170.9231, 389.5878, 000.3188],
                                                               [033.6370, 421.9694, 000.3307]])
-                        concentration_maps = material_decomposition.decomposition_equation_resolution(images, densities,
-                                                                                                      material_attenuations,
-                                                                                                      volume_fraction_hypothesis=True,
-                                                                                                      verbose=False)
-                        material_decomposition.loading_bar(filename_index, min(len(above_filenames), len(below_filenames)))
+                        concentration_maps = \
+                            material_decomposition.decomposition_equation_resolution(images, densities,
+                                                                                     material_attenuations,
+                                                                                     volume_fraction_hypothesis=True,
+                                                                                     verbose=False)
+                        material_decomposition.loading_bar(filename_index, min(len(above_filenames),
+                                                                               len(below_filenames)))
                         concentration_maps[0][below_image == 0] = 0
                         concentration_maps[1][below_image == 0] = 0
                         concentration_maps[2][below_image == 0] = 0
@@ -451,7 +517,7 @@ class SpectralImagingExperiment:
 
                 print(str(len(centroids)) + " tubes found")
                 material_list_of_files = in_out.create_list_of_files(self.path + material + "\\" + material
-                                                                      + "_decomposition\\", "tif")
+                                                                     + "_decomposition\\", "tif")
 
                 for file_nb in range(len(material_list_of_files)):
                     print("cropping: " + str(int(file_nb / len(material_list_of_files) * 100)) + "%",
@@ -462,43 +528,41 @@ class SpectralImagingExperiment:
                                                       list_of_coordinates[tube_nb][2]:list_of_coordinates[tube_nb][3]]
                         in_out.save_tif_image(cropped_image,  self.path + material + "\\" + material + "_tubes\\tube_"
                                               + str(tube_nb) + "\\" + '{:04d}'.format(file_nb) + ".tif")
-                with open(self.path + material + "\\" + material + "_tubes\\analysis.txt" , mode='w', encoding='utf-8') as f:
-                    for tube_nb in range(len(centroids)):
-                        f.write("tube nb " + str(tube_nb) + " - position : " + str(centroids[tube_nb][0]) + " "
-                                + str(centroids[tube_nb][1]) + "\n")
-                        tube_filenames = in_out.create_list_of_files(self.path + material + "\\" + material + "_tubes\\tube_"
-                                                      + str(tube_nb) + "\\", "tif")
-                        tube = in_out.open_sequence(tube_filenames)
 
-                        segmented_nanoparticles = np.copy(tube)
-                        for slice_nb in range(segmented_nanoparticles.shape[0]):
-                            slice = segmented_nanoparticles[slice_nb, :, :]
-                            if slice_nb < tube_slices[tube_nb]:
-                                slice[slice < 100.0] = 0
-                            else:
-                                slice[slice < 0.5] = 0
-                            mean_val = np.mean(slice[slice > 0.5])
-                            # print(slice_nb, "mean val:", mean_val)
-                            slice[slice < 0.35 * mean_val] = 0
-                            # slice[slice > 5 * mean_val] = 0
-                            segmented_nanoparticles[slice_nb, :, :] = slice
+                for tube_nb in range(len(centroids)):
+                    tube_filenames = in_out.create_list_of_files(self.path + material + "\\" + material
+                                                                 + "_tubes\\tube_" + str(tube_nb) + "\\", "tif")
+                    tube = in_out.open_sequence(tube_filenames)
 
-                        if np.mean(segmented_nanoparticles * tube) > 0.2:
-                            segmented_nanoparticles_ipsdk = PyIPSDK.fromArray(segmented_nanoparticles)
-                            segmented_nanoparticles_ipsdk = Bin.lightThresholdImg(segmented_nanoparticles_ipsdk, 0.5)
-                            eroding_sphere = PyIPSDK.sphericalSEXYZInfo(2)
-                            segmented_nanoparticles_ipsdk = Morpho.erode3dImg(segmented_nanoparticles_ipsdk, eroding_sphere)
-                            eroding_sphere = PyIPSDK.sphericalSEXYZInfo(4)
-                            segmented_nanoparticles_ipsdk = Morpho.closing3dImg(segmented_nanoparticles_ipsdk, eroding_sphere)
-                            segmented_nanoparticles_ipsdk = AdvMorpho.keepBigShape3dImg(segmented_nanoparticles_ipsdk, 1)
-                            segmentation_coloration(self.path + material + "\\" + material + "_tubes\\tube_"
-                                                          + str(tube_nb) + "_colored\\",
-                                                    tube,
-                                                    segmented_nanoparticles_ipsdk.array,
-                                                    material)
-                            segmentation.segmented_cells_analysis(tube, segmented_nanoparticles_ipsdk.array, self.resolution,
-                                                                  file=f)
-                            f.write("\n")
+                    segmented_nanoparticles = np.copy(tube)
+                    for slice_nb in range(segmented_nanoparticles.shape[0]):
+                        slice_of_interest = segmented_nanoparticles[slice_nb, :, :]
+                        if slice_nb < tube_slices[tube_nb]:
+                            slice_of_interest[slice_of_interest < 100.0] = 0
+                        else:
+                            slice_of_interest[slice_of_interest < 0.5] = 0
+                        mean_val = np.mean(slice_of_interest[slice_of_interest > 0.5])
+                        # print(slice_nb, "mean val:", mean_val)
+                        slice_of_interest[slice_of_interest < 0.35 * mean_val] = 0
+                        # slice_of_interest[slice_of_interest > 5 * mean_val] = 0
+                        segmented_nanoparticles[slice_nb, :, :] = slice_of_interest
+
+                    if np.mean(segmented_nanoparticles * tube) > 0.2:
+                        segmented_nanoparticles_ipsdk = PyIPSDK.fromArray(segmented_nanoparticles)
+                        segmented_nanoparticles_ipsdk = Bin.lightThresholdImg(segmented_nanoparticles_ipsdk, 0.5)
+                        eroding_sphere = PyIPSDK.sphericalSEXYZInfo(2)
+                        segmented_nanoparticles_ipsdk = Morpho.erode3dImg(segmented_nanoparticles_ipsdk, eroding_sphere)
+                        eroding_sphere = PyIPSDK.sphericalSEXYZInfo(4)
+                        segmented_nanoparticles_ipsdk = Morpho.closing3dImg(segmented_nanoparticles_ipsdk, eroding_sphere)
+                        segmented_nanoparticles_ipsdk = AdvMorpho.keepBigShape3dImg(segmented_nanoparticles_ipsdk, 1)
+                        segmentation_coloration(self.path + material + "\\" + material + "_tubes\\tube_"
+                                                      + str(tube_nb) + "_colored\\",
+                                                tube,
+                                                segmented_nanoparticles_ipsdk.array,
+                                                material)
+                        segmentation.segmented_cells_analysis(tube, segmented_nanoparticles_ipsdk.array, self.resolution,
+                                                              filename=self.path + material + "\\" + material
+                                                                       + "_tubes\\analysis.txt")
         elif self.type == "rat brain":
             for material in self.materials:
                 threshold = 0.4 if material == "I" else None
@@ -526,17 +590,32 @@ class SpectralImagingExperiment:
                 if material == "Au":
                     concentration_map_files = in_out.create_list_of_files(self.path + material + "\\" + material +
                                                                           "_decomposition\\", "tif")
+                                                                          # "2materials_decomposition\\", "tif")
                     concentration_map = in_out.open_sequence(concentration_map_files)
+
+                    mask_files = in_out.create_list_of_files(self.path + material + "\\Below_Mask\\", "tif")
+                    mask = in_out.open_sequence(mask_files)
+
+                    maskIPSDK = PyIPSDK.fromArray(mask)
+                    dilating_sphere = PyIPSDK.sphericalSEXYZInfo(1)
+                    maskIPSDK = Morpho.dilate3dImg(maskIPSDK, dilating_sphere)
+
+                    concentration_map[maskIPSDK.array == 1] = 0
+
                     concentration_mapIPSDK = PyIPSDK.fromArray(concentration_map)
                     concentration_mapIPSDK = Bin.lightThresholdImg(concentration_mapIPSDK, 1)
                     concentration_mapIPSDK = AdvMorpho.keepBigShape3dImg(concentration_mapIPSDK, 1)
                     opening_sphere = PyIPSDK.sphericalSEXYZInfo(2)
                     concentration_mapIPSDK = Morpho.opening3dImg(concentration_mapIPSDK, opening_sphere)
+                    concentration_mapIPSDK = Morpho.closing3dImg(concentration_mapIPSDK, opening_sphere)
                     in_out.save_tif_sequence(concentration_mapIPSDK.array, self.path + material + "\\Segmented_Cells\\")
 
                     segmentation.segmented_cells_analysis(concentration_map, concentration_mapIPSDK.array, 1.0,
                                                           self.resolution,
                                                           self.path + material + "\\" + material + "_quantification.txt")
+                    segmentation_coloration(self.path + material + "\\" + material + "_segmentation\\",
+                                            concentration_map,
+                                            concentration_mapIPSDK.array, material)
                 if material == "I":
                     seuil_detection_iode = .15
 
@@ -647,7 +726,7 @@ def open_crop_and_save(input_folder, output_path, min_max_list, input_image_type
     above_map_files = in_out.create_list_of_files(input_folder, input_image_type)
     for image_nb, image_file in enumerate(above_map_files):
         image = in_out.open_image(image_file)
-        cropped_image = image[min_max_list[1, 0]:min_max_list[1, 1], min_max_list[0, 0]:min_max_list[0, 1]]
+        cropped_image = image[min_max_list[1][0]:min_max_list[1][1], min_max_list[0][0]:min_max_list[0][1]]
         in_out.save_tif_image(cropped_image, output_path + '{:04d}'.format(image_nb))
 
 
@@ -669,10 +748,32 @@ def open_crop_bin_and_save(input_folder, output_folder, min_max_list, bin_factor
 
     for index in range(len(image_filenames) // bin_factor):
         image_to_bin = in_out.open_sequence(image_filenames[:bin_factor])
-        cropped_image = image_to_bin[:, min_max_list[1, 0]:min_max_list[1, 1], min_max_list[0, 0]:min_max_list[0, 1]]
+        cropped_image = image_to_bin[:, min_max_list[1][0]:min_max_list[1][1], min_max_list[0][0]:min_max_list[0][1]]
         del image_filenames[:bin_factor]
         cropped_image = resampling.bin_resize(cropped_image, bin_factor)
         in_out.save_tif_image(cropped_image[0], output_folder + '{:04d}'.format(index))
+
+
+def open_bin_and_save(input_folder, output_folder, bin_factor=2, input_image_type="tif"):
+    """Open input folder images, bins and saves them in given output folder
+
+    Args:
+        input_folder (str):                                  input folder
+        output_folder (str):                                 output folder
+        bin_factor (int):                                    bin factor (usually 2)
+        input_image_type (str):                              type of input images (tif or edf)
+
+    Returns:
+        None
+    """
+
+    image_filenames = in_out.create_list_of_files(input_folder, input_image_type)
+
+    for index in range(len(image_filenames) // bin_factor):
+        image_to_bin = in_out.open_sequence(image_filenames[:bin_factor])
+        del image_filenames[:bin_factor]
+        binned_image = resampling.bin_resize(image_to_bin, bin_factor)
+        in_out.save_tif_image(binned_image[0], output_folder + '{:04d}'.format(index))
 
 
 def easy_registration(input_folder):
@@ -704,7 +805,7 @@ def easy_registration(input_folder):
                                                                   transform_type="translation",
                                                                   metric="cc",
                                                                   moving_mask=above_mask,
-                                                                  reference_mask=below_mask,
+                                                                  ref_mask=below_mask,
                                                                   verbose=True)
 
     rotation_transform = registration.registration_computation(above_image,
@@ -712,15 +813,14 @@ def easy_registration(input_folder):
                                                                transform_type="rotation",
                                                                metric="msq",
                                                                moving_mask=above_mask,
-                                                               reference_mask=below_mask,
+                                                               ref_mask=below_mask,
                                                                verbose=True)
     #
     # # Registering the above image
     above_image = registration.apply_itk_transformation(above_image, translation_transform, "linear")
     above_image = registration.apply_itk_transformation(above_image, rotation_transform, "linear")
 
-    import SimpleITK as Sitk
-    smol_translation =  Sitk.TranslationTransform(3)
+    smol_translation = Sitk.TranslationTransform(3)
     smol_translation.SetOffset(([0.0, -0.2, 0.0]))
     # above_image = registration.apply_itk_transformation(above_image, smol_translation, "linear")
     smol_translation.SetOffset(([0.0, 0.0, -0.5]))
@@ -774,7 +874,7 @@ def easy_decomposition(input_folder, material):
 
 if __name__ == '__main__':
 
-    folder = "D:\\md1237\\Knees\\Knee3_WhiteDot\\"
+    folder = "E:\\Annee_2\\md1237\\Knees\\Knee3_WhiteDot\\"
     Knee3_WhiteDot = SpectralImagingExperiment("Knee3_WhiteDot",
                                                     folder, "mouse knee",
                                                     "esrf", ["Au", "I"], resolution=6.0, bin_factor=2)
@@ -785,30 +885,7 @@ if __name__ == '__main__':
     #                                     folder, "mouse knee",
     #                                     "esrf", ["Au", "I"], resolution=6.43, bin_factor=2)
     # Knee11.material_decomposition()
-    # open_crop_bin_and_save(folder + "Knee11_WhiteDot_Mtp_6um_AboveAu__001_pag\\",
-    #                        folder + "Au\\Above_Acquisition\\",
-    #                        np.array([[250, 2310], [250, 2310]]),
-    #                        input_image_type="edf")
-    # open_crop_bin_and_save(folder + "Knee11_WhiteDot_Mtp_6um_BelowAu__001_pag\\",
-    #                        folder + "Au\\Below_Acquisition\\",
-    #                        np.array([[250, 2310], [250, 2310]]),
-    #                        input_image_type="edf")
-    # open_crop_bin_and_save(folder + "Knee3_WhiteDot_RelauncheAfterBeamLost_Mtp_6um_AboveAu__001_pag\\",
-    #                        folder + "Au\\Above_Acquisition\\",
-    #                        np.array([[250, 2310], [250, 2310]]),
-    #                        input_image_type="edf")
-    # open_crop_bin_and_save(folder + "Knee3_WhiteDot_RelauncheAfterBeamLost_Mtp_6um_AboveI__001_pag\\",
-    #                        folder + "I\\Above_Acquisition\\",
-    #                        np.array([[250, 2310], [250, 2310]]),
-    #                        input_image_type="edf")
-    # open_crop_bin_and_save(folder + "Knee3_WhiteDot_RelauncheAfterBeamLost_Mtp_6um_BelowAu__001_pag\\",
-    #                        folder + "Au\\Below_Acquisition\\",
-    #                        np.array([[250, 2310], [250, 2310]]),
-    #                        input_image_type="edf")
-    # open_crop_bin_and_save(folder + "Knee3_WhiteDot_RelauncheAfterBeamLost_Mtp_6um_BelowI__001_pag\\",
-    #                        folder + "I\\Below_Acquisition\\",
-    #                        np.array([[250, 2310], [250, 2310]]),
-    #                        input_image_type="edf")
+    # Knee11.material_decomposition()
 
     folder = "D:\\md1237\\Knees\\Knee11_WhiteDot\\"
     Knee11_WhiteDot = SpectralImagingExperiment("Knee11_WhiteDot",
@@ -816,14 +893,6 @@ if __name__ == '__main__':
                                             "esrf", ["Au"], resolution=6.0, bin_factor=2)
 
     # Knee11_WhiteDot.register_volumes()
-    # open_crop_bin_and_save(folder + "Knee11_WhiteDot_Mtp_6um_AboveAu__001_pag\\",
-    #                        folder + "Au\\Above_Acquisition\\",
-    #                        np.array([[250, 2310], [250, 2310]]),
-    #                        input_image_type="edf")
-    # open_crop_bin_and_save(folder + "Knee11_WhiteDot_Mtp_6um_BelowAu__001_pag\\",
-    #                        folder + "Au\\Below_Acquisition\\",
-    #                        np.array([[250, 2310], [250, 2310]]),
-    #                        input_image_type="edf")
 
     folder = "D:\\md1237\\Knees\\Knee12_WhiteDot\\"
     Knee12_WhiteDot = SpectralImagingExperiment("Knee12_WhiteDot",
@@ -831,99 +900,86 @@ if __name__ == '__main__':
                                             "esrf", ["Au"], resolution=6.0, bin_factor=2)
 
     # Knee12_WhiteDot.material_segmentation()
-    # open_crop_bin_and_save(folder + "Knee12_WhiteDot_Mtp_6um_AboveAu__001_pag\\",
-    #                        folder + "Au\\Above_Acquisition\\",
-    #                        np.array([[250, 2310], [250, 2310]]),
-    #                        input_image_type="edf")
-    # open_crop_bin_and_save(folder + "Knee12_WhiteDot_Mtp_6um_BelowAu__001_pag\\",
-    #                        folder + "Au\\Below_Acquisition\\",
-    #                        np.array([[250, 2310], [250, 2310]]),
-    #                        input_image_type="edf")
 
-    # folder = "D:\\md1237\\Knees\\Knee13_WhiteDot\\"
-    # Knee13_WhiteDot = SpectralImagingExperiment("Knee13_WhiteDot",
-    #                                             folder, "mouse knee",
-    #                                             "esrf", ["Au"], resolution=6.0, bin_factor=2)
-    #
+
+    folder = "E:\\Annee_2\\md1237\\Knees\\Knee13_WhiteDot\\"
+    Knee13_WhiteDot = SpectralImagingExperiment("Knee13_WhiteDot",
+                                                folder, "mouse knee",
+                                                "esrf", ["Au"], resolution=6.0, bin_factor=2)
+
     # Knee13_WhiteDot.material_decomposition()
-    # open_crop_bin_and_save(folder + "Knee13_whitedot_Mtp_6um_AboveAu__001_pag\\",
-    #                        folder + "Au\\Above_Acquisition\\",
-    #                        np.array([[250, 2310], [250, 2310]]),
-    #                        input_image_type="edf")
-    # open_crop_bin_and_save(folder + "Knee13_whitedot_Mtp_6um_BelowAu__001_pag\\",
-    #                        folder + "Au\\Below_Acquisition\\",
-    #                        np.array([[250, 2310], [250, 2310]]),
-    #                        input_image_type="edf")
 
-    # folder = "D:\\md1237\\Knees\\Knee14_WhiteDot\\"
-    # Knee14_WhiteDot = SpectralImagingExperiment("Knee14_WhiteDot",
-    #                                             folder, "mouse knee",
-    #                                             "esrf", ["Au"], resolution=6.0, bin_factor=2)
-    #
+
+    folder = "E:\\Annee_2\\md1237\\Knees\\Knee14_WhiteDot\\"
+    Knee14_WhiteDot = SpectralImagingExperiment("Knee14_WhiteDot",
+                                                folder, "mouse knee",
+                                                "esrf", ["Au"], resolution=6.0, bin_factor=2)
+
     # Knee14_WhiteDot.material_decomposition()
-    # open_crop_bin_and_save(folder + "Knee14_WhiteDot_Mtp_6um_AboveAu__001_pag\\",
-    #                        folder + "Au\\Above_Acquisition\\",
-    #                        np.array([[250, 2310], [250, 2310]]),
-    #                        input_image_type="edf")
-    # open_crop_bin_and_save(folder + "Knee14_WhiteDot_Mtp_6um_BelowAu__001_pag\\",
-    #                        folder + "Au\\Below_Acquisition\\",
-    #                        np.array([[250, 2310], [250, 2310]]),
-    #                        input_image_type="edf")
 
-    # folder = "D:\\md1237\\Knees\\Knee16_WhiteDot\\"
-    # Knee16_WhiteDot = SpectralImagingExperiment("Knee16_WhiteDot",
-    #                                             folder, "mouse knee",
-    #                                             "esrf", ["Au"], resolution=6.0, bin_factor=2)
-    #
-    # Knee16_WhiteDot.register_volumes()
-    # open_crop_bin_and_save(folder + "Knee16_WhiteDot_Mtp_6um_AboveAu__001_pag\\",
+
+    folder = "E:\\Annee_2\\md1237\\Knees\\Knee16_WhiteDot\\"
+    Knee16_WhiteDot = SpectralImagingExperiment("Knee16_WhiteDot",
+                                                folder, "mouse knee",
+                                                "esrf", ["Au"], resolution=6.0, bin_factor=2)
+
+    # Knee16_WhiteDot.material_decomposition()
+    knee_name = "Knee3"
+    whitedot = False
+    name = knee_name + whitedot * "_WhiteDot"
+    folder = "D:\\Annee_2\\md1237\\Knees\\" + name + "\\"
+    print(folder)
+    Knee = SpectralImagingExperiment(knee_name,
+                                     folder, "mouse knee",
+                                     "esrf", ["Au"], resolution=6.0, bin_factor=2)
+    Knee.register_volumes()
+    # open_crop_bin_and_save(folder + name + "_Mtp_6um_AboveAu__001_pag\\",
     #                        folder + "Au\\Above_Acquisition\\",
-    #                        np.array([[250, 2310], [250, 2310]]),
-    #                        input_image_type="edf")
-    # open_crop_bin_and_save(folder + "Knee16_WhiteDot_Mtp_6um_BelowAu__001_pag\\",
+    #                        [[250, 2310],[250, 2310]],
+    #                        2,
+    #                        "edf")
+    # open_crop_bin_and_save(folder + name + "_Mtp_6um_BelowAu__001_pag\\",
     #                        folder + "Au\\Below_Acquisition\\",
-    #                        np.array([[250, 2310], [250, 2310]]),
-    #                        input_image_type="edf")
+    #                        [[250, 2310],[250, 2310]],
+    #                        2,
+    #                        "edf")
+    # open_bin_and_save(folder + "Au\\Above_Acquisition\\",
+    #                   folder + "Au\\Above_Acquisition_Binned\\",
+    #                   2,
+    #                   "tif")
+    # open_bin_and_save(folder + "Au\\Below_Acquisition\\",
+    #                   folder + "Au\\Below_Acquisition_Binned\\",
+    #                   2,
+    #                   "tif")
+    #
+    # open_crop_bin_and_save(folder + name + "_Mtp_6um_AboveI__001_pag\\",
+    #                        folder + "I\\Above_Acquisition\\",
+    #                        [[250, 2310],[250, 2310]],
+    #                        2,
+    #                        "edf")
+    # open_crop_bin_and_save(folder + name + "_Mtp_6um_BelowI__001_pag\\",
+    #                        folder + "I\\Below_Acquisition\\",
+    #                        [[250, 2310],[250, 2310]],
+    #                        2,
+    #                        "edf")
+    # open_bin_and_save(folder + "I\\Above_Acquisition\\",
+    #                   folder + "I\\Above_Acquisition_Binned\\",
+    #                   2,
+    #                   "tif")
+    # open_bin_and_save(folder + "I\\Below_Acquisition\\",
+    #                   folder + "I\\Below_Acquisition_Binned\\",
+    #                   2,
+    #                   "tif")
+
+    # Knee.material_decomposition()
+
 
     # folder = "D:\\md1237\\Knees\\Knee17\\"
     # Knee3_WhiteDot = SpectralImagingExperiment("Knee17",
     #                                             folder, "mouse knee",
     #                                             "esrf", ["Au", "I"], resolution=6.0, bin_factor=2)
     # Knee3_WhiteDot.register_volumes()
-    # open_crop_bin_and_save(folder + "Knee17_Mtp_6um_AboveAu__001_pag\\",
-    #                        folder + "Au\\Above_Acquisition\\",
-    #                        np.array([[250, 2310], [250, 2310]]),
-    #                        input_image_type="edf")
-    # open_crop_bin_and_save(folder + "Knee17_Mtp_6um_AboveI__001_pag\\",
-    #                        folder + "I\\Above_Acquisition\\",
-    #                        np.array([[250, 2310], [250, 2310]]),
-    #                        input_image_type="edf")
-    # open_crop_bin_and_save(folder + "Knee17_Mtp_6um_BelowAu__001_pag\\",
-    #                        folder + "Au\\Below_Acquisition\\",
-    #                        np.array([[250, 2310], [250, 2310]]),
-    #                        input_image_type="edf")
-    # open_crop_bin_and_save(folder + "Knee17_Mtp_6um_BelowI__001_pag\\",
-    #                        folder + "I\\Below_Acquisition\\",
-    #                        np.array([[250, 2310], [250, 2310]]),
-    #                        input_image_type="edf")
-    # bin_and_save("C:\\Users\\ctavakol\\Desktop\\Experiences_Fevrier_2021\\ESRF_md1237\\Genoux\\KneeReal17_WhiteDot_Mtp_6um_AboveAu__001_pag\\",
-    #              "C:\\Users\\ctavakol\\Desktop\\Experiences_Fevrier_2021\\ESRF_md1237\\Genoux\\Binned_KneeReal17_WhiteDot_Mtp_6um_AboveAu__001_pag\\Binned_KneeReal17_WhiteDot_Mtp_6um_AboveAu__001_pag_",
-    #              bin_factor=2)
-    # open_crop_and_save("C:\\Users\\ctavakol\\Desktop\\Experiences_Fevrier_2021\\ESRF_md1237\\Genoux\\KneeReal17_WhiteDot_Mtp_6um\\Au\\Below_Acquisition\\",
-    #                    "C:\\Users\\ctavakol\\Desktop\\Experiences_Fevrier_2021\\ESRF_md1237\\Genoux\\KneeReal17_WhiteDot_Mtp_6um\\Au\\Cropped_Below_Acquisition\\",
-    #                    np.array([[100, 1180], [100, 1180]]),
-    #                    input_image_type="tif")
-    # open_crop_and_save("C:\\Users\\ctavakol\\Desktop\\Experiences_Fevrier_2021\\ESRF_md1237\\Genoux\\KneeReal17_WhiteDot_Mtp_6um\\I\\Above_Acquisition\\",
-    #                    "C:\\Users\\ctavakol\\Desktop\\Experiences_Fevrier_2021\\ESRF_md1237\\Genoux\\KneeReal17_WhiteDot_Mtp_6um\\I\\Cropped_Above_Acquisition\\",
-    #                    np.array([[100, 1180], [100, 1180]]),
-    #                    input_image_type="tif")
-    # open_crop_and_save("C:\\Users\\ctavakol\\Desktop\\Experiences_Fevrier_2021\\ESRF_md1237\\Genoux\\KneeReal17_WhiteDot_Mtp_6um\\I\\Below_Acquisition\\",
-    #                    "C:\\Users\\ctavakol\\Desktop\\Experiences_Fevrier_2021\\ESRF_md1237\\Genoux\\KneeReal17_WhiteDot_Mtp_6um\\I\\Cropped_Below_Acquisition\\",
-    #                    np.array([[100, 1180], [100, 1180]]),
-    #                    input_image_type="tif")
-    # bin_and_save("C:\\Users\\ctavakol\\Desktop\\Experiences_Fevrier_2021\\ESRF_md1237\\Genoux\\KneeReal17_WhiteDot_Mtp_6um_AboveAu__001_pag\\",
-    #              "C:\\Users\\ctavakol\\Desktop\\Experiences_Fevrier_2021\\ESRF_md1237\\Genoux\\Binned_KneeReal17_WhiteDot_Mtp_6um_AboveAu__001_pag\\Binned_KneeReal17_WhiteDot_Mtp_6um_AboveAu__001_pag_",
-    #              bin_factor=2)
+
     # BiColor_B1toB9__ = SpectralImagingExperiment("BiColor_B1toB9__", "D:\\md1237\\BiColor_B1toB9__\\", "phantom",
     #                                             ["Au", "I"], 21.4, bin_factor=2)
     # BiColor_B1toB9__.material_decomposition()
@@ -935,67 +991,12 @@ if __name__ == '__main__':
     #                                             ["Au", "I"], 21.4, bin_factor=2)
     # pellet_bicolore.()
     # pellet_bicolore.material_decomposition()
+
     folder = "C:\\Users\\ctavakol\\Desktop\\Experiences_Fevrier_2021\\ESRF_md1237\\Genoux\\KneeReal17_WhiteDot_Mtp_6um\\"
-    # open_crop_bin_and_save(folder + "KneeReal17_WhiteDot_Mtp_6um_AboveI__001_pag\\",
-    #                        folder + "I\\Above_Acquisition\\",
-    #                        np.array([[300, 2260], [300, 2260]]),
-    #                        input_image_type="edf")
-    # open_crop_bin_and_save(folder + "KneeReal17_WhiteDot_Mtp_6um_BelowI__001_pag\\",
-    #                        folder + "I\\Below_Acquisition\\",
-    #                        np.array([[300, 2260], [300, 2260]]),
-    #                        input_image_type="edf")
     KneeReal17_WhiteDot = SpectralImagingExperiment("KneeReal17_WhiteDot_Mtp_6um",
                                                     "C:\\Users\\ctavakol\\Desktop\\Experiences_Fevrier_2021\\" +
                                                     "ESRF_md1237\\Genoux\\KneeReal17_WhiteDot_Mtp_6um\\", "mouse knee",
                                                     "esrf", ["Au", "I"], resolution=6.0, bin_factor=2)
     # KneeReal17_WhiteDot.register_volumes()
-    KneeReal17_WhiteDot.material_segmentation()
+    # KneeReal17_WhiteDot.material_segmentation()
     # KneeReal17_WhiteDot.material_decomposition()
-
-    # GammeAu_0_to_14__ = SpectralImagingExperiment("GammeAu_0_to_14__", "D:\\md1237\\GammeAu_0_to_14__\\", "phantom",
-    #                                            ["Au"], 21.4, bin_factor=2)
-    # GammeAu_0_to_14__.material_decomposition()
-
-    # GammeI_0_to_10__ = SpectralImagingExperiment("GammeI_0_to_10__", "D:\\md1237\\GammeI_0_to_10__\\", "phantom",
-    #                                             ["I"], 21.4, bin_factor=2)
-    # GammeI_0_to_10__.material_decomposition()
-    #
-    # GammeI_HI__ = SpectralImagingExperiment("GammeI_HI__", "D:\\md1237\\GammeI_HI__\\", "phantom",
-    #                                            ["I"], 21.4, bin_factor=2)
-    # GammeI_HI__.material_segmentation()
-    #
-    # GammeI_MS_301020_ = SpectralImagingExperiment("GammeI_MS_301020_", "D:\\md1237\\GammeI_MS_301020_\\", "phantom",
-    #                                            ["I"], 21.4, bin_factor=2)
-    # GammeI_MS_301020_.material_segmentation()
-
-    # GammeI_PBS_301020_ = SpectralImagingExperiment("GammeI_PBS_301020_", "D:\\md1237\\GammeI_PBS_301020_\\", "phantom",
-    #                                            ["I"], 21.4, bin_factor=2)
-    # GammeI_PBS_301020_.material_segmentation()
-
-    # MonoColor_Cell_Pellet__ = SpectralImagingExperiment("MonoColor_Cell_Pellet__", "D:\\md1237\\MonoColor_Cell_Pellet__\\", "phantom",
-    #                                            ["Au"], 21.4, bin_factor=2)
-    # MonoColor_Cell_Pellet__.conversion()
-
-    # R1392_01__ = SpectralImagingExperiment("R1392_01__", "D:\\md1237\\R1392_01\\", "rat brain",
-    #                                             ["Au", "I"], 21.4, bin_factor=2)
-    # R1392_01__.material_segmentation()
-    #
-    # R1392_02__ = SpectralImagingExperiment("R1392_02__", "D:\\md1237\\R1392_02\\", "rat brain",
-    #                                             ["Au", "I"], 21.4, bin_factor=2)
-    # R1392_02__.material_segmentation()
-    #
-    # R1392_03__ = SpectralImagingExperiment("R1392_03__", "D:\\md1237\\R1392_03\\", "rat brain",
-    #                                             ["Au", "I"], 21.4, bin_factor=2)
-    # R1392_03__.material_segmentation()
-    #
-    # R1392_04__ = SpectralImagingExperiment("R1392_04__", "D:\\md1237\\R1392_04\\", "rat brain",
-    #                                             ["Au", "I"], 21.4, bin_factor=2)
-    # R1392_04__.material_segmentation()
-
-    # Gamme_Cellules_13_14_16_11__ = SpectralImagingExperiment("Gamme_Cellules_13_14_16_11__", "D:\\md1237\\Gamme_Cellules_13_14_16_11__\\", "mouse legs",
-    #                                            ["Au"], 21.4, bin_factor=2)
-    # Gamme_Cellules_13_14_16_11__.material_segmentation()
-
-    # Gamme_Cellules_13_14_16_11_whitedot_ = SpectralImagingExperiment("Gamme_Cellules_13_14_16_11_whitedot_", "D:\\md1237\\Gamme_Cellules_13_14_16_11_whitedot_\\", "mouse legs",
-    #                                            ["Au"], 21.4, bin_factor=2)
-    # Gamme_Cellules_13_14_16_11_whitedot_.material_segmentation()

@@ -2,6 +2,7 @@ import os
 import sys
 import glob
 import shutil
+import time
 
 from skimage import filters
 import numpy as np
@@ -9,7 +10,7 @@ import numpy as np
 from popcorn.input_output import open_image, open_sequence, save_tif_image, open_cropped_sequence, save_tif_sequence, \
     open_cropped_image, create_list_of_files
 from popcorn.spectral_imaging.registration import registration_computation, apply_itk_transformation
-
+from popcorn.resampling import interpolate_two_images
 
 def stitch_multiple_folders_into_one(list_of_folders, output_folder, delta_z, look_for_best_slice=True, copy_mode=0,
                                      security_band_size=10, overlap_mode=0, band_average_size=0, flip=False):
@@ -359,9 +360,6 @@ def rearrange_folders_list(starting_position, number_of_lines, number_of_columns
     return new_list_of_folders
 
 
-import time
-
-
 def compute_two_tiles_registration(ref_image_input_folder, ref_image_coordinates, moving_image_input_folder,
                                    moving_image_coordinates):
     """ Computes and returns offset between overlap of two images
@@ -448,6 +446,7 @@ def multiple_tile_registration(input_folder, radix, starting_position="top-left"
 
     time_start = time.clock()
     # 1. Registration computation, for each line of the final grid, we compute the offset between each neighboring tiles
+    i = 0
     for nb_line in range(number_of_lines):
         for nb_col in range(number_of_columns - 1):  # We compute registration on number_of_columns-1 pairs of images
 
@@ -456,10 +455,23 @@ def multiple_tile_registration(input_folder, radix, starting_position="top-left"
                   "and tile number", folders_indices[image_number + 1])
 
             reg_start = time.clock()
-            transformation = compute_two_tiles_registration(list_of_folders[folders_indices[image_number]],
-                                                            ref_image_coordinates,
-                                                            list_of_folders[folders_indices[image_number + 1]],
-                                                            moving_image_coordinates)
+
+            # transformation = compute_two_tiles_registration(list_of_folders[folders_indices[image_number]],
+            #                                                 ref_image_coordinates,
+            #                                                 list_of_folders[folders_indices[image_number + 1]],
+            #                                                 moving_image_coordinates)
+            import SimpleITK as Sitk
+            transformation = Sitk.TranslationTransform(3)
+            manual_transforms = [[0.126,-2.12,3.12],
+                                [0.126,2.12,3.12],
+                                [0.126,2.12,-3.12],
+                                [0.126,-2.12,-3.12],
+                                [0.126,-2.12,3.12],
+                                [0.126,-2.12,3.12],
+                                [0.126,-2.12,3.12],
+                                [0.126,-2.12,3.12]]
+            transformation.SetOffset((manual_transforms[i][0],manual_transforms[i][1],manual_transforms[i][2]))
+            i+=1
             print("Registration time:", (time.clock() - reg_start))
             # If we want to avoid interpolation -> integer offset
             if integer_values_for_offset:
@@ -475,42 +487,86 @@ def multiple_tile_registration(input_folder, radix, starting_position="top-left"
     # 2. Concatenation of same line tiles, line are saved in combined_line_XX folders
     for nb_line in range(number_of_lines):
         x_position = 0
-        # Creating the output image
-        empty_image = np.zeros((nb_of_slices,
-                                ref_height,
-                                ref_width * number_of_columns - (number_of_columns - 1) * supposed_overlap))
-        # We add each tile on after the other
-        for nb_col in range(number_of_columns):
-            image_number = nb_line * number_of_columns + nb_col
+        list_of_z_offset = [0]
+        for transformation_nb in range(number_of_columns - 1):  # Each tile needs to be registered using previous registrations
+            print("transfo nb", transformation_nb)
+            transformation_offset = list_of_transformations[nb_line * (number_of_columns - 1)
+                                                             + transformation_nb].GetOffset()[-1].GetOffset()
+            list_of_z_offset.append(transformation_offset[-1])
+            list_of_transformations[nb_line * (number_of_columns - 1)
+                                    + transformation_nb].GetOffset()[-1].SetOffset((transformation_offset[0],
+                                                                                    transformation_offset[1],
+                                                                                    0  ))
+            list_of_z_offset[-1] = sum(list_of_z_offset)
+        min_offset = min(list_of_z_offset)
+        list_of_z_offset = [offset - min_offset for offset in list_of_z_offset]
 
-            # The first tile doesn't need any registration
-            if nb_col == 0:
-                empty_image[:, :, 0:ref_width - supposed_overlap // 2 + 1] = \
-                    open_cropped_sequence(glob.glob(list_of_folders[folders_indices[image_number]] + "\\*"),
-                                          [[0, -1], [0, -1], [0, ref_width - supposed_overlap // 2]])
-                x_position = ref_width - supposed_overlap // 2
+        print("list of z offset:", list_of_z_offset)
+        for slice_nb in range(nb_of_slices + round(max(list_of_z_offset))):
+            list_of_slices = [[None, None], [None, None], [None, None]]
+            # Creating the output image
+            empty_slice = np.zeros((ref_height,
+                                    ref_width * number_of_columns - (number_of_columns - 1) * supposed_overlap))
 
-            # The next tile need to be registered/cropped
-            else:
-                image_to_register = open_sequence(glob.glob(list_of_folders[folders_indices[image_number]] + "\\*"))
-                for transformation_nb in range(nb_col):  # Each tile needs to be registered using previous registrations
-                    image_to_register = apply_itk_transformation(image_to_register,
-                                                                 list_of_transformations[
-                                                                     nb_line * (number_of_columns - 1)
-                                                                     + transformation_nb])
-                # After registration comes the cropping part (based on initial supposed overlap)
-                image_to_register = \
-                    image_to_register[:, :, supposed_overlap - supposed_overlap // 2:ref_width - supposed_overlap // 2]
-
-                # We add the current tile to the final image
-                empty_image[:, :, x_position: x_position + image_to_register.shape[2]] = image_to_register
-
-                # We update the "x_position" corresponding to the position the next tile needs to be positionned at
-                x_position += image_to_register.shape[2] - 1
-
-        print("-> Saving line number", nb_line, "in folder", input_folder + "combined_line_" + str(nb_line) + "\\")
-        save_tif_sequence(empty_image, input_folder + "combined_line_" + str(nb_line) + "\\")
-        print("--> Line number", nb_line, "saved !")
+            # We add each tile on after the other
+            for nb_col in range(number_of_columns):
+                image_number = nb_line * number_of_columns + nb_col
+                current_slice_nb = slice_nb - list_of_z_offset[nb_col]
+                if current_slice_nb > 0:
+                    if nb_col == 0:
+                        if list_of_slices[nb_col][1] is not None:
+                            list_of_slices[nb_col][1] = list_of_slices[nb_col][0]
+                        else:
+                            list_of_slices[nb_col][1] = open_cropped_image(glob.glob(list_of_folders[folders_indices[image_number]] + "\\*")[int(current_slice_nb)],
+                                                                           [[0, -1], [0, ref_width - supposed_overlap // 2]])
+                        list_of_slices[nb_col][0] = open_cropped_image(glob.glob(list_of_folders[folders_indices[image_number]] + "\\*")[int(current_slice_nb) + 1],
+                                                                       [[0, -1], [0, ref_width - supposed_overlap // 2]])
+                        current_slice = interpolate_two_images(list_of_slices[nb_col][1], list_of_slices[nb_col][0], current_slice_nb % 1)
+                        empty_slice[:, :, 0:ref_width - supposed_overlap // 2 + 1] = current_slice
+                        x_position = ref_width - supposed_overlap // 2
+                    else:
+                        if list_of_slices[nb_col][1] is not None:
+                            list_of_slices[nb_col][1] = list_of_slices[nb_col][0]
+                        else:
+                            list_of_slices[nb_col][1] = open_image(glob.glob(list_of_folders[folders_indices[image_number]] + "\\*")[int(current_slice_nb)])
+                        list_of_slices[nb_col][0] = open_image(glob.glob(list_of_folders[folders_indices[image_number]] + "\\*")[int(current_slice_nb) + 1])
+                        current_slice = interpolate_two_images(list_of_slices[nb_col][1], list_of_slices[nb_col][0], current_slice_nb % 1)
+                        x_position = ref_width - supposed_overlap // 2
+        # empty_image = np.zeros((nb_of_slices,
+        #                         ref_height,
+        #                         ref_width * number_of_columns - (number_of_columns - 1) * supposed_overlap))
+        # # We add each tile on after the other
+        # for nb_col in range(number_of_columns):
+        #     image_number = nb_line * number_of_columns + nb_col
+        #
+        #     # The first tile doesn't need any registration
+        #     if nb_col == 0:
+        #         empty_image[:, :, 0:ref_width - supposed_overlap // 2 + 1] = \
+        #             open_cropped_sequence(glob.glob(list_of_folders[folders_indices[image_number]] + "\\*"),
+        #                                   [[0, -1], [0, -1], [0, ref_width - supposed_overlap // 2]])
+        #         x_position = ref_width - supposed_overlap // 2
+        #
+        #     # The next tile need to be registered/cropped
+        #     else:
+        #         image_to_register = open_sequence(glob.glob(list_of_folders[folders_indices[image_number]] + "\\*"))
+        #         for transformation_nb in range(nb_col):  # Each tile needs to be registered using previous registrations
+        #             image_to_register = apply_itk_transformation(image_to_register,
+        #                                                          list_of_transformations[
+        #                                                              nb_line * (number_of_columns - 1)
+        #                                                              + transformation_nb])
+        #         # After registration comes the cropping part (based on initial supposed overlap)
+        #         image_to_register = \
+        #             image_to_register[:, :, supposed_overlap - supposed_overlap // 2:ref_width - supposed_overlap // 2]
+        #
+        #         # We add the current tile to the final image
+        #         empty_image[:, :, x_position: x_position + image_to_register.shape[2]] = image_to_register
+        #
+        #         # We update the "x_position" corresponding to the position the next tile needs to be positionned at
+        #         x_position += image_to_register.shape[2] - 1
+        #
+        # print("-> Saving line number", nb_line, "in folder", input_folder + "combined_line_" + str(nb_line) + "\\")
+        # save_tif_sequence(empty_image, input_folder + "combined_line_" + str(nb_line) + "\\")
+        # print("--> Line number", nb_line, "saved !")
 
     # 3. Registration computation, we compute the offset between each neighboring lines
     list_of_transformations = []
