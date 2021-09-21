@@ -48,3 +48,5 @@ urllib3==1.26.3
 xraydb==4.4.5
 
 setuptools~=39.0.1
+spekpy~=2.0.5
+pandas~=1.1.5
