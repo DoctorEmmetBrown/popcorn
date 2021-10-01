@@ -74,10 +74,7 @@ def compute_2d_rotation(image, angle, interpolator_type="linear"):
     # We apply the rotation to the image
     image_itk = Sitk.Resample(image_itk, tx, interpolator, 0.0, image_itk.GetPixelIDValue())
 
-    # Conversion from itk image to numpy array
-    resulting_image = Sitk.GetArrayFromImage(image_itk)
-
-    return resulting_image
+    return Sitk.GetArrayFromImage(image_itk)
 
 
 def calculate_rotation_matrix_between_3d_vectors(moving_vector, ref_vector):
@@ -100,9 +97,11 @@ def calculate_rotation_matrix_between_3d_vectors(moving_vector, ref_vector):
 
     # Rotation matrix calculation
     trans_matrix = np.array([[0, -cross[2], cross[1]], [cross[2], 0, -cross[0]], [-cross[1], cross[0], 0]])
-    matrix = np.eye(3) + trans_matrix + trans_matrix.dot(trans_matrix) * ((1 - scalar) / (normalized ** 2))
-
-    return matrix
+    return (
+        np.eye(3)
+        + trans_matrix
+        + trans_matrix.dot(trans_matrix) * ((1 - scalar) / (normalized ** 2))
+    )
 
 
 def compute_3d_rotation(image, rotation_matrix, center_of_rotation, translation=None, size_change=1.0):
@@ -164,8 +163,7 @@ def retrieve_throat_centroid(mask):
     """
     label_img = label(mask)
     regions = regionprops(label_img)
-    centroid = regions[0].centroid
-    return centroid
+    return regions[0].centroid
 
 
 def count_the_needed_translation_for_black_slices(image):
@@ -258,8 +256,8 @@ def straight_throat_rotation(image, throat_mask_img=None, direction_vector=None,
         manual (bool):                      False: uses throat mask, True: uses input vector and throat coordinates
 
     Returns:
-        (numpy.ndarray, numpy.ndarray, numpy.ndarray, int) the aligned image, the rotation matrix and the center of
-        rotation plus the offset (caused by the rotation)
+        (numpy.ndarray, numpy.ndarray, numpy.ndarray, int) the aligned image, the rotation matrix and the center
+    of rotation plus the offset (caused by the rotation)
 
     TODO:
         better use/calculation of the offset + add some comments
@@ -269,43 +267,65 @@ def straight_throat_rotation(image, throat_mask_img=None, direction_vector=None,
     if not manual:
         centroid_list = []
         vectors_list = []
+        list_of_ys = []
+        list_of_xs = []
         z_length = 0
 
-        for nbSlice in range(0, throat_mask_img.shape[0]):
+        for nbSlice in range(throat_mask_img.shape[0]):
             z_length += 1
             nb_pixels_throat = np.sum(throat_mask_img[nbSlice, :, :])
             if nb_pixels_throat >= 1:
                 centroid = retrieve_throat_centroid(throat_mask_img[nbSlice, :, :])
-                centroid_list.append(centroid)
-                if nbSlice > 0:
-                    vectors_list.append(np.array([z_length,
+                centroid_list.append([centroid[0], centroid[1], nbSlice])
+                if len(centroid_list) > 1:
+                    vectors_list.append(np.array([centroid_list[-1][2] - centroid_list[-2][2],
                                                   centroid_list[-1][0] - centroid_list[-2][0],
                                                   centroid_list[-1][1] - centroid_list[-2][1]]))  # vector : [z, y, x]
-                z_length = 0
+                    list_of_ys.append(centroid_list[-1][0] - centroid_list[-2][0])
+                    list_of_xs.append(centroid_list[-1][1] - centroid_list[-2][1])
 
-        total_vector = sum_list_of_vectors(vectors_list)
+                z_length = 0
+        # print(centroid_list)
+        list_of_ys.sort()
+        list_of_xs.sort()
+        # total_vector = sum_list_of_vectors(vectors_list)
+        total_vector = [1, list_of_ys[len(list_of_ys)//2], list_of_xs[len(list_of_xs)//2]]
+        # print(centroid_list)
         normalized_total_vector = total_vector/np.linalg.norm(total_vector)
         normalized_current_vector = vectors_list[0]/np.linalg.norm(vectors_list[0])
-
+        for vector in vectors_list:
+            normalized_current_vector = vector/np.linalg.norm(vector)
+            # print(np.dot(normalized_total_vector, normalized_current_vector))
         while np.dot(normalized_total_vector, normalized_current_vector) < 0.92:
             del vectors_list[0]
-            total_vector = sum_list_of_vectors(vectors_list)
+            del centroid_list[0]
+            del list_of_ys[0]
+            del list_of_xs[0]
+            # total_vector = sum_list_of_vectors(vectors_list)
+            total_vector = [1, list_of_ys[len(list_of_ys)//2], list_of_xs[len(list_of_xs)//2]]
             normalized_total_vector = total_vector/np.linalg.norm(total_vector)
             normalized_current_vector = vectors_list[0] / np.linalg.norm(vectors_list[0])
 
-        total_vector = sum_list_of_vectors(vectors_list)
+        # total_vector = sum_list_of_vectors(vectors_list)
+        total_vector = [1, list_of_ys[len(list_of_ys)//2], list_of_xs[len(list_of_xs)//2]]
+        print(total_vector)
         normalized_total_vector = total_vector/np.linalg.norm(total_vector)
         normalized_current_vector = vectors_list[-1]/np.linalg.norm(vectors_list[-1])
+        print(centroid_list)
 
         while np.dot(normalized_total_vector, normalized_current_vector) < 0.92:
             del vectors_list[-1]
-            total_vector = sum_list_of_vectors(vectors_list)
+            del centroid_list[-1]
+            del list_of_ys[-1]
+            del list_of_xs[-1]
+            # total_vector = sum_list_of_vectors(vectors_list)
+            total_vector = [1, list_of_ys[len(list_of_ys)//2], list_of_xs[len(list_of_xs)//2]]
             normalized_total_vector = total_vector/np.linalg.norm(total_vector)
             normalized_current_vector = vectors_list[-1] / np.linalg.norm(vectors_list[-1])
 
         direction_vector = np.flip(np.copy(normalized_total_vector))
 
-        throat_coordinates = [centroid_list[0][1], centroid_list[0][0], 0]  # [x, y]
+        throat_coordinates = [centroid_list[0][1], centroid_list[0][0], centroid_list[0][2]]  # [x, y]
 
     rotation_matrix = calculate_rotation_matrix_between_3d_vectors(direction_vector, np.array([0, 0, 1]))
 
@@ -353,11 +373,10 @@ def symmetry_based_registration(image, skull, skull_bounding_box, throat_coordin
         skull_to_study = np.copy(skull)
 
     cross_correlation_list = []
-    increment = 0
     diff = 1
 
     correct_angle = 0
-    for i in range(0, number_of_iterations*2):
+    for increment, i in enumerate(range(number_of_iterations*2)):
 
         angle = float(-number_of_iterations + i) / 180 * math.pi
 
@@ -398,8 +417,6 @@ def symmetry_based_registration(image, skull, skull_bounding_box, throat_coordin
         if diff > normalized_value:
             correct_angle = angle
             diff = normalized_value
-
-        increment += 1
 
     image_copy = np.copy(image)
     skull_copy = np.copy(skull)
@@ -460,145 +477,116 @@ def apply_rotation_pipeline(image, local_triangle_angle, rotation_matrix, local_
     return image
 
 
-def registration_computation(moving_image, reference_image, moving_mask=None, reference_mask=None,
-                             is_translation_needed=True, is_rotation_needed=False, verbose=False):
-    """registration calculation based on a mask
+def set_transform_metric(method, metric):
+    """Sets transformation metric for registration method
 
     Args:
-        moving_image (numpy.ndarray):    image to register
-        reference_image (numpy.ndarray): reference image
-        moving_mask (numpy.ndarray):     moving image calculation mask
-        reference_mask (numpy.ndarray):  reference image calculation mask
-        is_translation_needed (bool):    boolean for translation transformation
-        is_rotation_needed (bool):       boolean for rotation transformation
-        verbose (bool):                  boolean for registration progression output
+        method (Sitk.ImageRegistrationMethod): registration computation method (sitk)
+        metric (str):                          cc, ants, mi or msq
 
     Returns:
-        (Sitk.TranslationTransform, Sitk.CenteredTransformInitializer) computed translation transform, computed rotation
-         transform
+        (Sitk.ImageRegistrationMethod): registration computation method (sitk)
+    """
+    if metric == "cc":
+        method.SetMetricAsCorrelation()
+    elif metric == "ants":
+        method.SetMetricAsANTSNeighborhoodCorrelation(2)
+    elif metric == "mi":
+        method.SetMetricAsJointHistogramMutualInformation()
+    elif metric == "msq":
+        method.SetMetricAsMeanSquares()
 
+    return method
+
+
+def set_registration_parameters(method, metric, transform_type="translation", ref_image=None, moving_image=None,
+                                dimension=3):
+    """defines sitk registration parameters based on given metric and transform type
+
+    Args:
+        method (Sitk.ImageRegistrationMethod): method used for registration computation
+        metric (str):                          metric (cc, ants, mi or  msq)
+        transform_type (str):                  translation or rotation
+        ref_image (Sitk.GetImageFromArray):    ref image (sitk)
+        moving_image (Sitk.GetImageFromArray): moving image (sitk)
+        dimension (int):                       nb of dimensions
+
+    Returns:
+        (Sitk.ImageRegistrationMethod): defined method
     """
 
-    # Conversion into ITK format images
-    fixed_image_itk = Sitk.GetImageFromArray(reference_image.data)
-    moving_image_itk = Sitk.GetImageFromArray(moving_image.data)
+    # 1 ---> METRIC
+    method = set_transform_metric(method, metric)
 
-    if moving_mask is not None and reference_mask is not None:
-        fixed_mask_itk = Sitk.GetImageFromArray(reference_mask.data)
-        moving_mask_itk = Sitk.GetImageFromArray(moving_mask.data)
+    # 2 ---> INTERPOLATOR
+    method.SetInterpolator(Sitk.sitkLinear)
+
+    # 3 ---> OPTIMIZER - 4 ---> TRANSFORMATION
+    if transform_type == "translation":
+        method.SetOptimizerAsRegularStepGradientDescent(learningRate=1.0,
+                                                        minStep=1e-3,
+                                                        numberOfIterations=500,
+                                                        gradientMagnitudeTolerance=1e-8)
+        transform = Sitk.TranslationTransform(dimension)
     else:
-        fixed_mask_itk = None
-        moving_mask_itk = None
-
-    # Initializing transformations
-    if is_translation_needed:
-        calculated_translation_transformation = Sitk.TranslationTransform(fixed_image_itk.GetDimension())
-    else:
-        calculated_translation_transformation = None
-    if is_rotation_needed:
-        calculated_rotation_transformation = \
-            Sitk.CenteredTransformInitializer(fixed_image_itk,
-                                              moving_image_itk,
-                                              Sitk.Euler3DTransform(),
-                                              Sitk.CenteredTransformInitializerFilter.GEOMETRY)
-    else:
-        calculated_rotation_transformation = None
-
-    if is_translation_needed:
-        # --------------------------------------------------
-        # ------------ INITIAL TRANSLATION PART ------------
-        # --------------------------------------------------
-        # Start of registration declaration
-        translation_registration_method = Sitk.ImageRegistrationMethod()
-
-        # 1 ---> METRIC
-        translation_registration_method.SetMetricAsCorrelation()
-        # translation_registration_method.SetMetricAsANTSNeighborhoodCorrelation(2)
-        # translation_registration_method.SetMetricAsJointHistogramMutualInformation()
-        # translation_registration_method.SetMetricAsMeanSquares()
-
-        # 2 ---> OPTIMIZER
-        translation_registration_method.SetOptimizerAsRegularStepGradientDescent(learningRate=10.0,
-                                                                                 minStep=1e-3,
-                                                                                 numberOfIterations=50,
-                                                                                 gradientMagnitudeTolerance=1e-4)
-
-        # 3 ---> INTERPOLATOR
-        translation_registration_method.SetInterpolator(Sitk.sitkLinear)
+        method.SetOptimizerAsRegularStepGradientDescent(learningRate=1e-3,
+                                                        minStep=1e-5,
+                                                        numberOfIterations=50,
+                                                        gradientMagnitudeTolerance=1e-6)
 
         # 4 ---> TRANSFORMATION
-        tx = Sitk.TranslationTransform(fixed_image_itk.GetDimension())
-        translation_registration_method.SetInitialTransform(tx)
+        transform = Sitk.CenteredTransformInitializer(ref_image,
+                                                      moving_image,
+                                                      Sitk.Euler3DTransform(),
+                                                      Sitk.CenteredTransformInitializerFilter.GEOMETRY)
 
-        # MASK BASED METRIC CALCULATION
-        if moving_mask is not None and reference_mask is not None:
-            translation_registration_method.SetMetricFixedMask(fixed_mask_itk)
-            translation_registration_method.SetMetricMovingMask(moving_mask_itk)
+    method.SetInitialTransform(transform)
 
-        # Registration execution
+    return method
 
-        if verbose:
-            translation_registration_method.AddCommand(Sitk.sitkIterationEvent,
-                                                       lambda: command_iteration(translation_registration_method))
-        calculated_translation_transformation = translation_registration_method.Execute(fixed_image_itk,
-                                                                                        moving_image_itk)
 
-        print("Translation :", calculated_translation_transformation)
+def registration_computation(moving_image, ref_image, transform_type="rotation", metric="cc", moving_mask=None,
+                             ref_mask=None, verbose=False):
+    """computes transform between two images based on both metric and masks (optional)
 
-        # Applying the first transformation to the first volume/mask
-        if moving_mask is not None and reference_mask is not None:
-            moving_mask_itk = Sitk.Resample(moving_mask_itk, fixed_mask_itk, calculated_translation_transformation,
-                                            Sitk.sitkNearestNeighbor, 0.0, fixed_image_itk.GetPixelIDValue())
-        moving_image_itk = Sitk.Resample(moving_image_itk, fixed_image_itk, calculated_translation_transformation,
-                                         Sitk.sitkLinear, 0.0,
-                                         fixed_image_itk.GetPixelIDValue())
+    Args:
+        moving_image (np.ndarray): image to register
+        ref_image (np.ndarray):    reference image
+        transform_type (str):      either rotation or transformation
+        metric (str):              cc: cross-correlation, ants: ANTS-cc, mi: mutual information, msq: mean square diff
+        moving_mask (np.ndarray):  mask-based registration image to register
+        ref_mask (np.ndarray):     mask-based registration image to register on
+        verbose (bool):            False: no output but the result, True: prints each iteration metric
 
-    if is_rotation_needed:
-        # --------------------------------------------------------------
-        # ------------ SECONDARY  ROTATION/TRANSLATION PART ------------
-        # --------------------------------------------------------------
-        # Start of registration declaration
-        rotation_registration_method = Sitk.ImageRegistrationMethod()
+    Returns:
+        (Sitk.Transform): computed transformation
+    """
+    # itk image conversion
+    ref_image_itk = Sitk.GetImageFromArray(ref_image)
+    moving_image_itk = Sitk.GetImageFromArray(moving_image)
 
-        # 1 ---> METRIC
-        # rotation_registration_method.SetMetricAsMeanSquares()
-        rotation_registration_method.SetMetricAsCorrelation()
-        # rotation_registration_method.SetMetricAsJointHistogramMutualInformation()
+    # Start of registration declaration
+    registration_method = Sitk.ImageRegistrationMethod()
 
-        # 2 ---> OPTIMIZER
-        rotation_registration_method.SetOptimizerAsRegularStepGradientDescent(learningRate=1e-3,
-                                                                              minStep=1e-5,
-                                                                              numberOfIterations=50,
-                                                                              gradientMagnitudeTolerance=1e-6)
+    # Setting needed parameters for registration
+    registration_method = set_registration_parameters(registration_method, metric, transform_type, ref_image_itk,
+                                                      moving_image_itk, dimension=moving_image.ndim)
 
-        # 3 ---> INTERPOLATOR
-        rotation_registration_method.SetInterpolator(Sitk.sitkLinear)
+    # Mask-based registration computation ?
+    if moving_mask is not None and ref_mask is not None:
+        registration_method.SetMetricFixedMask(Sitk.GetImageFromArray(ref_mask))
+        registration_method.SetMetricMovingMask(Sitk.GetImageFromArray(moving_mask))
 
-        # 4 ---> TRANSFORMATION
-        tx = Sitk.CenteredTransformInitializer(fixed_image_itk,
-                                               moving_image_itk,
-                                               Sitk.Euler3DTransform(),
-                                               Sitk.CenteredTransformInitializerFilter.GEOMETRY)
+    # Registration execution
+    if verbose:
+        registration_method.AddCommand(Sitk.sitkIterationEvent, lambda: command_iteration(registration_method))
 
-        rotation_registration_method.SetInitialTransform(tx)
+    calculated_transform = registration_method.Execute(ref_image_itk, moving_image_itk)
 
-        # MASK BASED METRIC CALCULATION
-        if moving_mask is not None and reference_mask is not None:
-            rotation_registration_method.SetMetricFixedMask(fixed_mask_itk)
-            rotation_registration_method.SetMetricMovingMask(moving_mask_itk)
+    print("Transform :", calculated_transform)
+    print("Transform :", calculated_transform.GetParameters())
 
-        # Registration execution
-        if verbose:
-            rotation_registration_method.AddCommand(Sitk.sitkIterationEvent, lambda: command_iteration(
-                rotation_registration_method))  # Verbose ?
-        calculated_rotation_transformation = rotation_registration_method.Execute(fixed_image_itk, moving_image_itk)
-
-    if is_translation_needed and is_rotation_needed:
-        return calculated_translation_transformation, calculated_rotation_transformation
-    elif is_rotation_needed:
-        return calculated_rotation_transformation
-    elif is_translation_needed:
-        return calculated_translation_transformation
+    return calculated_transform
 
 
 def apply_itk_transformation(image, transformation, interpolation_type="linear", ref_img=None):
@@ -629,7 +617,3 @@ def apply_itk_transformation(image, transformation, interpolation_type="linear",
     image = Sitk.GetArrayFromImage(image_itk)
 
     return np.copy(image)
-
-
-if __name__ == "__main__":
-    pass

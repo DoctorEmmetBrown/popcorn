@@ -55,4 +55,4 @@ def conversion_from_list_of_files(list_of_files, output_folder, min_value=0., ma
         if padding_size != 0:
             data = padding_image(data, padding_size)
         converted_data = conversion_from_float32_to_uint16(data, min_value, max_value)
-        save_tif_image(converted_data, output_folder + '/' + base_name + ".tif", bit=16)
+        save_tif_image(converted_data, output_folder + '/' + base_name, bit=16)

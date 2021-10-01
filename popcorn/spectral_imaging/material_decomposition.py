@@ -17,9 +17,11 @@ def loading_bar(iteration, total_iterations):
 
     """
     percent = "{0:.1f}".format(100 * (float(iteration) / float(total_iterations)))
+
     filled_length = int(100 * float(iteration) // float(total_iterations))
+
     bar = '#' * filled_length + '-' * (100 - filled_length)
-    print("\r |" + bar + "| " + percent + "% ", end="", flush=True)
+    print("\r |" + bar + "| " + percent + "% ", end="")
     # Print New Line on Complete
     sys.stdout.flush()
     if iteration == total_iterations:
@@ -56,6 +58,16 @@ def retrieve_material_and_energy_from_folder_name(folder_name):
 
 
 def get_attenuation_from_kedge(attenuation_material="Au", kedge_material="I", above_or_below="above"):
+    """returns linear attenuation value depending on the given material and energy (above/below k-edge)
+
+    Args:
+        attenuation_material (str): material we need the attenuation of
+        kedge_material (str):       material whose k-edge we used for above/below acquisitions
+        above_or_below (str):       above or below given material k-edge
+
+    Returns:
+        (float): linear attenuation value
+    """
     indices_dict = {
         "water": 0,
         "h2o": 0,
@@ -106,6 +118,7 @@ def material_decomposition_pipeline(radix):
     checking_folders = glob.glob(radix + "*/")
     list_of_input_folders = []
     list_of_min_max = []
+    # Checking all potential folders corresponding to given radix
     for folder in checking_folders:
         material, energy = retrieve_material_and_energy_from_folder_name(folder)
         if material is not None and material not in list_of_materials:
@@ -113,36 +126,41 @@ def material_decomposition_pipeline(radix):
         if material is not None and energy is not None:
             list_of_energies.append((energy, material))
             list_of_input_folders.append(folder)
-            list_of_min_max.append((float(folder.split("_")[-2]), float(folder.split("_")[-1].replace("\\", "").replace("/", ""))))
+            list_of_min_max.append((float(folder.split("_")[-2]),
+                                    float(folder.split("_")[-1].replace("\\", "").replace("/", ""))))
 
     print("list of energies :", list_of_energies)
     attenuations_array = np.zeros((len(list_of_energies), len(list_of_materials) + 1))
 
-    energy_index = 0
     material_index = 0
     print("materials :", list_of_materials)
-    for above_or_below, kedge_material in list_of_energies:
+
+    # 1- Creating and filling in attenuation array for material decomposition
+    for energy_index, (above_or_below, kedge_material) in enumerate(list_of_energies):
+        # Retrieving linear attenuation for input materials
         for attenuation_material in list_of_materials:
             attenuations_array[energy_index, material_index] = \
                 get_attenuation_from_kedge(attenuation_material, kedge_material, above_or_below=above_or_below)
 
             material_index += 1
 
+        # Retrieving linear attenuation for water
         attenuations_array[energy_index, len(list_of_materials)] = \
             get_attenuation_from_kedge("water", kedge_material, above_or_below=above_or_below)
-
         material_index = 0
-        energy_index += 1
     print("attenuations array :", attenuations_array)
 
-    list_of_densities = []
+    # 2- Creating a list of material density for material decomposition
+    list_of_densities = [
+        densities_dict[material.lower()] for material in list_of_materials
+    ]
 
-    for material in list_of_materials:
-        list_of_densities.append(densities_dict[material.lower()])
     list_of_densities.append(densities_dict["water"])
     densities = np.array(list_of_densities)
     print("densities :", densities)
 
+    # We'll now proceed to the material decomposition one image at a time: we create the list of files for each
+    # acquisition -> becomes a list of list of files (could be written better)
     list_of_list_of_filenames = []
     nb_of_filenames = []
     for folder in list_of_input_folders:
@@ -152,12 +170,12 @@ def material_decomposition_pipeline(radix):
         list_of_list_of_filenames.append(current_list_of_filenames)
 
     total_filenames_nb = min(nb_of_filenames)
-    print("Nb of filenames :", total_filenames_nb)
     reference_image = input_output.open_image(list_of_list_of_filenames[0][0])
     reference_width, reference_height = reference_image.shape
 
     images = np.zeros((len(list_of_energies), reference_width, reference_height))
 
+    # We create output folders
     material_decomposition_folder = radix.split("*")[0] + "material_decomposition/"
     input_output.create_directory(material_decomposition_folder)
     list_of_output_folders = []
@@ -167,23 +185,20 @@ def material_decomposition_pipeline(radix):
     input_output.create_directory(material_decomposition_folder + "water_decomposition/")
     list_of_output_folders.append(material_decomposition_folder + "water_decomposition/")
 
-    for slice_nb in range(0, total_filenames_nb):
+    # 3- Material decomposition
+    for slice_nb in range(total_filenames_nb):
         loading_bar(slice_nb, total_filenames_nb - 1)
 
-        for material_index in range(0, len(list_of_input_folders)):
+        for material_index in range(len(list_of_input_folders)):
             image = input_output.open_image(list_of_list_of_filenames[material_index][slice_nb])
-            converted_image = resampling.conversion_from_uint16_to_float32(image, list_of_min_max[material_index][0], list_of_min_max[material_index][1])
+            converted_image = resampling.conversion_from_uint16_to_float32(image, list_of_min_max[material_index][0],
+                                                                           list_of_min_max[material_index][1])
             images[material_index, :, :] = converted_image
-        # for material_index in range(0, len(list_of_materials)):
-        #     images[material_index * 2, :, :] = \
-        #         input_output.open_image(list_of_list_of_filenames[material_index][slice_nb])
-        #     images[len(list_of_materials) + material_index, :, :] = \
-        #         input_output.open_image(list_of_list_of_filenames[len(list_of_materials) + material_index][slice_nb])
 
         concentration_maps = decomposition_equation_resolution(images, densities, attenuations_array,
                                                                volume_fraction_hypothesis=False, verbose=False)
 
-        for material_index in range(0, len(list_of_output_folders)):
+        for material_index in range(len(list_of_output_folders)):
             input_output.save_tif_image(concentration_maps[material_index, :, :],
                                         list_of_output_folders[material_index] + '%4.4d' % slice_nb + ".tif")
 
@@ -276,11 +291,8 @@ def decomposition_equation_resolution(images, densities, material_attenuations, 
 
     system_2d_matrix[0:number_of_energies, :] = material_attenuations
     vector_2d_matrix = np.ones((number_of_energies + volume_fraction_hypothesis * 1, images[0, :].size))
-    energy_index = 0
-    for image in images:
+    for energy_index, image in enumerate(images):
         vector_2d_matrix[energy_index] = image.flatten()
-        energy_index += 1
-
     vector_2d_matrix = np.transpose(vector_2d_matrix)
 
     solution_matrix = None
@@ -288,28 +300,28 @@ def decomposition_equation_resolution(images, densities, material_attenuations, 
         system_3d_matrix = np.repeat(system_2d_matrix[np.newaxis, :], images[0, :].size, axis=0)
         solution_matrix = np.linalg.solve(system_3d_matrix, vector_2d_matrix)
     else:
-        for vector in vector_2d_matrix:
+        for nb, vector in enumerate(vector_2d_matrix):
 
-            Q, R = np.linalg.qr(system_2d_matrix)  # qr decomposition of A
-            Qb = np.dot(Q.T, vector)  # computing Q^T*b (project b onto the range of A)
-            solution_vector = np.linalg.solve(R, Qb)  # solving R*x = Q^T*b
-            # solution_vector = np.linalg.lstsq(system_2d_matrix, vector, rcond=None)
+            # Q, R = np.linalg.qr(system_2d_matrix)  # qr decomposition of A
+            # Qb = np.dot(Q.T, vector)  # computing Q^T*b (project b onto the range of A)
+            # solution_vector = np.linalg.solve(R, Qb)  # solving R*x = Q^T*b
+            solution_vector = np.linalg.lstsq(system_2d_matrix, vector, rcond=None)
 
             if solution_matrix is not None:
-                loading_bar(solution_matrix.size, images[0, :].size)
+                loading_bar(nb, vector_2d_matrix.size)
                 if solution_matrix.ndim == 2:
-                    solution_matrix = np.vstack([solution_matrix, solution_vector])
+                    solution_matrix = np.vstack([solution_matrix, solution_vector[0]])
                 else:
-                    solution_matrix = np.stack((solution_matrix, solution_vector), axis=0)
+                    solution_matrix = np.stack((solution_matrix, solution_vector[0]), axis=0)
             else:
-                solution_matrix = solution_vector
-
+                solution_matrix = solution_vector[0]
     if images.ndim == 3:
         concentration_maps = np.zeros((number_of_materials, images[0, :].shape[0], images[0, :].shape[1]))
     else:
-        concentration_maps = np.zeros((number_of_materials, images[0, :].shape[0], images[0, :].shape[1], images[0, :].shape[2]))
+        concentration_maps = np.zeros((number_of_materials, images[0, :].shape[0], images[0, :].shape[1],
+                                       images[0, :].shape[2]))
 
-    for material_index in range(0, len(densities)):
+    for material_index in range(len(densities)):
         solution_matrix[:, material_index] = (solution_matrix[:, material_index] * densities[material_index] * 1000.0)\
             .astype(np.float32)
         concentration_maps[material_index, :] = np.reshape(solution_matrix[:, material_index], images[0, :].shape)
@@ -319,7 +331,6 @@ def decomposition_equation_resolution(images, densities, material_attenuations, 
 if __name__ == '__main__':
 
     material_decomposition_pipeline("C:\\Users\\ctavakol\\Desktop\\test_material_decomposition\\BiColor_Cell_Pellet__")
-
 
     """radix = "BiColor_B1toB9__"
     mainFolder = "/data/visitor/md1237/id17/voltif/"

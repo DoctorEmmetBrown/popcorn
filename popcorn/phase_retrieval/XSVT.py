@@ -1,25 +1,39 @@
-import time
-
 import numpy as np
 import multiprocessing as mp
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
 from itertools import product, chain
 from scipy.interpolate import interp2d
 from functools import partial
-from scipy.ndimage.filters import median_filter, convolve
+from scipy.ndimage.filters import median_filter
 import frankoChellappa as fc
 from OpticalFlow2020 import kottler, LarkinAnissonSheppard
 
 
 def processProjectionXSVT(experiment):
+    """
+    Calls start_tracking() which manages the calling of speckle_vector_tracking().
+    Applies median filter if required and performs integration of displacement images.
+
+    :param experiment: gets all the information related to the desired experiment.
+
+    Returns:
+        Diff_x: displacement in x (in terms of pixels)
+        Diff_y: displacement in y (in terms of pixels)
+        Transmission: the transmission image (I/I0)
+        Darkfield: the darkfield image
+        DPhi_x: displacement in x (radians)
+        DPhy_y: displacement in y (radians)
+        phiFC: Frankot-Chelappa integrated phase image
+        phiK: Kottler integrated phase image
+        phiLA: Larkin-Anisson-Sheppard integrated phase image
+    """
 
     nb_images, px_rows, px_cols = experiment.sample_images.shape
-    diff_x, diff_y, transmission, darkfield = start_tracking(experiment.sample_images, experiment.reference_images, max_shift=experiment.max_shift)
+    diff_x, diff_y, transmission, darkfield = start_tracking(experiment.sample_images, experiment.reference_images, max_shift=experiment.max_shift, window=experiment.XSVT_Nw)
 
-    if experiment.LCS_median_filter !=0:
-        diff_x = median_filter(diff_x, size=experiment.LCS_median_filter)
-        diff_y = median_filter(diff_y, size=experiment.LCS_median_filter)
+    if experiment.XSVT_median_filter != 0:
+        diff_x = median_filter(diff_x, size=experiment.XSVT_median_filter)
+        diff_y = median_filter(diff_y, size=experiment.XSVT_median_filter)
 
     dphix = diff_x * experiment.getk() * (experiment.pixel / experiment.dist_object_detector)
     dphiy = diff_y * experiment.getk() * (experiment.pixel / experiment.dist_object_detector)
@@ -40,10 +54,10 @@ def processProjectionXSVT(experiment):
         phiK = phiK[padSize:padSize + px_rows, padSize:padSize + px_cols]
         phiLA = phiLA[padSize:padSize + px_rows, padSize:padSize + px_cols]
 
-    return {"Diff_x" : diff_x, "Diff_y" : diff_y, "Transmission" : transmission, "Darkfield" : darkfield, "DPhi_x" : dphix, "DPhi_y" : dphiy, 'phiFC': phiFC.real, 'phiK': phiK.real,'phiLA': phiLA.real}
+    return {"Diff_x": diff_x, "Diff_y": diff_y, "Transmission": transmission, "Darkfield": darkfield, "DPhi_x": dphix, "DPhi_y": dphiy, 'phiFC': phiFC.real, 'phiK': phiK.real, 'phiLA': phiLA.real}
 
 
-def start_tracking(Isample, Iref, max_shift):
+def start_tracking(Isample, Iref, max_shift, window):
     """
     Compare speckle images with sample (Isample) and w/o sample
     (Iref) pixel by pixel.
@@ -55,6 +69,7 @@ def start_tracking(Isample, Iref, max_shift):
     :param Isample: A list  of measurements, with the sample aligned but speckles shifted
     :param Iref: A list of empty speckle measurements with the same displacement as Isample.
     :param max_shift: Do not allow shifts larger than this number of pixels
+    :param window: window to consider when calculating the correlation
 
     Returns dx, dy
     """
@@ -68,14 +83,18 @@ def start_tracking(Isample, Iref, max_shift):
 
     multiprocessing = True
 
-    window = 1  # odd number >1 for mixed-XSVT, 1 for XSVT
-
+    # pm = number of pixels in window surrounding the central pixel in each direction (up, down, left, right)
     pm = int((window - 1) / 2) if window >= 1 else 0
+
+    # Pad Ir with max_shift+pm pixels, pad Is with pm pixels
+    # This is to ensure that dx and dy have the same dimensions as original images
     paddedIref = np.array([np.pad(Iref[im, :, :], max_shift + pm, 'edge') for im in range(0, nb_images)])
     paddedIsample = np.array([np.pad(Isample[im, :, :], pm, 'edge') for im in range(0, nb_images)])
 
+    # Multiprocessing will use all available cores
+    # speckle_vector_tracking() is dispatched to cores as they become available until end of loop
     if multiprocessing:
-        print("Multiprocessing on")
+        print("Multiprocessing on: " + str(mp.cpu_count()) + " cores")
         paramlist = list(product(i, j))
         pool = mp.Pool(mp.cpu_count())
         # Need to create partial function because multiprocessing.map only accepts one input parameter
@@ -86,7 +105,9 @@ def start_tracking(Isample, Iref, max_shift):
         tr = list(chain(*result))[2::4]
         df = list(chain(*result))[3::4]
         pool.close()
+    # If multiprocessing not used, simple for-loop is used
     else:
+        print("Multiprocessing off")
         dx = []
         dy = []
         tr = []
@@ -121,7 +142,8 @@ def speckle_vector_tracking(sample_image, padded_ref_image, shift, w, params):
     :param padded_ref_image: A list of empty speckle measurements with the same displacement as Isample, padded
     on each side with number of pixels = shift so that resulting image is of the same size as input images
     :param shift: Number of pixels to consider when comparing sample_image with padded_ref_image
-    :params: Size of sample_image
+    :param params: row, column
+    :param w: window
 
     Returns diff_x, diff_y
     """
@@ -131,40 +153,36 @@ def speckle_vector_tracking(sample_image, padded_ref_image, shift, w, params):
 
     nb, rows, cols = padded_ref_image.shape
     roi = 2 * shift + 1
-    pm = int((w - 1) / 2) if w >= 1 else 0
+    pm = int((w - 1) / 2) if w > 1 else 0
 
     if j == 0:
-        print(i)
+        try:
+            process = mp.current_process()
+            print("Process ID: " + str(process.name) + "; Row: " + str(i))
+        except:
+            print("Row: " + str(i))
 
-    # Vector of Isample intensity values for pixel (i, j)
-    v_sample = sample_image[:, i:i+w, j:j+w]
-    v_ref = np.array(padded_ref_image[:, i:i+2*pm+roi, j:j+2*pm+roi])
-
-    ## To have more points for the polynomial surface fit, we interpolate v_ref at every half-pixel
-    r = c = np.linspace(0, 2*shift+2*pm, roi+2*pm)
-    n = 1  # We will interpolate v_ref to have values for sub-pixels of width 1/n*pixel
-    #rs = cs = np.linspace(r[0], r[-1], int(n * r[-1] + 1))
-    px2subpx = [interp2d(c, r, v_ref[n, :, :]) for n in range(nb)]
-    #v_ref_s = [f(cs, rs) for f in px2subpx]
-    v_ref_s = v_ref
-    v_ref = np.array(v_ref_s)
+    v_sample = sample_image[:, i+pm, j+pm]
+    # Sub-matrix of Isample intensity values with size window**2
+    roi_sample = sample_image[:, i:i+w, j:j+w]
+    # Sub-matrix of Iref intensity values with size (window+2*shift)**2
+    roi_ref = np.array(padded_ref_image[:, i:i+2*pm+roi, j:j+2*pm+roi])
 
     # Determine the correlation between v_sample and each value in v_ref
-    pearson_map = np.zeros((v_ref.shape[1] - 2*pm, v_ref.shape[2] - 2*pm))
-    for l, m in product(range(v_ref.shape[1] - 2*pm), range(v_ref.shape[2] - 2*pm)):
-        if np.std(v_ref[:, l:l + w, m:m + w]) == 0 or np.std(v_sample) == 0:
+    pearson_map = np.zeros((roi_ref.shape[1] - 2*pm, roi_ref.shape[2] - 2*pm))
+    for l, m in product(range(roi_ref.shape[1] - 2*pm), range(roi_ref.shape[2] - 2*pm)):
+        if np.std(roi_ref[:, l:l + w, m:m + w]) == 0 or np.std(roi_sample) == 0:
             pearson_map[l][m] = 0.
         else:
-            #pearson_map[l][m] = pearson_correlation(v_sample, v_ref[:, l, m])
-            pearson_map[l][m] = nc(v_sample, v_ref[:, l:l + w, m:m + w])
+            pearson_map[l][m] = nc(roi_sample, roi_ref[:, l:l + w, m:m + w])
 
     # Fit a polynomial surface to pearson_map and find the maximum correlation peak
     fit_params = polyfit2d(pearson_map)
     diffy, diffx = find_max(fit_params)
 
     # Give the shift in terms of displacement (in terms of pixels) of v_sample relative to v_ref
-    diff_x = ((pearson_map.shape[0]-1)/2. - diffx) * (1. / n)
-    diff_y = ((pearson_map.shape[0]-1)/2. - diffy) * (1. / n)
+    diff_x = ((pearson_map.shape[0]-1)/2. - diffx)
+    diff_y = ((pearson_map.shape[0]-1)/2. - diffy)
 
     plot = False
 
@@ -186,10 +204,10 @@ def speckle_vector_tracking(sample_image, padded_ref_image, shift, w, params):
         fit = a[0] * IS ** 2 + a[1] * JS ** 2 + a[2] * IS * JS + a[3] * IS + a[4] * JS + a[5]
         fit = fit.reshape((len(is0), len(js0)))
 
-        imesh = [(i0[-1]/2 - v) * (1. / n) for v in imesh]
-        jmesh = [(j0[-1]/2 - v) * (1. / n) for v in jmesh]
-        iss = [(is0[-1]/2 - v) * (1. / n) for v in iss]
-        jss = [(js0[-1]/2 - v) * (1. / n) for v in jss]
+        imesh = [(i0[-1]/2 - v) for v in imesh]
+        jmesh = [(j0[-1]/2 - v) for v in jmesh]
+        iss = [(is0[-1]/2 - v) for v in iss]
+        jss = [(js0[-1]/2 - v) for v in jss]
 
         fig = plt.figure()
         ax = fig.gca(projection='3d')
@@ -203,6 +221,10 @@ def speckle_vector_tracking(sample_image, padded_ref_image, shift, w, params):
         plt.colorbar(surf)
         plt.show()
 
+    # We need to interpolate roi_ref in order to obtain Iref vector corresponding to max correlation
+    r = c = np.linspace(0, 2*shift+2*pm, roi+2*pm)
+    px2subpx = [interp2d(c, r, roi_ref[n, :, :]) for n in range(nb)]
+
     v_ref_shifted = [f(diffx, diffy) for f in px2subpx]
     transn = calc_transmission(v_sample, v_ref_shifted)
     dark = calc_df(transn, v_sample, v_ref_shifted)
@@ -210,36 +232,18 @@ def speckle_vector_tracking(sample_image, padded_ref_image, shift, w, params):
     return diff_x, diff_y, transn, dark
 
 
-def pearson_correlation(x, y):
+def nc(x, y):
     """
-    Calculate the Pearson correlation of two vectors, x and y. The Pearson correlation
-    coefficient lies between -1 and 1, where p = 1 means that x and y are the same,
-    p = -1 corresponds to inverse correlation and p = 0 means that there is no correlation
+    Calculate the Pearson correlation of two matrices, x and y. The Pearson correlation
+    coefficient lies between -1 and 1, where r = 1 means that x and y are the same,
+    r = -1 corresponds to inverse correlation and p = 0 means that there is no correlation
     between x and y.
 
-    Note: this function is faster than scipy.stats.pearsonr due to the vectorised matrix multiplication
-    (numpy.matmul).
+    :param x: Matrix of intensity values corresponding to the window (i-(Nw-1)/2:i+(Nw-1)/2, j-(Nw-1)/2:j+(Nw-1)/2) of Isample
+    :param y: Matrix of intensity values corresponding to the window (i-(Nw-1)/2+m:i+(Nw-1)/2+m, j-(Nw-1)/2+l:j+(Nw-1)/2+l) of Iref
 
-    :param x: Vector of intensity values corresponding pixel to (i, j) of Isample
-    :param y: Vector of intensity values corresponding to pixel (i + m, j + l) of Iref
-
-    Returns p
+    Returns r
     """
-    xv = x - x.mean(axis=0)
-    yv = y - y.mean(axis=0)
-    xvss = (xv * xv).sum(axis=0)
-    yvss = (yv * yv).sum(axis=0)
-
-    # bound the values to -1 to 1 in the event of precision issues
-    if np.sqrt(np.outer(xvss, yvss)) == 0:
-        p = 0.
-    else:
-        result = np.matmul(xv.transpose(), yv) / np.sqrt(np.outer(xvss, yvss))
-        p = np.maximum(np.minimum(result, 1.0), -1.0)
-    return p
-
-
-def nc(x, y):
     xv = x - np.mean(x)
     yv = y - np.mean(y)
 
@@ -289,10 +293,29 @@ def find_max(a):
     return i0, j0
 
 def calc_transmission(vs, vr):
+    """
+    Calculate the transmission image.
+
+    :param vs: vector of sample intensity values
+    :param vr: vector of reference intensity values (shifted corresponding to max correlation)
+
+    Returns np.mean(vs) / np.mean(vr) => transmission image
+    """
+
     return np.mean(vs) / np.mean(vr)
 
 
 def calc_df(tr, vs, vr):
+    """
+    Calculate the darkfield image.
+
+    :param tr: vector of transmission values
+    :param vs: vector of sample intensity values
+    :param vr: vector of reference intensity values (shifted corresponding to max correlation)
+
+    Returns (1/tr) * np.std(vs) / np.std(vr) => darkfield image
+    """
+
     return (1/tr) * np.std(vs) / np.std(vr)
 
 
