@@ -5,7 +5,7 @@ Created on Mon Mar 15 13:46:27 2021.
 
 @author: quenot
 """
-# from saveParameters import saveParameters
+from saveParameters import saveParameters
 from PhaseRetrievalClasses import Phase_Retrieval_Experiment
 import time
 import datetime
@@ -24,6 +24,10 @@ def launchPhaseRetrieval(phase_retrieval_experiment, do):
     processing_time['XSVT']=0
     
     if do['LCS']:
+        time0=time.time()
+        phase_retrieval_experiment.process_LCS()
+        processing_time['LCS']=time.time()-time0
+    if do['LCS_Df']:
         time0=time.time()
         phase_retrieval_experiment.process_LCS_DF()
         processing_time['LCS']=time.time()-time0
@@ -63,18 +67,19 @@ def launchPhaseRetrieval(phase_retrieval_experiment, do):
 if __name__ == "__main__":
     
     # Parameters to tune
-    studied_case = 'ContrastPhantom' # name of the experiment we want to work on
+    studied_case = 'SourceSizeStudy' # name of the experiment we want to work on
     
     do={}
     do['LCS']=True
+    do['LCS_Df']=True
     do['MISTII_2']=False
     do['MISTII_1']=False
-    do['MISTI']=True
+    do['MISTI']=False
     do['UMPA']=False
     do['OF']=False
     do['Pavlov']=False
-    do['XSVT']=True
-    do['save_parameters']=False
+    do['XSVT']=False
+    do['save_parameters']=True
 
     phase_retrieval_experiment=Phase_Retrieval_Experiment(studied_case)
     # We create a folder for each retrieval test

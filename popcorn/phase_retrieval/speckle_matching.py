@@ -16,7 +16,7 @@ def processProjectionUMPA(experiment):
 
     nbImages, Nx, Ny= experiment.sample_images.shape
     
-    result = match_speckles(experiment.sample_images, experiment.reference_images, Nw=experiment.umpaNw, step=1, max_shift=experiment.max_shift, df=False)
+    result = match_speckles(experiment.sample_images, experiment.reference_images, Nw=experiment.umpaNw, step=1, max_shift=experiment.max_shift, df=True)
     dx=-result['dx']
     dy=-result['dy']
     thickness=result['T']

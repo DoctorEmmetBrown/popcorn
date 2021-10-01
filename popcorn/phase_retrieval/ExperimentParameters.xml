@@ -1,8 +1,8 @@
 <list_experiments>
     <experiment>
         <experiment_name>MoucheSimapAout2017</experiment_name>
-        <exp_folder>/Users/quenot/Data/SIMAP/MoucheSimapAout2017/selec16/</exp_folder>
-        <output_folder>/Users/quenot/Documents/PhaseRetrieval/Results/MoucheSimapAout2017/</output_folder>
+        <exp_folder>/Users/quenot/Data/SIMAP/MoucheSimapAout2017/Binedx2_Clean15/deconvolved0p9/</exp_folder>
+        <output_folder>/Users/quenot/Documents/PhaseRetrieval/Results/MoucheSimapAout2017Binedx2/</output_folder>
         <energy unit="keV">27</energy>
         <pixel unit="m">48e-6</pixel>
         <dist_object_detector unit="m">0.41</dist_object_detector>
@@ -10,12 +10,107 @@
         <delta>2.97e-7</delta>
         <beta>1.29e-9</beta>
         <source_size unit="um">2</source_size>
+        <detector_PSF unit="pix">0.9</detector_PSF>
+        <crop_on>False</crop_on>
+        <cropDebX unit="pix">100</cropDebX>
+        <cropDebY unit="pix">100</cropDebY>
+        <cropEndX unit="pix">700</cropEndX>
+        <cropEndY unit="pix">700</cropEndY>
+    </experiment>
+    
+    <experiment>
+        <experiment_name>Patte_XSVTTest</experiment_name>
+        <exp_folder>/Users/quenot/Data/ID17/Patte_XSVTTest/</exp_folder>
+        <output_folder>/Users/quenot/Documents/PhaseRetrieval/Results/Patte_XSVTTest/</output_folder>
+        <energy unit="keV">52</energy>
+        <pixel unit="m">6e-6</pixel>
+        <dist_object_detector unit="m">140</dist_object_detector>
+        <dist_source_object unit="m">6</dist_source_object>
+        <delta>2.97e-7</delta>
+        <beta>1.29e-9</beta>
+        <source_size unit="um">2</source_size>
         <detector_PSF unit="pix">1.2</detector_PSF>
         <crop_on>True</crop_on>
-        <cropDebX unit="pix">20</cropDebX>
-        <cropDebY unit="pix">160</cropDebY>
-        <cropEndX unit="pix">1520</cropEndX>
-        <cropEndY unit="pix">1660</cropEndY>
+        <cropDebX unit="pix">50</cropDebX>
+        <cropDebY unit="pix">500</cropDebY>
+        <cropEndX unit="pix">1100</cropEndX>
+        <cropEndY unit="pix">1250</cropEndY>
+    </experiment>
+    
+    <experiment>
+        <experiment_name>Alumette_Xenocs</experiment_name>
+        <exp_folder>/Users/quenot/Data/Xenocs_04022021/Alumette/60s/</exp_folder>
+        <output_folder>/Users/quenot/Documents/PhaseRetrieval/Results/Alumette_Xenocs/</output_folder>
+        <energy unit="keV">8</energy>
+        <pixel unit="m">75e-6</pixel>
+        <dist_object_detector unit="m">1.25</dist_object_detector>
+        <dist_source_object unit="m">0.550</dist_source_object>
+        <delta>5.0118E-06</delta>
+        <beta>1.3797E-08</beta>
+        <source_size unit="um">50</source_size>
+        <detector_PSF unit="pix">1.2</detector_PSF>
+        <crop_on>False</crop_on>
+        <cropDebX unit="pix">50</cropDebX>
+        <cropDebY unit="pix">500</cropDebY>
+        <cropEndX unit="pix">1100</cropEndX>
+        <cropEndY unit="pix">1250</cropEndY>
+    </experiment>
+    
+    <experiment>
+        <experiment_name>PolystyreneFoam</experiment_name>
+        <exp_folder>/Users/quenot/Data/md1217/PolystyreneFoam/</exp_folder>
+        <output_folder>/Users/quenot/Documents/PhaseRetrieval/Results/PolystyreneFoam/</output_folder>
+        <energy unit="keV">8</energy>
+        <pixel unit="m">75e-6</pixel>
+        <dist_object_detector unit="m">1.25</dist_object_detector>
+        <dist_source_object unit="m">0.550</dist_source_object>
+        <delta>5.0118E-06</delta>
+        <beta>1.3797E-08</beta>
+        <source_size unit="um">50</source_size>
+        <detector_PSF unit="pix">1.2</detector_PSF>
+        <crop_on>False</crop_on>
+        <cropDebX unit="pix">50</cropDebX>
+        <cropDebY unit="pix">500</cropDebY>
+        <cropEndX unit="pix">1100</cropEndX>
+        <cropEndY unit="pix">1250</cropEndY>
+    </experiment>
+    
+    <experiment>
+        <experiment_name>ContrastPhantom</experiment_name>
+        <exp_folder>/Volumes/LaCie/Data/contrastPhantom_33keV_23um_6p5mpropag/</exp_folder>
+        <output_folder>/Users/quenot/Documents/PhaseRetrieval/Results/ContrastPhantom/</output_folder>
+        <energy unit="keV">52</energy>
+        <pixel unit="m">6e-6</pixel>
+        <dist_object_detector unit="m">3.6</dist_object_detector>
+        <dist_source_object unit="m">140</dist_source_object>
+        <delta>5.0118E-06</delta>
+        <beta>1.3797E-08</beta>
+        <source_size unit="um">10</source_size>
+        <detector_PSF unit="pix">1.2</detector_PSF>
+        <crop_on>True</crop_on>
+        <cropDebX unit="pix">65</cropDebX>
+        <cropDebY unit="pix">600</cropDebY>
+        <cropEndX unit="pix">265</cropEndX>
+        <cropEndY unit="pix">2100</cropEndY>
+    </experiment>
+    
+    <experiment>
+        <experiment_name>Groseille</experiment_name>
+        <exp_folder>/Users/quenot/Data/md1217/Groseille/</exp_folder>
+        <output_folder>/Users/quenot/Documents/PhaseRetrieval/Results/Groseille/</output_folder>
+        <energy unit="keV">18</energy>
+        <pixel unit="m">5.8e-6</pixel>
+        <dist_object_detector unit="m">3</dist_object_detector>
+        <dist_source_object unit="m">140</dist_source_object>
+        <delta>2.97e-7</delta>
+        <beta>1.29e-9</beta>
+        <source_size unit="um">10</source_size>
+        <detector_PSF unit="pix">1.2</detector_PSF>
+        <crop_on>False</crop_on>
+        <cropDebX unit="pix">0</cropDebX>
+        <cropDebY unit="pix">0</cropDebY>
+        <cropEndX unit="pix">1000</cropEndX>
+        <cropEndY unit="pix">1000</cropEndY>
         
     </experiment>
     
@@ -41,16 +136,16 @@
     
     <experiment>
         <experiment_name>contrast_phantom_simulation_clinic</experiment_name>
-        <exp_folder>/Users/quenot/Documents/Simulations/CodePython_9042021/Results/Clinic_ContrastPhantom/RayTracing_20210409-142320/</exp_folder>
+        <exp_folder>/Users/quenot/Documents/Simulations/CodePython_9042021/Results/Clinic_ContrastPhantom/RayTracing_20210409-103934/</exp_folder>
         <output_folder>/Users/quenot/Documents/PhaseRetrieval/Results/contrast_phantom_simulation_clinic/</output_folder>
-        <energy unit="keV">18</energy>
+        <energy unit="keV">30</energy>
         <pixel unit="m">100e-6</pixel>
         <dist_object_detector unit="m">1</dist_object_detector>
         <dist_source_object unit="m">1</dist_source_object>
         <delta>3.49E-07</delta>
         <beta>3.57E-10</beta>
         <source_size unit="um">50</source_size>
-        <detector_PSF unit="pix">1.2</detector_PSF>
+        <detector_PSF unit="pix">0.9</detector_PSF>
         <crop_on>False</crop_on>
         <cropDebX unit="pix">0</cropDebX>
         <cropDebY unit="pix">0</cropDebY>
@@ -61,22 +156,63 @@
     
     <experiment>
         <experiment_name>TheoreticalStudy</experiment_name>
-        <exp_folder>/Users/quenot/Documents/Simulations/gitPARESIS/PARESIS/Results/TheoreticalStudy/Fresnel_20210429-115112/</exp_folder>
-        <output_folder>/Users/quenot/Documents/PhaseRetrieval/Results/TheoreticalStudy/</output_folder>
-        <energy unit="keV">18</energy>
-        <pixel unit="m">75e-6</pixel>
-        <dist_object_detector unit="m">0.8</dist_object_detector>
-        <dist_source_object unit="m">0.2</dist_source_object>
+        <exp_folder>/Users/quenot/Documents/Simulations/gitPARESIS/PARESIS/Results/SIMAP_ContrastPhantom/RayTracing_20210802-150922/</exp_folder>
+        <output_folder>/Users/quenot/Documents/PhaseRetrieval/Results/IlluminationStudy/</output_folder>
+        <energy unit="keV">27</energy>
+        <pixel unit="m">24e-6</pixel>
+        <dist_object_detector unit="m">1</dist_object_detector>
+        <dist_source_object unit="m">0.5</dist_source_object>
         <delta>3.49E-07</delta>
         <beta>3.57E-10</beta>
-        <source_size unit="um">20</source_size>
+        <source_size unit="um">8</source_size>
+        <detector_PSF unit="pix">0</detector_PSF>
+        <crop_on>False</crop_on>
+        <cropDebX unit="pix">10</cropDebX>
+        <cropDebY unit="pix">10</cropDebY>
+        <cropEndX unit="pix">-10</cropEndX>
+        <cropEndY unit="pix">-10</cropEndY>
+        
+    </experiment>
+    
+    
+    <experiment>
+        <experiment_name>SourceSizeStudy</experiment_name>
+        <exp_folder>/Users/quenot/Nextcloud/Simulations/gitPARESIS/PARESIS/Results/SIMAP_ContrastPhantom/RayTracing_20210818-143604/</exp_folder>
+        <output_folder>/Users/quenot/Documents/PhaseRetrieval/Results/SourceSizeStudy/</output_folder>
+        <energy unit="keV">30</energy>
+        <pixel unit="m">70e-6</pixel>
+        <dist_object_detector unit="m">0.5</dist_object_detector>
+        <dist_source_object unit="m">0.5</dist_source_object>
+        <delta>3.49E-07</delta>
+        <beta>3.57E-10</beta>
+        <source_size unit="um">75</source_size>
+        <detector_PSF unit="pix">1</detector_PSF>
+        <crop_on>False</crop_on>
+        <cropDebX unit="pix">10</cropDebX>
+        <cropDebY unit="pix">10</cropDebY>
+        <cropEndX unit="pix">-10</cropEndX>
+        <cropEndY unit="pix">-10</cropEndY>
+    </experiment>
+    
+    <experiment>
+        <experiment_name>Tomo_md1217</experiment_name>
+        <exp_folder>/data/visitor/md1217/id17/HA750_33keV_6um_SP_025_SD_Fe90_3layers__004__</exp_folder>
+        <output_folder>/data/visitor/md1217/id17/HA750_33keV_6um_SP_025_SD_Fe90_3layers__004__Retrieval/</output_folder>
+        <energy unit="keV">33</energy>
+        <pixel unit="m">6e-6</pixel>
+        <dist_object_detector unit="m">5.3</dist_object_detector>
+        <dist_source_object unit="m">140</dist_source_object>
+        <delta>3.49E-07</delta>
+        <beta>3.57E-10</beta>
+        <source_size unit="um">10</source_size>
         <detector_PSF unit="pix">1.2</detector_PSF>
+        <tomo>True</tomo>
+        <number_of_projections>2602</number_of_projections>
         <crop_on>False</crop_on>
         <cropDebX unit="pix">0</cropDebX>
         <cropDebY unit="pix">0</cropDebY>
         <cropEndX unit="pix">-1</cropEndX>
         <cropEndY unit="pix">-1</cropEndY>
-        
     </experiment>
-        
+    
 </list_experiments>
