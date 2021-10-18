@@ -8,6 +8,8 @@ import fabio.tifimage as tif
 import numpy as np
 import imageio
 
+from popcorn.resampling import bin_resize
+
 
 def create_directory(path):
     """creates a directory at the specified path
@@ -307,6 +309,72 @@ def save_tif_sequence_and_crop(image, bounding_box, path, bit=32, header=None):
         cropped_slice = cropped_image[i, :, :]
         image_path = path + '{:04d}'.format(i) + '.tif'
         save_tif_image(cropped_slice, image_path, bit, header=header)
+
+
+def open_bin_and_save(input_folder, output_folder, bin_factor=2, input_image_type="tif"):
+    """Open input folder images, bins and saves them in given output folder
+
+    Args:
+        input_folder (str):                                  input folder
+        output_folder (str):                                 output folder
+        bin_factor (int):                                    bin factor (usually 2)
+        input_image_type (str):                              type of input images (tif or edf)
+
+    Returns:
+        None
+    """
+
+    image_filenames = create_list_of_files(input_folder, input_image_type)
+
+    for index in range(len(image_filenames) // bin_factor):
+        image_to_bin = open_sequence(image_filenames[:bin_factor])
+        del image_filenames[:bin_factor]
+        binned_image = bin_resize(image_to_bin, bin_factor)
+        save_tif_image(binned_image[0], output_folder + '{:04d}'.format(index))
+
+
+def open_crop_and_save(input_folder, output_path, min_max_list, input_image_type="tif"):
+    """opens files - crops them - saves them as tiff images in given output_path
+
+    Args:
+        input_folder (str):             input folder
+        output_path (str):              output path
+        min_max_list (list[list[int]]): list of 4 int, [[X-min, X-max], [Y-min, Y-max]]
+        input_image_type (str):         tif or edf file
+
+    Returns:
+        None
+    """
+
+    above_map_files = create_list_of_files(input_folder, input_image_type)
+    for image_nb, image_file in enumerate(above_map_files):
+        image = open_image(image_file)
+        cropped_image = image[min_max_list[1][0]:min_max_list[1][1], min_max_list[0][0]:min_max_list[0][1]]
+        save_tif_image(cropped_image, output_path + '{:04d}'.format(image_nb))
+
+
+def open_crop_bin_and_save(input_folder, output_folder, min_max_list, bin_factor=2, input_image_type="tif"):
+    """Open input folder images, crops/bins and saves them in given output folder
+
+    Args:
+        input_folder (str):                                  input folder
+        output_folder (str):                                 output folder
+        min_max_list (list[list[int, int], list[int, int]]): cropping dimensions
+        bin_factor (int):                                    bin factor (usually 2)
+        input_image_type (str):                              type of input images (tif or edf)
+
+    Returns:
+        None
+    """
+
+    image_filenames = create_list_of_files(input_folder, input_image_type)
+
+    for index in range(len(image_filenames) // bin_factor):
+        image_to_bin = open_sequence(image_filenames[:bin_factor])
+        cropped_image = image_to_bin[:, min_max_list[1][0]:min_max_list[1][1], min_max_list[0][0]:min_max_list[0][1]]
+        del image_filenames[:bin_factor]
+        cropped_image = bin_resize(cropped_image, bin_factor)
+        save_tif_image(cropped_image[0], output_folder + '{:04d}'.format(index))
 
 
 def remove_filename_in_path(path):
