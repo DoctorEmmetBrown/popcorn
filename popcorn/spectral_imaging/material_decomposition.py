@@ -4,6 +4,10 @@ import glob
 import numpy as np
 
 from popcorn import resampling, input_output
+import spekpy as sp
+
+import skimage.io as io
+import pandas as pd
 
 
 def loading_bar(iteration, total_iterations):
@@ -200,7 +204,7 @@ def material_decomposition_pipeline(radix):
 
         for material_index in range(len(list_of_output_folders)):
             input_output.save_tif_image(concentration_maps[material_index, :, :],
-                                        list_of_output_folders[material_index] + '%4.4d' % slice_nb + ".tif")
+                                        list_of_output_folders[material_index] + '%4.4d' % slice_nb)
 
 
 def three_materials_decomposition(above_kedge_image, below_kedge_image, kedge_material="Au", secondary_material="I"):
@@ -308,7 +312,7 @@ def decomposition_equation_resolution(images, densities, material_attenuations, 
             solution_vector = np.linalg.lstsq(system_2d_matrix, vector, rcond=None)
 
             if solution_matrix is not None:
-                loading_bar(nb, vector_2d_matrix.size)
+                # loading_bar(nb, vector_2d_matrix.size)
                 if solution_matrix.ndim == 2:
                     solution_matrix = np.vstack([solution_matrix, solution_vector[0]])
                 else:
@@ -328,9 +332,149 @@ def decomposition_equation_resolution(images, densities, material_attenuations, 
     return concentration_maps
 
 
+def multispectral_decomposition(input_folder):
+    list_of_tif_files = input_output.create_list_of_files(input_folder, "tif")
+    print(list_of_tif_files)
+
+    gold_attenuations = pd.read_csv('gold_attenuation.csv').to_numpy().flatten()
+    iodine_attenuations = pd.read_csv('iodine_attenuation.csv').to_numpy().flatten()
+    water_attenuations = pd.read_csv('water_attenuation.csv').to_numpy().flatten()
+
+    list_of_images = []
+    list_of_voltages = []
+    list_of_spectrum = []
+    list_of_gold_mus = []
+    list_of_iodine_mus = []
+    list_of_water_mus = []
+    for tif_file in list_of_tif_files:
+        current_image = io.imread(tif_file)
+        current_voltage = float(tif_file.lower().split('kvp')[0].split('_')[-1])
+        current_image = current_image.astype(np.float32) - (32768*np.ones(current_image.shape))
+
+        spectre = sp.Spek()
+        spectre.set(kvp=current_voltage, th=20, targ="W")
+        spectre.filter("Al", 1.8)
+        normalized_spectrum = spectre.get_spectrum()[1]/np.sum(spectre.get_spectrum()[1])
+        converted_image = resampling.convert_from_hounsfield_unit_to_mu(current_image, normalized_spectrum)
+        list_of_images.append(converted_image)
+        list_of_voltages.append(current_voltage)
+        list_of_spectrum.append(normalized_spectrum)
+        list_of_gold_mus.append(np.sum(normalized_spectrum * gold_attenuations[0:normalized_spectrum.shape[0]]))
+        list_of_iodine_mus.append(np.sum(normalized_spectrum * iodine_attenuations[0:normalized_spectrum.shape[0]]))
+        list_of_water_mus.append(np.sum(normalized_spectrum * water_attenuations[0:normalized_spectrum.shape[0]]))
+
+    min_x = 100000
+    min_y = 100000
+    min_z = 100000
+    for image in list_of_images:
+        if image.shape[0] < min_z:
+            min_z = image.shape[0]
+        if image.shape[1] < min_y:
+            min_y = image.shape[1]
+        if image.shape[2] < min_x:
+            min_x = image.shape[2]
+
+    print("mins :", min_x, min_y, min_z)
+    i = 0
+    for image in list_of_images:
+        if image.shape[0] > min_z:
+            image = image[(image.shape[0]-min_z)//2:(image.shape[0]-min_z)//2 + min_z,:,:]
+        if image.shape[1] > min_y:
+            image = image[:,(image.shape[1]-min_y)//2:(image.shape[1]-min_y)//2 + min_y,:]
+        if image.shape[2] > min_x:
+            image = image[:,:,(image.shape[2]-min_x)//2:(image.shape[2]-min_x)//2 + min_x]
+        list_of_images[i] = image
+        input_output.save_tif_sequence(image, input_folder + "\\converted_" + str(i) + "kVp\\")
+        i+=1
+
+    list_of_masks = []
+    i = 0
+    for image in list_of_images:
+        mask = np.zeros(image.shape)
+        if i == 0:
+            mask[image >= 1.7] = 1
+        else:
+            mask[image >= 1.0] = 1
+        list_of_masks.append(mask)
+        input_output.save_tif_sequence(mask, input_folder + "\\mask" + str(i) + "\\")
+        i += 1
+
+    first_index = 0
+    second_index = 1
+    from popcorn.spectral_imaging import registration
+    rotation_transform = registration.registration_computation(list_of_images[first_index]/np.amax(list_of_images[first_index]),
+                                                               list_of_images[second_index]/np.amax(list_of_images[second_index]),
+                                                               transform_type="translation",
+                                                               metric="msq",
+                                                               moving_mask=list_of_masks[first_index],
+                                                               ref_mask=list_of_masks[second_index],
+                                                               verbose=True)
+
+    # Registering the above image
+    registered_image = registration.apply_itk_transformation(list_of_images[first_index], rotation_transform, "linear", ref_img=list_of_images[second_index])
+    input_output.save_tif_sequence(registered_image, input_folder + "\\registered_35kVp\\")
+
+    images = np.stack((list_of_images[second_index], registered_image), axis=0)
+    material = "Au"
+    if material == "Au":
+        densities = np.array([19.3, 1.0])
+        material_attenuations = np.array([[list_of_gold_mus[second_index], list_of_water_mus[second_index]],
+                                          [list_of_gold_mus[first_index], list_of_water_mus[first_index]]])
+    else:
+        densities = np.array([4.93, 1.0])
+        material_attenuations = np.array([[list_of_iodine_mus[second_index], list_of_water_mus[second_index]],
+                                          [list_of_iodine_mus[first_index], list_of_water_mus[first_index]]])
+    concentration_maps = decomposition_equation_resolution(images, densities, material_attenuations,
+                                                                 volume_fraction_hypothesis=False,
+                                                                 verbose=False)
+    print(list_of_water_mus)
+    import PyIPSDK.IPSDKIPLBinarization as Bin
+    import PyIPSDK
+    import PyIPSDK.IPSDKIPLMorphology as Morpho
+    mask = list_of_images[second_index] > 1.0
+    thresholded_image_ipsdk = Bin.lightThresholdImg(PyIPSDK.fromArray(mask), 1)
+
+    # We start with a 3d opening image computation
+    morpho_mask = PyIPSDK.sphericalSEXYZInfo(2)  # 3D sphere (r=1) structuring element
+    opened_image = Morpho.dilate3dImg(thresholded_image_ipsdk, morpho_mask)
+    concentration_map = np.copy(concentration_maps[0])
+    # concentration_map[opened_image.array > 0] = 0
+    input_output.save_tif_sequence(concentration_map, input_folder + "\\gold_decomposition\\")
+
+
+    # energy_list = [35, 50, 70, 80]
+    # for energy in energy_list:
+    #     spectre = sp.Spek()
+    #     spectre.set(kvp=energy, th=20, targ="W")
+    #     spectre.filter("Al", 1.8)
+    #     normalized_spectrum = spectre.get_spectrum()[1]/np.sum(spectre.get_spectrum()[1])
+    #     print("for energy", energy, "water attenuation :", np.sum(normalized_spectrum * water_attenuations[0:normalized_spectrum.shape[0]]))
+    #     print("for energy", energy, "gold attenuation :", np.sum(normalized_spectrum * gold_attenuations[0:normalized_spectrum.shape[0]]))
+
+
+
+
+
+    # print(list_of_spectrum)
+    # print("-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-")
+    # print(gold_attenuations)
+    # print("-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-")
+    # print(iodine_attenuations)
+    # print("-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-")
+    # print(water_attenuations)
+    # print("-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-")
 if __name__ == '__main__':
 
-    material_decomposition_pipeline("C:\\Users\\ctavakol\\Desktop\\test_material_decomposition\\BiColor_Cell_Pellet__")
+
+    folder = "C:\\Users\\ctavakol\\Desktop\\Experiences_Fevrier_2021\\muCT\\LRB-tests CT\\P17\\"
+    multispectral_decomposition(folder)
+    # spectre = sp.Spek()
+    # spectre.set(kvp=80, th=20, targ="W")
+    # spectre.filter("Al", 1.8)
+    # spectrum = spectre.get_spectrum()
+    #
+    # print(spectrum)
+    # material_decomposition_pipeline("C:\\Users\\ctavakol\\Desktop\\test_material_decomposition\\BiColor_Cell_Pellet__")
 
     """radix = "BiColor_B1toB9__"
     mainFolder = "/data/visitor/md1237/id17/voltif/"
