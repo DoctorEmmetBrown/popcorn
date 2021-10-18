@@ -16,6 +16,7 @@ from MISTI import MISTI
 from OpticalFlow2020 import processProjectionOpticalFlow2020
 from Pavlov2020 import tie_Pavlovetal2020 as pavlov2020
 from LCS_DF import processProjectionLCS_DF
+from LCS import processProjectionLCS
 from speckle_matching import processProjectionUMPA
 from XSVT import processProjectionXSVT
 import datetime
@@ -352,7 +353,8 @@ class Phase_Retrieval_Experiment:
         print("Deconvolution",self.deconvolution)
         if self.deconvolution:
             self.set_deconvolution()
-
+            
+        
         padSize=self.pad_size
         IrToReturn = np.zeros((nbImages, width + 2 * padSize, height + 2 * padSize))
         IsToReturn = np.zeros((nbImages, width + 2 * padSize, height + 2 * padSize))
@@ -370,6 +372,11 @@ class Phase_Retrieval_Experiment:
         for i in range(self.nb_of_point):
             self.reference_images[i]=deconvolve(self.reference_images[i], self.detector_PSF, self.deconvolution_type)
             self.sample_images[i]=deconvolve(self.sample_images[i], self.detector_PSF, self.deconvolution_type)
+            folderPath=self.output_folder
+            
+            txtPoint = '%2.2d' % i
+            saveEdf(self.reference_images[i], folderPath+"/refImageDeconvolved_"+txtPoint+".edf")
+            saveEdf(self.sample_images[i], folderPath+"/sampleImageDeconvolved_"+txtPoint+".edf")
         
         return self.reference_images, self.sample_images
     
@@ -490,12 +497,12 @@ class Phase_Retrieval_Experiment:
         padSize = self.pad_size
         if padSize > 0:
             width, height = dx.shape
-            dx = dx[padSize:padSize + width - 2 * padSize, padSize:padSize + height - 2 * padSize+1]
-            dy = dy[padSize:padSize + width - 2 * padSize, padSize:padSize + height - 2 * padSize+1]
-            phiFC = phiFC[padSize:padSize + width - 2 * padSize, padSize:padSize + height - 2 * padSize+1]
-            phiK = phiK[padSize:padSize + width - 2 * padSize, padSize:padSize + height - 2 * padSize+1]
-            phiLA = phiLA[padSize:padSize + width - 2 * padSize, padSize:padSize + height - 2 * padSize+1]
-            absorption = absorption[padSize:padSize + width - 2 * padSize, padSize:padSize + height - 2 * padSize+1]
+            dx = dx[padSize:padSize + width - 2 * padSize, padSize:padSize + height - 2 * padSize]
+            dy = dy[padSize:padSize + width - 2 * padSize, padSize:padSize + height - 2 * padSize]
+            phiFC = phiFC[padSize:padSize + width - 2 * padSize, padSize:padSize + height - 2 * padSize]
+            phiK = phiK[padSize:padSize + width - 2 * padSize, padSize:padSize + height - 2 * padSize]
+            phiLA = phiLA[padSize:padSize + width - 2 * padSize, padSize:padSize + height - 2 * padSize]
+            absorption = absorption[padSize:padSize + width - 2 * padSize, padSize:padSize + height - 2 * padSize]
         saveEdf(dx, self.output_folder + '/LCS_dx.edf')
         saveEdf(dy, self.output_folder + '/LCS_dy.edf')
         saveEdf(phiFC, self.output_folder + '/LCS_phiFrankoChelappa.edf')
@@ -532,13 +539,13 @@ class Phase_Retrieval_Experiment:
             phiLA = phiLA[padSize:padSize + width - 2 * padSize, padSize:padSize + height - 2 * padSize+1]
             absorption = absorption[padSize:padSize + width - 2 * padSize, padSize:padSize + height - 2 * padSize+1]
             DeltaDeff = DeltaDeff[padSize:padSize + width - 2 * padSize, padSize:padSize + height - 2 * padSize+1]
-        saveEdf(dx, self.output_folder + '/LCS_dx.edf')
-        saveEdf(dy, self.output_folder + '/LCS_dy.edf')
-        saveEdf(phiFC, self.output_folder + '/LCS_phiFrankoChelappa.edf')
-        saveEdf(phiK, self.output_folder + '/LCS_phiKottler.edf')
-        saveEdf(phiLA, self.output_folder + '/LCS_phiLarkin.edf')
-        saveEdf(absorption, self.output_folder + '/LCS_absorption.edf')
-        saveEdf(DeltaDeff, self.output_folder + '/LCS_DeltaDeff.edf')
+        saveEdf(dx, self.output_folder + '/LCS_DF_dx.edf')
+        saveEdf(dy, self.output_folder + '/LCS_DF_dy.edf')
+        saveEdf(phiFC, self.output_folder + '/LCS_DF_phiFrankoChelappa.edf')
+        saveEdf(phiK, self.output_folder + '/LCS_DF_phiKottler.edf')
+        saveEdf(phiLA, self.output_folder + '/LCS_DF_phiLarkin.edf')
+        saveEdf(absorption, self.output_folder + '/LCS_DF_absorption.edf')
+        saveEdf(DeltaDeff, self.output_folder + '/LCS_DF_DeltaDeff.edf')
         return self.result_LCS_DF
 
 

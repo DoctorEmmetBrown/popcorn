@@ -100,14 +100,17 @@ def LarkinAnissonSheppard(dx,dy):
 
 
 def processProjectionOpticalFlow2020(experiment):
-    absMask=gaussian_filter(np.median(experiment.sample_images),experiment.absorption_correction_sigma)/gaussian_filter(np.median(experiment.reference_images),experiment.absorption_correction_sigma)
+    if experiment.absorption_correction_sigma!=0:
+        absMask=gaussian_filter(np.median(experiment.sample_images),experiment.absorption_correction_sigma)/gaussian_filter(np.median(experiment.reference_images),experiment.absorption_correction_sigma)
+    else:
+        absMask=1
     subImage=experiment.sample_images/absMask-experiment.reference_images
     dx, dy = derivativesByOpticalflow(experiment.reference_images, subImage,pixsize=experiment.pixel, sig_scale=experiment.sigma_regularization)
-    dx=dx*(experiment.pixel/experiment.dist_object_detector)
-    dy=dy*(experiment.pixel/experiment.dist_object_detector)
-    phiFC = fc.frankotchellappa(dx, dy, False)
-    phiK = kottler(dx, dy)
-    phiLA = LarkinAnissonSheppard(dx, dy)
+    dphix=dx*(experiment.pixel/experiment.dist_object_detector)
+    dphiy=dy*(experiment.pixel/experiment.dist_object_detector)
+    phiFC = fc.frankotchellappa(dphix, dphiy, False)
+    phiK = kottler(dphix, dphiy)
+    phiLA = LarkinAnissonSheppard(dphix, dphiy)
 
     return {'dx': dx, 'dy': dy, 'phiFC': phiFC.real, 'phiK': phiK.real,'phiLA': phiLA.real}
 
