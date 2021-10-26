@@ -15,11 +15,34 @@ from scipy.ndimage import gaussian_filter
 
 
 def kevToLambda(energyInKev):
+    """Calculation of the wavelength in keV from the wavelength
+    
+
+    Args:
+        energyInKev (float): energy in keV.
+
+    Returns:
+        float: wavelength in m.
+
+    """
     energy = energyInKev * 1e3
     waveLengthInNanometer = 1240. / energy
     return waveLengthInNanometer * 1e-9
 
-def tie_Pavlovetal2020(experiment):#.sample_images,Ir,absMask,experiment):
+def tie_Pavlovetal2020(experiment):
+    """Calculates sample thickness from the experiment
+    
+    Note:
+        Pavlov, K. M., Li, H. (Thomas), Paganin, D. M., Berujon, S., Rougé-Labriet, H., & Brun, E. (2020). Single-Shot X-Ray Speckle-Based Imaging of a Single-Material Object. Physical Review Applied, 13(5), 054023.
+
+    Args:
+        experiment (Phase Retrieval class): contains images and all parameters.
+
+    Returns:
+        img_thickness (Numpy array): calculated thickness
+    """
+    
+    
     lambda_energy = kevToLambda(experiment.energy)
     pix_size = kevToLambda(experiment.pixel)
     delta = experiment.delta
@@ -29,7 +52,7 @@ def tie_Pavlovetal2020(experiment):#.sample_images,Ir,absMask,experiment):
 
     waveNumber = (2 * pi) / lambda_energy
     mu = 2 * waveNumber * beta
-    magnificationFactor = (experiment.dist_object_detector + experiment.dist_sample_object) / experiment.dist_sample_object
+    magnificationFactor = (experiment.dist_object_detector + experiment.dist_source_object) / experiment.dist_source_object
     pix_size=pix_size*magnificationFactor
     sigmaSource = experiment.source_size
     gamma = delta / beta
