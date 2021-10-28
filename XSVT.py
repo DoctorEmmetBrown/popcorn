@@ -29,7 +29,7 @@ def processProjectionXSVT(experiment):
     """
 
     nb_images, px_rows, px_cols = experiment.sample_images.shape
-    diff_x, diff_y, transmission, darkfield = start_tracking(experiment.sample_images, experiment.reference_images, max_shift=experiment.max_shift, window=experiment.XSVT_Nw)
+    diff_x, diff_y, transmission, darkfield = start_tracking(experiment.sample_images, experiment.reference_images, max_shift=experiment.max_shift, window=1+2*experiment.XSVT_Nw)
 
     if experiment.XSVT_median_filter != 0:
         diff_x = median_filter(diff_x, size=experiment.XSVT_median_filter)
