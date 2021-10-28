@@ -412,7 +412,6 @@ class Phase_Retrieval_Experiment:
         self.result_MISTII_2 = processProjectionMISTII_2(self)
         currentMethod="/MISTII_2_"
         padSize = self.pad_size
-        print("La")
         for key, value in self.result_MISTII_2.items():
             if padSize >0:
                 if value.dim==2:
@@ -450,7 +449,6 @@ class Phase_Retrieval_Experiment:
         self.result_MISTII_1 = processProjectionMISTII_1(self)
         currentMethod="/MISTII_1_"
         padSize = self.pad_size
-        print("La")
         for key, value in self.result_MISTII_1.items():
             if padSize >0:
                 if value.dim==2:
@@ -488,7 +486,6 @@ class Phase_Retrieval_Experiment:
         self.result_LCS=processProjectionLCS(self)
         currentMethod="/LCS_"
         padSize = self.pad_size
-        print("La")
         for key, value in self.result_LCS.items():
             if padSize >0:
                 if value.dim==2:
@@ -526,7 +523,6 @@ class Phase_Retrieval_Experiment:
         self.result_LCS_DF=processProjectionLCS_DF(self)
         currentMethod="/LCS_DF_"
         padSize = self.pad_size
-        print("La")
         for key, value in self.result_LCS_DF.items():
             if padSize >0:
                 if value.dim==2:
@@ -565,7 +561,6 @@ class Phase_Retrieval_Experiment:
         self.result_UMPA=processProjectionUMPA(self)
         currentMethod="/UMPA_"
         padSize = self.pad_size
-        print("La")
         for key, value in self.result_UMPA.items():
             if padSize >0:
                 if value.dim==2:
@@ -603,7 +598,6 @@ class Phase_Retrieval_Experiment:
         self.result_OF = processProjectionOpticalFlow2020(self)
         currentMethod="/OF_"
         padSize = self.pad_size
-        print("La")
         for key, value in self.result_OF.items():
             if padSize >0:
                 if value.dim==2:
@@ -642,7 +636,6 @@ class Phase_Retrieval_Experiment:
         self.result_Pavlov2020 = pavlov2020(self)
         currentMethod="/Pavlov2020_"
         padSize = self.pad_size
-        print("La")
         for key, value in self.result_Pavlov2020.items():
             if padSize >0:
                 if value.dim==2:
@@ -680,7 +673,6 @@ class Phase_Retrieval_Experiment:
         self.result_MISTI = MISTI(self)
         currentMethod="/MISTI_"
         padSize = self.pad_size
-        print("La")
         for key, value in self.result_MISTI.items():
             if padSize >0:
                 if value.dim==2:
@@ -717,7 +709,6 @@ class Phase_Retrieval_Experiment:
         self.result_XSVT=processProjectionXSVT(self)
         currentMethod="/XSVT_"
         padSize = self.pad_size
-        print("La")
         for key, value in self.result_XSVT.items():
             if padSize >0:
                 if value.dim==2:
