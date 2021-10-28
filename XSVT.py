@@ -54,7 +54,7 @@ def processProjectionXSVT(experiment):
         phiK = phiK[padSize:padSize + px_rows, padSize:padSize + px_cols]
         phiLA = phiLA[padSize:padSize + px_rows, padSize:padSize + px_cols]
 
-    return {"Diff_x": diff_x, "Diff_y": diff_y, "Transmission": transmission, "Darkfield": darkfield, "DPhi_x": dphix, "DPhi_y": dphiy, 'phiFC': phiFC.real, 'phiK': phiK.real, 'phiLA': phiLA.real}
+    return {"dx": diff_x, "dy": diff_y, "Absorption": transmission, "Deff": darkfield, 'phiFC': phiFC.real, 'phiK': phiK.real, 'phiLA': phiLA.real}#, "DPhi_x": dphix, "DPhi_y": dphiy
 
 
 def start_tracking(Isample, Iref, max_shift, window):

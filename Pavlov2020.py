@@ -116,7 +116,7 @@ def tie_Pavlovetal2020(experiment):
     # multiplication to be in micron
     img_thickness = img_thickness * 1e6
 
-    return img_thickness
+    return {'thickness':img_thickness}
 
 
 

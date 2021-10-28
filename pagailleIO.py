@@ -6,6 +6,7 @@ import fabio.tifimage as tif
 
 #from PIL import Image
 import numpy as np
+import os
 
 
 
@@ -63,6 +64,69 @@ def makeDarkMean(Darkfiedls):
     outputEdf.WriteImage({}, meanSlice)
     return meanSlice
 
+
+def remove_filename_in_path(path):
+    """remove the file name from a path
+
+    Args:
+        path (str): complete path
+
+    Returns:
+        complete path without the file name
+    """
+    if len(path.split("\\")) > 1:
+        splitter = "\\"
+    else:
+        splitter = "/"
+    path_list = path.split(splitter)[:-1]
+    new_path = ""
+    for elt in path_list:
+        new_path += elt + splitter
+
+    return new_path
+
+def create_directory(path):
+    """creates a directory at the specified path
+
+    Args:
+        path (str): complete path
+
+    Returns:
+        None
+    """
+    if not os.path.exists(path):
+        os.makedirs(path)
+        
+def save_tif_image(image, filename, bit=32, header=None):
+    """saves an image to .tif format (either int16 or float32)
+
+    Args:
+        image (numpy.ndarray): 2D image
+        filename (str):        file name
+        bit (int):             16: int16, 32: float32
+        header (str):          header
+
+    Returns:
+        None
+    """
+    create_directory(remove_filename_in_path(filename))
+
+    if header:
+        if bit == 32:
+            tif.TifImage(data=image.astype(np.float32), header=header).write(filename)
+        else:
+            tif.TifImage(data=image.astype(np.uint16), header=header).write(filename)
+    else:
+        if bit == 32:
+            tif.TifImage(data=image.astype(np.float32)).write(filename)
+        else:
+            tif.TifImage(data=image.astype(np.uint16)).write(filename)
+
+def save_image(data,filename):
+    if filename.split(".")[-1]=="tif":
+        save_tif_image(data, filename)
+    if filename.split(".")[-1]=="edf":
+        saveEdf(data, filename)
 
 def saveEdf(data,filename):
     print(filename)

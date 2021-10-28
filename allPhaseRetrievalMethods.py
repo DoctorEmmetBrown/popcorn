@@ -27,10 +27,6 @@ def launchPhaseRetrieval(phase_retrieval_experiment, do):
         time0=time.time()
         phase_retrieval_experiment.process_LCS()
         processing_time['LCS']=time.time()-time0
-    if do['LCS_Df']:
-        time0=time.time()
-        phase_retrieval_experiment.process_LCS_DF()
-        processing_time['LCS']=time.time()-time0
     if do['UMPA']:
         time0=time.time()
         phase_retrieval_experiment.process_UMPA()
@@ -67,18 +63,17 @@ def launchPhaseRetrieval(phase_retrieval_experiment, do):
 if __name__ == "__main__":
     
     # Parameters to tune
-    studied_case = 'SourceSizeStudy' # name of the experiment we want to work on
+    studied_case = 'MoucheSimapAout2017' # name of the experiment we want to work on
     
     do={}
-    do['LCS']=True
-    do['LCS_Df']=True
+    do['LCS']=False
     do['MISTII_2']=False
     do['MISTII_1']=False
     do['MISTI']=False
     do['UMPA']=False
     do['OF']=False
     do['Pavlov']=False
-    do['XSVT']=False
+    do['XSVT']=True
     do['save_parameters']=True
 
     phase_retrieval_experiment=Phase_Retrieval_Experiment(studied_case, do)
@@ -95,20 +90,18 @@ if __name__ == "__main__":
         print(processing_time)
     
         if do['save_parameters']:
-            saveParameters(phase_retrieval_experiment, processing_time)
+            saveParameters(phase_retrieval_experiment, processing_time, do)
         
     if phase_retrieval_experiment.tomo:
         outpurFolder0=phase_retrieval_experiment.output_folder
         for iproj in range(phase_retrieval_experiment.proj_to_treat_start,phase_retrieval_experiment.proj_to_treat_end, 1):
-            iprojString='%4.4d'%iproj
-            print(iproj)
-            phase_retrieval_experiment.output_folder=outpurFolder0+ '/Proj_' + iprojString
-            os.mkdir(phase_retrieval_experiment.output_folder)
+            print("\n\n Processing projection:" ,iproj)
             phase_retrieval_experiment.open_Is_Ir_tomo(iproj, phase_retrieval_experiment.number_of_projections)
             phase_retrieval_experiment.preProcessAndPadImages()
+            phase_retrieval_experiment.currentProjection=iproj
             processing_time=launchPhaseRetrieval(phase_retrieval_experiment, do)
             
         if do['save_parameters']:
-            saveParameters(phase_retrieval_experiment, processing_time)
+            saveParameters(phase_retrieval_experiment, processing_time, do)
             
             
