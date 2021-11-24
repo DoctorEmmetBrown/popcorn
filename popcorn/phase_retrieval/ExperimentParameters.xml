@@ -13,8 +13,8 @@
         <source_size unit="um">2</source_size>
         <detector_PSF unit="pix">0.9</detector_PSF>
         <crop_on>True</crop_on>
-        <cropDebX unit="pix">100</cropDebX>
-        <cropDebY unit="pix">100</cropDebY>
+        <cropDebX unit="pix">500</cropDebX>
+        <cropDebY unit="pix">500</cropDebY>
         <cropEndX unit="pix">700</cropEndX>
         <cropEndY unit="pix">700</cropEndY>
     </experiment>
@@ -52,7 +52,7 @@
         <detector_PSF unit="pix">1.2</detector_PSF>
         <tomo>True</tomo>
         <number_of_projections>0720</number_of_projections>
-        <crop_on>True</crop_on>
+        <crop_on>False</crop_on>
         <cropDebX unit="pix">200</cropDebX>
         <cropDebY unit="pix">200</cropDebY>
         <cropEndX unit="pix">500</cropEndX>

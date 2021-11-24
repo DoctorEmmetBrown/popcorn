@@ -86,8 +86,15 @@ class Phase_Retrieval_Experiment:
 
         self.define_experiment_values()
         self.define_algorithmic_values(do)
-
-
+        
+        self.methods_functions={'LCS':processProjectionLCS, 
+                                'UMPA':processProjectionUMPA,
+                                'XSVT':processProjectionXSVT,
+                                'MISTI':MISTI,
+                                'MISTII_1':processProjectionMISTII_1,
+                                'MISTII_2':processProjectionMISTII_2,
+                                'OF':processProjectionOpticalFlow2020,
+                                'Pavlov':pavlov2020}
 
     def define_experiment_values(self):
         """Get experiment parameters from xml file.
@@ -400,7 +407,7 @@ class Phase_Retrieval_Experiment:
     # ************PHASE RETRIEVAL METHODS******************
 
 
-    def process_MISTII_2(self):
+    def process_method(self,method):
         """this function calls processMISTII_2() in its file,
         crops the results of the padds added in pre-processing
         and saves the retrieved images.
@@ -409,10 +416,10 @@ class Phase_Retrieval_Experiment:
             referenceImage [numpy array]: set of reference images
             ddict [dictionnary]: experiment dictionnary
         """
-        self.result_MISTII_2 = processProjectionMISTII_2(self)
-        currentMethod="/MISTII_2_"
+        result = self.methods_functions[method](self)
+        currentMethod="/"+method+"_"
         padSize = self.pad_size
-        for key, value in self.result_MISTII_2.items():
+        for key, value in result.items():
             if padSize >0:
                 if value.dim==2:
                     width, height = value.shape
@@ -434,305 +441,8 @@ class Phase_Retrieval_Experiment:
                     save_image(value,currentFolder+'.'+self.output_images_format)
                 if value.ndim==3:
                     plt.imsave(currentFolder+'.tiff',value,format='tiff')
-        return self.result_MISTII_2
+        return None
 
-
-    def process_MISTII_1(self):
-        """this function calls processProjectionMISTII_1() in its file,
-        crops the results of the padds added in pre-processin
-        and saves the retrieved images.
-        Args:
-            sampleImage [numpy array]: set of sample images
-            referenceImage [numpy array]: set of reference images
-            ddict [dictionnary]: experiment dictionnary
-        """
-        self.result_MISTII_1 = processProjectionMISTII_1(self)
-        currentMethod="/MISTII_1_"
-        padSize = self.pad_size
-        for key, value in self.result_MISTII_1.items():
-            if padSize >0:
-                if value.dim==2:
-                    width, height = value.shape
-                if value.dim==3:
-                    width, height, _ = value.shape
-                value=value[padSize: width - padSize, padSize: height - padSize]
-            currentFolder=self.output_folder+currentMethod+key
-            
-            if self.tomo:
-                if not os.path.exists(currentFolder):
-                    os.mkdir(currentFolder)
-                iprojString='%4.4d'%self.currentProjection 
-                if value.ndim==2:
-                    save_image(value,currentFolder+currentMethod+key+"_"+iprojString+'.'+self.output_images_format)
-                if value.ndim==3:
-                    plt.imsave(currentFolder+currentMethod+key+"_"+iprojString+'.tiff',value,format='tiff')
-            else:
-                if value.ndim==2:
-                    save_image(value,currentFolder+'.'+self.output_images_format)
-                if value.ndim==3:
-                    plt.imsave(currentFolder+'.tiff',value,format='tiff')
-        return self.result_MISTII_1
-
-
-    def process_LCS(self):
-        """this function calls processProjectionLCS() in its file,
-        crops the results of the padds added in pre-processin
-        and saves the retrieved images.
-        Args:
-            sampleImage [numpy array]: set of sample images
-            referenceImage [numpy array]: set of reference images
-            ddict [dictionnary]: experiment dictionnary
-        """
-        self.result_LCS=processProjectionLCS(self)
-        currentMethod="/LCS_"
-        padSize = self.pad_size
-        for key, value in self.result_LCS.items():
-            if padSize >0:
-                if value.dim==2:
-                    width, height = value.shape
-                if value.dim==3:
-                    width, height, _ = value.shape
-                value=value[padSize: width - padSize, padSize: height - padSize]
-            currentFolder=self.output_folder+currentMethod+key
-            
-            if self.tomo:
-                if not os.path.exists(currentFolder):
-                    os.mkdir(currentFolder)
-                iprojString='%4.4d'%self.currentProjection 
-                if value.ndim==2:
-                    save_image(value,currentFolder+currentMethod+key+"_"+iprojString+'.'+self.output_images_format)
-                if value.ndim==3:
-                    plt.imsave(currentFolder+currentMethod+key+"_"+iprojString+'.tiff',value,format='tiff')
-            else:
-                if value.ndim==2:
-                    save_image(value,currentFolder+'.'+self.output_images_format)
-                if value.ndim==3:
-                    plt.imsave(currentFolder+'.tiff',value,format='tiff')
-        return self.result_LCS
-    
-    
-    def process_LCS_DF(self):
-        """this function calls processProjectionLCS() in its file,
-        crops the results of the padds added in pre-processin
-        and saves the retrieved images.
-        Args:
-            sampleImage [numpy array]: set of sample images
-            referenceImage [numpy array]: set of reference images
-            ddict [dictionnary]: experiment dictionnary
-        """
-        self.result_LCS_DF=processProjectionLCS_DF(self)
-        currentMethod="/LCS_DF_"
-        padSize = self.pad_size
-        for key, value in self.result_LCS_DF.items():
-            if padSize >0:
-                if value.dim==2:
-                    width, height = value.shape
-                if value.dim==3:
-                    width, height, _ = value.shape
-                value=value[padSize: width - padSize, padSize: height - padSize]
-            currentFolder=self.output_folder+currentMethod+key
-            
-            if self.tomo:
-                if not os.path.exists(currentFolder):
-                    os.mkdir(currentFolder)
-                iprojString='%4.4d'%self.currentProjection 
-                if value.ndim==2:
-                    save_image(value,currentFolder+currentMethod+key+"_"+iprojString+'.'+self.output_images_format)
-                if value.ndim==3:
-                    plt.imsave(currentFolder+currentMethod+key+"_"+iprojString+'.tiff',value,format='tiff')
-            else:
-                if value.ndim==2:
-                    save_image(value,currentFolder+'.'+self.output_images_format)
-                if value.ndim==3:
-                    plt.imsave(currentFolder+'.tiff',value,format='tiff')
-        return self.result_LCS_DF
-
-
-    def process_UMPA(self):
-        """this function calls processProjectionUMPA() in its file,
-        crops the results of the padds added in pre-processin
-        and saves the retrieved images.
-        Args:
-            sampleImage [numpy array]: set of sample images
-            referenceImage [numpy array]: set of reference images
-            ddict [dictionnary]: experiment dictionnary
-        """
-
-        self.result_UMPA=processProjectionUMPA(self)
-        currentMethod="/UMPA_"
-        padSize = self.pad_size
-        for key, value in self.result_UMPA.items():
-            if padSize >0:
-                if value.dim==2:
-                    width, height = value.shape
-                if value.dim==3:
-                    width, height, _ = value.shape
-                value=value[padSize: width - padSize, padSize: height - padSize]
-            currentFolder=self.output_folder+currentMethod+key
-            
-            if self.tomo:
-                if not os.path.exists(currentFolder):
-                    os.mkdir(currentFolder)
-                iprojString='%4.4d'%self.currentProjection 
-                if value.ndim==2:
-                    save_image(value,currentFolder+currentMethod+key+"_"+iprojString+'.'+self.output_images_format)
-                if value.ndim==3:
-                    plt.imsave(currentFolder+currentMethod+key+"_"+iprojString+'.tiff',value,format='tiff')
-            else:
-                if value.ndim==2:
-                    save_image(value,currentFolder+'.'+self.output_images_format)
-                if value.ndim==3:
-                    plt.imsave(currentFolder+'.tiff',value,format='tiff')
-        return self.result_UMPA
-
-    def process_OpticalFlow(self):
-        """this function calls opticalFlow2020() in its file,
-        crops the results of the padds added in pre-processin
-        and saves the retrieved images.
-        Args:
-            sampleImage [numpy array]: set of sample images
-            referenceImage [numpy array]: set of reference images
-            ddict [dictionnary]: experiment dictionnary
-        """
-
-        self.result_OF = processProjectionOpticalFlow2020(self)
-        currentMethod="/OF_"
-        padSize = self.pad_size
-        for key, value in self.result_OF.items():
-            if padSize >0:
-                if value.dim==2:
-                    width, height = value.shape
-                if value.dim==3:
-                    width, height, _ = value.shape
-                value=value[padSize: width - padSize, padSize: height - padSize]
-            currentFolder=self.output_folder+currentMethod+key
-            
-            if self.tomo:
-                if not os.path.exists(currentFolder):
-                    os.mkdir(currentFolder)
-                iprojString='%4.4d'%self.currentProjection 
-                if value.ndim==2:
-                    save_image(value,currentFolder+currentMethod+key+"_"+iprojString+'.'+self.output_images_format)
-                if value.ndim==3:
-                    plt.imsave(currentFolder+currentMethod+key+"_"+iprojString+'.tiff',value,format='tiff')
-            else:
-                if value.ndim==2:
-                    save_image(value,currentFolder+'.'+self.output_images_format)
-                if value.ndim==3:
-                    plt.imsave(currentFolder+'.tiff',value,format='tiff')
-        return self.result_OF
-
-
-
-    def process_Pavlov2020(self):
-        """this function calls pavlov2020() in its file,
-        crops the results of the padds added in pre-processin
-        and saves the retrieved images.
-        Args:
-            sampleImage [numpy array]: set of sample images
-            referenceImage [numpy array]: set of reference images
-            ddict [dictionnary]: experiment dictionnary
-        """
-        self.result_Pavlov2020 = pavlov2020(self)
-        currentMethod="/Pavlov2020_"
-        padSize = self.pad_size
-        for key, value in self.result_Pavlov2020.items():
-            if padSize >0:
-                if value.dim==2:
-                    width, height = value.shape
-                if value.dim==3:
-                    width, height, _ = value.shape
-                value=value[padSize: width - padSize, padSize: height - padSize]
-            currentFolder=self.output_folder+currentMethod+key
-            
-            if self.tomo:
-                if not os.path.exists(currentFolder):
-                    os.mkdir(currentFolder)
-                iprojString='%4.4d'%self.currentProjection 
-                if value.ndim==2:
-                    save_image(value,currentFolder+currentMethod+key+"_"+iprojString+'.'+self.output_images_format)
-                if value.ndim==3:
-                    plt.imsave(currentFolder+currentMethod+key+"_"+iprojString+'.tiff',value,format='tiff')
-            else:
-                if value.ndim==2:
-                    save_image(value,currentFolder+'.'+self.output_images_format)
-                if value.ndim==3:
-                    plt.imsave(currentFolder+'.tiff',value,format='tiff')
-        return self.result_Pavlov2020
-
-
-    def process_MISTI(self):
-        """this function calls MISTI() in its file,
-        crops the results of the padds added in pre-processin
-        and saves the retrieved images.
-        Args:
-            sampleImage [numpy array]: set of sample images
-            referenceImage [numpy array]: set of reference images
-            ddict [dictionnary]: experiment dictionnary
-        """
-        self.result_MISTI = MISTI(self)
-        currentMethod="/MISTI_"
-        padSize = self.pad_size
-        for key, value in self.result_MISTI.items():
-            if padSize >0:
-                if value.dim==2:
-                    width, height = value.shape
-                if value.dim==3:
-                    width, height, _ = value.shape
-                value=value[padSize: width - padSize, padSize: height - padSize]
-            currentFolder=self.output_folder+currentMethod+key
-            
-            if self.tomo:
-                if not os.path.exists(currentFolder):
-                    os.mkdir(currentFolder)
-                iprojString='%4.4d'%self.currentProjection 
-                if value.ndim==2:
-                    save_image(value,currentFolder+currentMethod+key+"_"+iprojString+'.'+self.output_images_format)
-                if value.ndim==3:
-                    plt.imsave(currentFolder+currentMethod+key+"_"+iprojString+'.tiff',value,format='tiff')
-            else:
-                if value.ndim==2:
-                    save_image(value,currentFolder+'.'+self.output_images_format)
-                if value.ndim==3:
-                    plt.imsave(currentFolder+'.tiff',value,format='tiff')
-        return self.result_MISTI
-
-    def process_XSVT(self):
-        """this function calls processProjectionXSVT() in its file,
-        crops the results of the padds added in pre-processin
-        and saves the retrieved images.
-        Args:
-            sampleImage [numpy array]: set of sample images
-            referenceImage [numpy array]: set of reference images
-            ddict [dictionnary]: experiment dictionnary
-        """
-        self.result_XSVT=processProjectionXSVT(self)
-        currentMethod="/XSVT_"
-        padSize = self.pad_size
-        for key, value in self.result_XSVT.items():
-            if padSize >0:
-                if value.dim==2:
-                    width, height = value.shape
-                if value.dim==3:
-                    width, height, _ = value.shape
-                value=value[padSize: width - padSize, padSize: height - padSize]
-            currentFolder=self.output_folder+currentMethod+key
-            
-            if self.tomo:
-                if not os.path.exists(currentFolder):
-                    os.mkdir(currentFolder)
-                iprojString='%4.4d'%self.currentProjection 
-                if value.ndim==2:
-                    save_image(value,currentFolder+currentMethod+key+"_"+iprojString+'.'+self.output_images_format)
-                if value.ndim==3:
-                    plt.imsave(currentFolder+currentMethod+key+"_"+iprojString+'.tiff',value,format='tiff')
-            else:
-                if value.ndim==2:
-                    save_image(value,currentFolder+'.'+self.output_images_format)
-                if value.ndim==3:
-                    plt.imsave(currentFolder+'.tiff',value,format='tiff')
-
-        return
 
     def getk(self):
         """calculates the wavenumber of the experiment beam at the current energy
