@@ -5,7 +5,7 @@ Created on Mon Mar 15 13:46:27 2021.
 
 @author: quenot
 """
-from pagailleIO import saveEdf, openSeq, openImage
+from pagailleIO import save_image, openSeq, openImage
 import glob
 import random
 import os
@@ -15,7 +15,7 @@ from MISTII_1 import processProjectionMISTII_1
 from MISTI import MISTI
 from OpticalFlow2020 import processProjectionOpticalFlow2020
 from Pavlov2020 import tie_Pavlovetal2020 as pavlov2020
-from LCS_DF import processProjectionLCS_DF
+# from LCS_DF import processProjectionLCS_DF
 from LCS import processProjectionLCS
 from speckle_matching import processProjectionUMPA
 from XSVT import processProjectionXSVT
@@ -29,7 +29,7 @@ class Phase_Retrieval_Experiment:
 
     """Performs phase retrieval.s for an experiment."""
 
-    def __init__(self, exp_name):
+    def __init__(self, exp_name, do):
         """Initialize all experiment and algorithm parameters and load images.
         
 
@@ -69,6 +69,7 @@ class Phase_Retrieval_Experiment:
         self.result_Pavlov2020={}
         self.result_UMPA={}
         self.result_XSVT={}
+        self.output_images_format="edf" #"edf" or "tif"
 
         # ALGORITHMIC PARAMETERS
         self.xml_algorithmic_file_name="AlgorithmParameter.xml"
@@ -84,9 +85,16 @@ class Phase_Retrieval_Experiment:
         self.proj_to_treat_end=1
 
         self.define_experiment_values()
-        self.define_algorithmic_values()
-
-
+        self.define_algorithmic_values(do)
+        
+        self.methods_functions={'LCS':processProjectionLCS, 
+                                'UMPA':processProjectionUMPA,
+                                'XSVT':processProjectionXSVT,
+                                'MISTI':MISTI,
+                                'MISTII_1':processProjectionMISTII_1,
+                                'MISTII_2':processProjectionMISTII_2,
+                                'OF':processProjectionOpticalFlow2020,
+                                'Pavlov':pavlov2020}
 
     def define_experiment_values(self):
         """Get experiment parameters from xml file.
@@ -107,6 +115,8 @@ class Phase_Retrieval_Experiment:
                 for node in current_exp.childNodes:
                     if node.localName=="tomo":
                         self.tomo=self.boolean(self.getText(current_exp.getElementsByTagName("tomo")[0]))
+                    if node.localName=="output_images_format":
+                        self.output_images_format=self.getText(current_exp.getElementsByTagName("output_images_format")[0])
                 
                 #if "tomo"=True in the xml file experiment the number of projections must also be defined
                 if self.tomo:
@@ -134,7 +144,7 @@ class Phase_Retrieval_Experiment:
         return     
         
 
-    def define_algorithmic_values(self):
+    def define_algorithmic_values(self, do):
         """gets algorithmic parameters from xml file
 
         Raises:
@@ -155,11 +165,15 @@ class Phase_Retrieval_Experiment:
                 self.deconvolution_type=self.getText(current_exp.getElementsByTagName("deconvolution_type")[0])
                 self.absorption_correction_sigma=int(self.getText(current_exp.getElementsByTagName("absorption_correction_sigma")[0]))
                 self.max_shift=int(self.getText(current_exp.getElementsByTagName("max_shift")[0]))
-                self.LCS_median_filter=int(self.getText(current_exp.getElementsByTagName("LCS_median_filter")[0]))
-                self.umpaNw=int(self.getText(current_exp.getElementsByTagName("umpaNw")[0]))
-                self.XSVT_Nw=int(self.getText(current_exp.getElementsByTagName("XSVT_Nw")[0]))
-                self.XSVT_median_filter=int(self.getText(current_exp.getElementsByTagName("XSVT_median_filter")[0]))
-                self.MIST_median_filter=int(self.getText(current_exp.getElementsByTagName("MIST_median_filter")[0]))
+                if do["LCS"]:
+                    self.LCS_median_filter=int(self.getText(current_exp.getElementsByTagName("LCS_median_filter")[0]))
+                if do["UMPA"]:
+                    self.umpaNw=int(self.getText(current_exp.getElementsByTagName("umpaNw")[0]))
+                if do["XSVT"]:
+                    self.XSVT_Nw=int(self.getText(current_exp.getElementsByTagName("XSVT_Nw")[0]))
+                    self.XSVT_median_filter=int(self.getText(current_exp.getElementsByTagName("XSVT_median_filter")[0]))
+                if do["MISTI"] or do["MISTII_1"] or do["MISTII_2"]:
+                    self.MIST_median_filter=int(self.getText(current_exp.getElementsByTagName("MIST_median_filter")[0]))
                 self.sigma_regularization=float(self.getText(current_exp.getElementsByTagName("sigma_regularization")[0]))
                 
                 #if tomo is true, the range of projections to calculate can be defined in the algorithm xml file
@@ -263,31 +277,24 @@ class Phase_Retrieval_Experiment:
         """
         # Load the reference and sample images
         
-        refFolder = self.exp_folder + 'ref/'
-        sampleFolder = self.exp_folder + 'sample/'
+        # refFolder = self.exp_folder + 'ref/'
+        # sampleFolder = self.exp_folder + 'sample/'
+        expFolder=self.exp_folder
 
-        refImagesStart = glob.glob(self.exp_folder + '0*/refHST0000.edf') 
+        refImagesStart = glob.glob(self.exp_folder + '/refHST0000.edf')+ glob.glob(self.exp_folder + '/ref0000_0000.edf') 
         refImagesStart.sort()
         NprojString='%4.2d'%Nproj
-        refImagesEnd = glob.glob(self.exp_folder+ '0*/refHST'+NprojString+'.edf') 
+        refImagesEnd = glob.glob(self.exp_folder+ '/refHST'+NprojString+'.edf') + glob.glob(self.exp_folder + '/ref0000_0720.edf')
         refImagesEnd.sort()
         
         sampImages=[]
-        justfolder=self.exp_folder.split('/')[-1]
+        justfolder=self.exp_folder.split('/')[-2]
         iprojString='%4.4d'%iproj
-        sampImages=glob.glob(self.exp_folder+'0*/'+justfolder+'*'+iprojString+'.edf')
+        samppath=self.exp_folder+justfolder+iprojString+'.edf'
+        sampImages=glob.glob(self.exp_folder+'/'+justfolder+iprojString+'.edf')
         
-        print(iproj)
-        print("\n\n\n"+self.exp_folder+'0*/'+justfolder+'*'+iprojString+'.edf')
-        
-        # for i in range(len(sampFolders)):
-        #     ipoint='%3.2d'%i
-        #     sampImages.append(sampFolders[i]+self.exp_folder+ipoint+'_'+iprojString+'.edf')
         sampImages.sort()
         
-        print('\n\n', refImagesStart)
-        print('\n\n', refImagesEnd)
-        print('\n\n', sampImages)
         
         
         whiteImage= glob.glob(self.exp_folder+'white.tif')+glob.glob(self.exp_folder+'White.tif')+glob.glob(self.exp_folder+'white.tiff')
@@ -375,8 +382,8 @@ class Phase_Retrieval_Experiment:
             folderPath=self.output_folder
             
             txtPoint = '%2.2d' % i
-            saveEdf(self.reference_images[i], folderPath+"/refImageDeconvolved_"+txtPoint+".edf")
-            saveEdf(self.sample_images[i], folderPath+"/sampleImageDeconvolved_"+txtPoint+".edf")
+            save_image(self.reference_images[i], folderPath+"/refImageDeconvolved_"+txtPoint+".edf")
+            save_image(self.sample_images[i], folderPath+"/sampleImageDeconvolved_"+txtPoint+".edf")
         
         return self.reference_images, self.sample_images
     
@@ -400,7 +407,7 @@ class Phase_Retrieval_Experiment:
     # ************PHASE RETRIEVAL METHODS******************
 
 
-    def process_MISTII_2(self):
+    def process_method(self,method):
         """this function calls processMISTII_2() in its file,
         crops the results of the padds added in pre-processing
         and saves the retrieved images.
@@ -409,297 +416,33 @@ class Phase_Retrieval_Experiment:
             referenceImage [numpy array]: set of reference images
             ddict [dictionnary]: experiment dictionnary
         """
-        self.result_MISTII_2 = processProjectionMISTII_2(self)
-        thickness= self.result_MISTII_2['thickness']
-        Deff_xx=self.result_MISTII_2['Deff_xx']
-        Deff_yy=self.result_MISTII_2['Deff_yy']
-        Deff_xy=self.result_MISTII_2['Deff_xy']
-        colouredDeff=self.result_MISTII_2['ColoredDeff']
-        excentricity=self.result_MISTII_2['excentricity']
-        colouredImageExc=self.result_MISTII_2['colouredImageExc']
-        colouredImagearea=self.result_MISTII_2['colouredImagearea']
-        colouredImageDir=self.result_MISTII_2['colouredImageDir']
-        area=self.result_MISTII_2['area']
-        NbIm, _, _=self.sample_images.shape
-
+        result = self.methods_functions[method](self)
+        currentMethod="/"+method+"_"
         padSize = self.pad_size
-        if padSize > 0:
-            width, height = thickness.shape
-            thickness = thickness[padSize: width - padSize, padSize: height - padSize]
-            Deff_xx = Deff_xx[padSize:padSize + width - 2 * padSize, padSize:padSize + height - 2 * padSize]
-            Deff_yy = Deff_yy[padSize:padSize + width - 2 * padSize, padSize:padSize + height - 2 * padSize]
-            Deff_xy = Deff_xy[padSize:padSize + width - 2 * padSize, padSize:padSize + height - 2 * padSize]
-            colouredDeff = colouredDeff[padSize: width - padSize, padSize: height - padSize]
-            excentricity = excentricity[padSize: width - padSize, padSize: height - padSize]
-            colouredImageExc = colouredImageExc[padSize: width - padSize, padSize: height - padSize]
-            colouredImagearea = colouredImagearea[padSize: width - padSize, padSize: height - padSize]
-            colouredImageDir = colouredImageDir[padSize: width - padSize, padSize: height - padSize]
-            area = area[padSize: width - padSize, padSize: height - padSize]
-        saveEdf(thickness, self.output_folder + '/MISTII_2_thickness_NPts'+str(NbIm)+'.edf')
-        saveEdf(Deff_xx, self.output_folder + '/MISTII_2_Deff_xx_NPts'+str(NbIm)+'.edf')
-        saveEdf(Deff_yy, self.output_folder + '/MISTII_2_Deff_yy_NPts'+str(NbIm)+'.edf')
-        saveEdf(Deff_xy, self.output_folder + '/MISTII_2_Deff_xy_NPts'+str(NbIm)+'.edf')
-        saveEdf(excentricity, self.output_folder + '/MISTII_2_Excentricity_NPts'+str(NbIm)+'.edf')
-        saveEdf(area, self.output_folder + '/MISTII_2_area_NPts'+str(NbIm)+'.edf')
-        plt.imsave(self.output_folder + '/MISTII_2_colouredDeff_NPts'+str(NbIm)+'.tiff',colouredDeff,format='tiff')
-        plt.imsave(self.output_folder + '/MISTII_2_colouredImageExc_NPts'+str(NbIm)+'.tiff',colouredImageExc,format='tiff')
-        plt.imsave(self.output_folder + '/MISTII_2_colouredImagearea_NPts'+str(NbIm)+'.tiff',colouredImagearea,format='tiff')
-        plt.imsave(self.output_folder + '/MISTII_2_colouredImageDir_NPts'+str(NbIm)+'.tiff',colouredImageDir,format='tiff')
-        return self.result_MISTII_2
+        for key, value in result.items():
+            if padSize >0:
+                if value.dim==2:
+                    width, height = value.shape
+                if value.dim==3:
+                    width, height, _ = value.shape
+                value=value[padSize: width - padSize, padSize: height - padSize]
+            currentFolder=self.output_folder+currentMethod+key
+            
+            if self.tomo:
+                if not os.path.exists(currentFolder):
+                    os.mkdir(currentFolder)
+                iprojString='%4.4d'%self.currentProjection 
+                if value.ndim==2:
+                    save_image(value,currentFolder+currentMethod+key+"_"+iprojString+'.'+self.output_images_format)
+                if value.ndim==3:
+                    plt.imsave(currentFolder+currentMethod+key+"_"+iprojString+'.tiff',value,format='tiff')
+            else:
+                if value.ndim==2:
+                    save_image(value,currentFolder+'.'+self.output_images_format)
+                if value.ndim==3:
+                    plt.imsave(currentFolder+'.tiff',value,format='tiff')
+        return None
 
-    def process_MISTII_1(self):
-        """this function calls processProjectionMISTII_1() in its file,
-        crops the results of the padds added in pre-processin
-        and saves the retrieved images.
-        Args:
-            sampleImage [numpy array]: set of sample images
-            referenceImage [numpy array]: set of reference images
-            ddict [dictionnary]: experiment dictionnary
-        """
-        self.result_MISTII_1 = processProjectionMISTII_1(self)
-        phi= self.result_MISTII_1['phi']
-        Deff_xx=self.result_MISTII_1['Deff_xx']
-        Deff_yy=self.result_MISTII_1['Deff_yy']
-        Deff_xy=self.result_MISTII_1['Deff_xy']
-        colouredDeff=self.result_MISTII_1['ColoredDeff']
-        NbIm, _, _=self.sample_images.shape
-        padSize = self.pad_size
-        if padSize > 0:
-            width, height = phi.shape
-            phi = phi[padSize:padSize + width - 2 * padSize, padSize:padSize + height - 2 * padSize]
-            Deff_xx = Deff_xx[padSize:padSize + width - 2 * padSize, padSize:padSize + height - 2 * padSize]
-            Deff_yy = Deff_yy[padSize:padSize + width - 2 * padSize, padSize:padSize + height - 2 * padSize]
-            Deff_xy = Deff_xy[padSize:padSize + width - 2 * padSize, padSize:padSize + height - 2 * padSize]
-        saveEdf(phi, self.output_folder + '/MISTII_1_phi_NPts'+str(NbIm)+'.edf')
-        saveEdf(Deff_xx, self.output_folder + '/MISTII_1_Deff_xx_NPts'+str(NbIm)+'.edf')
-        saveEdf(Deff_yy, self.output_folder + '/MISTII_1_Deff_yy_NPts'+str(NbIm)+'.edf')
-        saveEdf(Deff_xy, self.output_folder + '/MISTII_1_Deff_xy_NPts'+str(NbIm)+'.edf')
-        plt.imsave(self.output_folder + '/MISTII_1_colouredDeff_NPts'+str(NbIm)+'.tiff',colouredDeff,format='tiff')
-        return self.result_MISTII_1
-
-
-    def process_LCS(self):
-        """this function calls processProjectionLCS() in its file,
-        crops the results of the padds added in pre-processin
-        and saves the retrieved images.
-        Args:
-            sampleImage [numpy array]: set of sample images
-            referenceImage [numpy array]: set of reference images
-            ddict [dictionnary]: experiment dictionnary
-        """
-        self.result_LCS=processProjectionLCS(self)
-        dx=self.result_LCS['dx']
-        dy=self.result_LCS['dy']
-        phiFC = self.result_LCS['phiFC']
-        phiK = self.result_LCS['phiK']
-        phiLA = self.result_LCS['phiLA']
-        absorption = self.result_LCS['absorption']
-        padSize = self.pad_size
-        if padSize > 0:
-            width, height = dx.shape
-            dx = dx[padSize:padSize + width - 2 * padSize, padSize:padSize + height - 2 * padSize]
-            dy = dy[padSize:padSize + width - 2 * padSize, padSize:padSize + height - 2 * padSize]
-            phiFC = phiFC[padSize:padSize + width - 2 * padSize, padSize:padSize + height - 2 * padSize]
-            phiK = phiK[padSize:padSize + width - 2 * padSize, padSize:padSize + height - 2 * padSize]
-            phiLA = phiLA[padSize:padSize + width - 2 * padSize, padSize:padSize + height - 2 * padSize]
-            absorption = absorption[padSize:padSize + width - 2 * padSize, padSize:padSize + height - 2 * padSize]
-        saveEdf(dx, self.output_folder + '/LCS_dx.edf')
-        saveEdf(dy, self.output_folder + '/LCS_dy.edf')
-        saveEdf(phiFC, self.output_folder + '/LCS_phiFrankoChelappa.edf')
-        saveEdf(phiK, self.output_folder + '/LCS_phiKottler.edf')
-        saveEdf(phiLA, self.output_folder + '/LCS_phiLarkin.edf')
-        saveEdf(absorption, self.output_folder + '/LCS_absorption.edf')
-        return self.result_LCS
-    
-    
-    def process_LCS_DF(self):
-        """this function calls processProjectionLCS() in its file,
-        crops the results of the padds added in pre-processin
-        and saves the retrieved images.
-        Args:
-            sampleImage [numpy array]: set of sample images
-            referenceImage [numpy array]: set of reference images
-            ddict [dictionnary]: experiment dictionnary
-        """
-        self.result_LCS_DF=processProjectionLCS_DF(self)
-        dx=self.result_LCS_DF['dx']
-        dy=self.result_LCS_DF['dy']
-        phiFC = self.result_LCS_DF['phiFC']
-        phiK = self.result_LCS_DF['phiK']
-        phiLA = self.result_LCS_DF['phiLA']
-        absorption = self.result_LCS_DF['absorption']
-        DeltaDeff=self.result_LCS_DF['DeltaDeff']
-        padSize = self.pad_size
-        if padSize > 0:
-            width, height = dx.shape
-            dx = dx[padSize:padSize + width - 2 * padSize, padSize:padSize + height - 2 * padSize+1]
-            dy = dy[padSize:padSize + width - 2 * padSize, padSize:padSize + height - 2 * padSize+1]
-            phiFC = phiFC[padSize:padSize + width - 2 * padSize, padSize:padSize + height - 2 * padSize+1]
-            phiK = phiK[padSize:padSize + width - 2 * padSize, padSize:padSize + height - 2 * padSize+1]
-            phiLA = phiLA[padSize:padSize + width - 2 * padSize, padSize:padSize + height - 2 * padSize+1]
-            absorption = absorption[padSize:padSize + width - 2 * padSize, padSize:padSize + height - 2 * padSize+1]
-            DeltaDeff = DeltaDeff[padSize:padSize + width - 2 * padSize, padSize:padSize + height - 2 * padSize+1]
-        saveEdf(dx, self.output_folder + '/LCS_DF_dx.edf')
-        saveEdf(dy, self.output_folder + '/LCS_DF_dy.edf')
-        saveEdf(phiFC, self.output_folder + '/LCS_DF_phiFrankoChelappa.edf')
-        saveEdf(phiK, self.output_folder + '/LCS_DF_phiKottler.edf')
-        saveEdf(phiLA, self.output_folder + '/LCS_DF_phiLarkin.edf')
-        saveEdf(absorption, self.output_folder + '/LCS_DF_absorption.edf')
-        saveEdf(DeltaDeff, self.output_folder + '/LCS_DF_DeltaDeff.edf')
-        return self.result_LCS_DF
-
-
-    def process_UMPA(self):
-        """this function calls processProjectionUMPA() in its file,
-        crops the results of the padds added in pre-processin
-        and saves the retrieved images.
-        Args:
-            sampleImage [numpy array]: set of sample images
-            referenceImage [numpy array]: set of reference images
-            ddict [dictionnary]: experiment dictionnary
-        """
-
-        self.result_UMPA=processProjectionUMPA(self)
-        dx=self.result_UMPA['dx']
-        dy=self.result_UMPA['dy']
-        phiFC = self.result_UMPA['phiFC']
-        phiK = self.result_UMPA['phiK']
-        phiLA = self.result_UMPA['phiLA']
-        thickness = self.result_UMPA['thickness']
-        df=self.result_UMPA['df']
-        f=self.result_UMPA['f']
-        padSize = self.pad_size-self.umpaNw*2-self.max_shift*2
-        if padSize > 0:
-            width, height = dx.shape
-            dx = dx[padSize:padSize + width - 2 * padSize, padSize:padSize + height - 2 * padSize+1]
-            dy = dy[padSize:padSize + width - 2 * padSize, padSize:padSize + height - 2 * padSize+1]
-            phiFC = phiFC[padSize:padSize + width - 2 * padSize, padSize:padSize + height - 2 * padSize+1]
-            phiK = phiK[padSize:padSize + width - 2 * padSize, padSize:padSize + height - 2 * padSize+1]
-            phiLA = phiLA[padSize:padSize + width - 2 * padSize, padSize:padSize + height - 2 * padSize+1]
-            thickness = thickness[padSize:padSize + width - 2 * padSize, padSize:padSize + height - 2 * padSize+1]
-            df = df[padSize:padSize + width - 2 * padSize, padSize:padSize + height - 2 * padSize+1]
-            f = f[padSize:padSize + width - 2 * padSize, padSize:padSize + height - 2 * padSize+1]
-
-        saveEdf(dx, self.output_folder + '/UMPA_dx.edf')
-        saveEdf(dy, self.output_folder + '/UMPA_dy.edf')
-        saveEdf(phiFC, self.output_folder + '/UMPA_phiFrankoChelappa.edf')
-        saveEdf(phiK, self.output_folder + '/UMPA_phiKottler.edf')
-        saveEdf(phiLA, self.output_folder + '/UMPA_phiLarkin.edf')
-        saveEdf(thickness, self.output_folder + '/UMPA_thickness.edf')
-        saveEdf(df, self.output_folder + '/UMPA_darkField.edf')
-        saveEdf(f, self.output_folder + '/UMPA_f.edf')
-        return self.result_UMPA
-
-    def process_OpticalFlow(self):
-        """this function calls opticalFlow2020() in its file,
-        crops the results of the padds added in pre-processin
-        and saves the retrieved images.
-        Args:
-            sampleImage [numpy array]: set of sample images
-            referenceImage [numpy array]: set of reference images
-            ddict [dictionnary]: experiment dictionnary
-        """
-
-        self.result_OF = processProjectionOpticalFlow2020(self)
-        dx = self.result_OF['dx']
-        dy = self.result_OF['dy']
-        phiFC = self.result_OF['phiFC']
-        phiK = self.result_OF['phiK']
-        phiLA = self.result_OF['phiLA']
-        padSize = self.pad_size
-        if padSize > 0:
-            width, height = dx.shape
-            dx = dx[padSize:padSize + width - 2 * padSize, padSize:padSize + height - 2 * padSize]
-            dy = dy[padSize:padSize + width - 2 * padSize, padSize:padSize + height - 2 * padSize]
-            phiFC = phiFC[padSize:padSize + width - 2 * padSize, padSize:padSize + height - 2 * padSize]
-            phiK = phiK[padSize:padSize + width - 2 * padSize, padSize:padSize + height - 2 * padSize]
-            phiLA = phiLA[padSize:padSize + width - 2 * padSize, padSize:padSize + height - 2 * padSize]
-
-        saveEdf(dx, self.output_folder + '/OF_dx.edf')
-        saveEdf(dy, self.output_folder + '/OF_dy.edf')
-        saveEdf(phiFC, self.output_folder + '/OF_phiFrankoChelappa.edf')
-        saveEdf(phiK, self.output_folder + '/OF_phiKottler.edf')
-        saveEdf(phiLA, self.output_folder + '/OF_phiLarkin.edf')
-        return self.result_OF
-
-
-
-    def process_Pavlov2020(self):
-        """this function calls pavlov2020() in its file,
-        crops the results of the padds added in pre-processin
-        and saves the retrieved images.
-        Args:
-            sampleImage [numpy array]: set of sample images
-            referenceImage [numpy array]: set of reference images
-            ddict [dictionnary]: experiment dictionnary
-        """
-        self.result_Pavlov2020 = pavlov2020(self)
-        thicknessPavlov = self.result_Pavlov2020
-        padSize = self.pad_size
-        if padSize > 0:
-            width, height = self.result_Pavlov2020.shape
-            thicknessPavlov = self.result_Pavlov2020[padSize:padSize + width - 2 * padSize, padSize:padSize + height - 2 * padSize]
-        saveEdf(thicknessPavlov, self.output_folder + '/Pavlov2020_thickness.edf')
-        return self.result_Pavlov2020
-
-
-    def process_MISTI(self):
-        """this function calls MISTI() in its file,
-        crops the results of the padds added in pre-processin
-        and saves the retrieved images.
-        Args:
-            sampleImage [numpy array]: set of sample images
-            referenceImage [numpy array]: set of reference images
-            ddict [dictionnary]: experiment dictionnary
-        """
-        self.result_MISTI = MISTI(self)
-        phi = self.result_MISTI['phi']
-        Deff = self.result_MISTI['Deff']
-        padSize = self.pad_size
-        if padSize > 0:
-            width, height = phi.shape
-            phi = phi[padSize:padSize + width - 2 * padSize, padSize:padSize + height - 2 * padSize]
-            Deff = Deff[padSize:padSize + width - 2 * padSize, padSize:padSize + height - 2 * padSize]
-        saveEdf(phi, self.output_folder + '/Phi_MISTI.edf')
-        saveEdf(Deff, self.output_folder + '/Deff_MISTI.edf')
-        return self.result_MISTI
-
-    def process_XSVT(self):
-        """
-        TO BE DEFINED
-        """
-        self.result_XSVT=processProjectionXSVT(self)
-
-        dx = self.result_XSVT["Diff_x"]
-        dy = self.result_XSVT["Diff_y"]
-        tr = self.result_XSVT["Transmission"]
-        df = self.result_XSVT["Darkfield"]
-        dphix = self.result_XSVT["DPhi_x"]
-        dphiy = self.result_XSVT["DPhi_y"]
-        phiFC = self.result_XSVT['phiFC']
-        phiK = self.result_XSVT['phiK']
-        phiLA = self.result_XSVT['phiLA']
-
-        padSize = self.pad_size
-        if padSize > 0:
-            width, height = dx.shape
-            phiFC = phiFC[padSize:padSize + width - 2 * padSize, padSize:padSize + height - 2 * padSize]
-            phiK = phiK[padSize:padSize + width - 2 * padSize, padSize:padSize + height - 2 * padSize]
-            phiLA = phiLA[padSize:padSize + width - 2 * padSize, padSize:padSize + height - 2 * padSize]
-
-        print(dx.shape)
-
-        print("Saving images")
-
-        saveEdf(dx, self.output_folder + '/Dx_XSVT.edf')
-        saveEdf(dy, self.output_folder + '/Dy_XSVT.edf')
-        saveEdf(tr, self.output_folder + '/Tr_XSVT.edf')
-        saveEdf(df, self.output_folder + '/Df_XSVT.edf')
-        saveEdf(phiFC, self.output_folder + '/phiFC_XSVT.edf')
-        saveEdf(phiK, self.output_folder + '/phiK_XSVT.edf')
-        saveEdf(phiLA, self.output_folder + '/phiLA_XSVT.edf')
-
-        return
 
     def getk(self):
         """calculates the wavenumber of the experiment beam at the current energy

@@ -11,55 +11,26 @@ import time
 import datetime
 import os
 
-def launchPhaseRetrieval(phase_retrieval_experiment, do):
-    
+def launchPhaseRetrieval(experiment, do):
+    """
+    launches the phase retrieval algorithms set to true in do
+
+    Args:
+        experiment (Object): contains all experiment parameters and methods.
+        do (DICT): boolean associated to each phase retrieval method.
+
+    Returns:
+        processing_time (float): Processing time of the different algos.
+
+    """
     processing_time={}
-    processing_time['LCS']=0
-    processing_time['UMPA']=0
-    processing_time['OF']=0
-    processing_time['Pavlov']=0
-    processing_time['MISTI']=0
-    processing_time['MISTII_1']=0
-    processing_time['MISTII_2']=0
-    processing_time['XSVT']=0
     
-    if do['LCS']:
-        time0=time.time()
-        phase_retrieval_experiment.process_LCS()
-        processing_time['LCS']=time.time()-time0
-    if do['LCS_Df']:
-        time0=time.time()
-        phase_retrieval_experiment.process_LCS_DF()
-        processing_time['LCS']=time.time()-time0
-    if do['UMPA']:
-        time0=time.time()
-        phase_retrieval_experiment.process_UMPA()
-        processing_time['UMPA']=time.time()-time0
-    if do['OF']:
-        time0=time.time()
-        phase_retrieval_experiment.process_OpticalFlow()
-        processing_time['OF']=time.time()-time0
-    if do['Pavlov']:
-        time0=time.time()
-        phase_retrieval_experiment.process_Pavlov2020()
-        processing_time['Pavlov']=time.time()-time0
-    if do['MISTI']:
-        time0=time.time()
-        phase_retrieval_experiment.process_MISTI()
-        processing_time['MISTI']=time.time()-time0
-    if do['MISTII_1']:
-        time0=time.time()
-        phase_retrieval_experiment.process_MISTII_1()
-        processing_time['MISTII_1']=time.time()-time0
-    if do['MISTII_2']:
-        time0=time.time()
-        phase_retrieval_experiment.process_MISTII_2()
-        processing_time['MISTII_2']=time.time()-time0
-    if do['XSVT']:
-        time0=time.time()
-        phase_retrieval_experiment.process_XSVT()
-        processing_time['XSVT']=time.time()-time0
-        
+    for method, to_do in do.items():
+        if to_do:
+            time0=time.time()
+            experiment.process_method(method)
+            processing_time[method]=time.time()-time0
+            
     return processing_time
     
 
@@ -67,21 +38,20 @@ def launchPhaseRetrieval(phase_retrieval_experiment, do):
 if __name__ == "__main__":
     
     # Parameters to tune
-    studied_case = 'SourceSizeStudy' # name of the experiment we want to work on
+    studied_case = 'MoucheSimapAout2017' # name of the experiment we want to work on
     
     do={}
     do['LCS']=True
-    do['LCS_Df']=True
-    do['MISTII_2']=False
-    do['MISTII_1']=False
-    do['MISTI']=False
-    do['UMPA']=False
-    do['OF']=False
-    do['Pavlov']=False
-    do['XSVT']=False
-    do['save_parameters']=True
+    do['MISTII_2']=True
+    do['MISTII_1']=True
+    do['MISTI']=True
+    do['UMPA']=True
+    do['OF']=True
+    do['Pavlov']=True
+    do['XSVT']=True
+    save_parameters=True
 
-    phase_retrieval_experiment=Phase_Retrieval_Experiment(studied_case)
+    phase_retrieval_experiment=Phase_Retrieval_Experiment(studied_case, do)
     # We create a folder for each retrieval test
     now=datetime.datetime.now()
     phase_retrieval_experiment.expID=now.strftime("%Y%m%d-%H%M%S") #
@@ -94,21 +64,19 @@ if __name__ == "__main__":
         processing_time=launchPhaseRetrieval(phase_retrieval_experiment,do)
         print(processing_time)
     
-        if do['save_parameters']:
-            saveParameters(phase_retrieval_experiment, processing_time)
+        if save_parameters:
+            saveParameters(phase_retrieval_experiment, processing_time, do)
         
     if phase_retrieval_experiment.tomo:
         outpurFolder0=phase_retrieval_experiment.output_folder
         for iproj in range(phase_retrieval_experiment.proj_to_treat_start,phase_retrieval_experiment.proj_to_treat_end, 1):
-            iprojString='%4.4d'%iproj
-            print(iproj)
-            phase_retrieval_experiment.output_folder=outpurFolder0+ '/Proj_' + iprojString
-            os.mkdir(phase_retrieval_experiment.output_folder)
+            print("\n\n Processing projection:" ,iproj)
             phase_retrieval_experiment.open_Is_Ir_tomo(iproj, phase_retrieval_experiment.number_of_projections)
             phase_retrieval_experiment.preProcessAndPadImages()
+            phase_retrieval_experiment.currentProjection=iproj
             processing_time=launchPhaseRetrieval(phase_retrieval_experiment, do)
             
-        if do['save_parameters']:
-            saveParameters(phase_retrieval_experiment, processing_time)
+        if save_parameters:
+            saveParameters(phase_retrieval_experiment, processing_time, do)
             
             

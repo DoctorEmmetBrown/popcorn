@@ -13,7 +13,7 @@ import os.path
 from os import path
 from xlutils.copy import copy
 
-def saveParameters(expParam, processing_time):
+def saveParameters(expParam, processing_time, do):
     """Save all experiment and algorithm parameters
     
 
@@ -85,9 +85,21 @@ def saveParameters(expParam, processing_time):
     xlsSheet.write(i,0,"Padding type")
     xlsSheet.write(i,1,expParam.pad_type )
     i+=1
-    xlsSheet.write(i,0,"LCS median filter (pix)")
-    xlsSheet.write(i,1,expParam.LCS_median_filter )
-    i+=1
+    if do["LCS"]:
+        xlsSheet.write(i,0,"LCS median filter (pix)")
+        xlsSheet.write(i,1,expParam.LCS_median_filter )
+        i+=1
+    if do["XSVT"]:
+        xlsSheet.write(i,0,"XSVT Nw")
+        xlsSheet.write(i,1,expParam.XSVT_Nw )
+        i+=1
+        xlsSheet.write(i,0,"XSVT median filter")
+        xlsSheet.write(i,1,expParam.XSVT_median_filter )
+        i+=1
+    if do["UMPA"]:
+        xlsSheet.write(i,0,"UMPA Nw")
+        xlsSheet.write(i,1,expParam.umpaNw )
+        i+=1
     xlsSheet.write(i,0,"Number of points")
     xlsSheet.write(i,1,expParam.nb_of_point )
     i+=1
