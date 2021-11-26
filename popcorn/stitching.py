@@ -12,6 +12,9 @@ from popcorn.input_output import open_image, open_sequence, save_tif_image, open
 from popcorn.spectral_imaging.registration import registration_computation, apply_itk_transformation
 from popcorn.resampling import interpolate_two_images
 
+# -- registration library --
+import SimpleITK as Sitk
+
 def stitch_multiple_folders_into_one(list_of_folders, output_folder, delta_z, look_for_best_slice=True, copy_mode=0,
                                      security_band_size=10, overlap_mode=0, band_average_size=0, flip=False):
     """Function that stitches different folders into a unique one.
@@ -360,6 +363,68 @@ def rearrange_folders_list(starting_position, number_of_lines, number_of_columns
     return new_list_of_folders
 
 
+def two_dimensions_stitching(ref_image, moving_image, supposed_offset=[0, 0]):
+    """ Stitches 2 slices and combines them together
+        supposed_offset : position of a pixel in ref_image - position of the same pixel in moving image
+    Args:
+        ref_image (numpy.ndarray):    reference image
+        moving_image (numpy.ndarray): moving image
+        supposed_offset (list[int]):  supposed offset between ref and moving image [x, y]
+
+    Returns:
+        (numpy.ndarray): combined images
+
+    """
+    initial_transform = Sitk.TranslationTransform(2)
+    initial_transform.SetParameters((supposed_offset[0], supposed_offset[1]))
+
+    moving_image_copy = apply_itk_transformation(moving_image, initial_transform)
+    transformation = registration_computation(moving_image=moving_image_copy, ref_image=ref_image,
+                                              transform_type="translation",
+                                              metric="cc", verbose=False)
+
+    transformation_parameters = transformation.GetParameters()
+    if abs(supposed_offset[1]) > abs(supposed_offset[0]):
+        transformation.SetParameters((transformation_parameters[0] + initial_transform.GetParameters()[0],
+                                      (ref_image.shape[0] + transformation_parameters[1] + initial_transform.GetParameters()[1])))
+    else:
+        transformation.SetParameters(((ref_image.shape[1] + transformation_parameters[0] + initial_transform.GetParameters()[0]),
+                                      transformation_parameters[1] + initial_transform.GetParameters()[1]))
+    print("actual shift :", transformation.GetParameters())
+    moving_image = apply_itk_transformation(moving_image, transformation)
+
+    output_x_size = int(2*ref_image.shape[1] - moving_image.shape[1] + int(transformation_parameters[0])
+                        + abs(initial_transform.GetParameters()[0]))
+    output_y_size = int(2*ref_image.shape[0] - moving_image.shape[0] + int(transformation_parameters[1])
+                        + abs(initial_transform.GetParameters()[1]))
+
+    x_difference = output_x_size - ref_image.shape[1]
+    y_difference = output_y_size - ref_image.shape[0]
+
+    output_image = np.zeros((output_y_size, output_x_size))
+
+    if abs(supposed_offset[1]) > abs(supposed_offset[0]) and supposed_offset[1] > 0:
+        output_image[output_y_size - ref_image.shape[0]:output_y_size, :] = ref_image
+        output_image[0:y_difference, :] = moving_image[0:y_difference, :]
+        print("1")
+
+    elif abs(supposed_offset[0]) < abs(supposed_offset[1]) and supposed_offset[1] < 0:
+        print("2")
+        output_image[0:ref_image.shape[0], :] = ref_image
+        output_image[ref_image.shape[0]:output_y_size, :] = moving_image[0:y_difference, :]
+
+    elif abs(supposed_offset[0]) > abs(supposed_offset[1]) and supposed_offset[0] > 0:
+        print("3")
+        output_image[:, output_x_size - ref_image.shape[1]:output_x_size] = ref_image
+        output_image[:, 0:x_difference] = moving_image[:, 0:x_difference]
+
+    elif abs(supposed_offset[1]) < abs(supposed_offset[0]) and supposed_offset[0] < 0:
+        print("4")
+        output_image[:, 0:ref_image.shape[1]] = ref_image
+        output_image[:, ref_image.shape[1]:output_x_size] = moving_image[:, 0:x_difference]
+
+    return output_image
+
 def compute_two_tiles_registration(ref_image_input_folder, ref_image_coordinates, moving_image_input_folder,
                                    moving_image_coordinates):
     """ Computes and returns offset between overlap of two images
@@ -632,5 +697,8 @@ def multiple_tile_registration(input_folder, radix, starting_position="top-left"
 
 
 if __name__ == "__main__":
-    folder = "C:\\Users\\ctavakol\\Desktop\\binned_tiles\\"
-    multiple_tile_registration(folder, radix="binned kiir 1-26 zone saine.czi - kiir 1-26 zS ", verbose=True)
+    input_folder = "C:\\Users\\ctavakol\\Desktop\\2d_stitching\\"
+    ref_image = open_image(input_folder + "left_image.tif")
+    moving_image = open_image(input_folder + "right_image.tif")
+
+    save_tif_image(two_dimensions_stitching(ref_image, moving_image, [-440, 0]), input_folder + "output_image")
