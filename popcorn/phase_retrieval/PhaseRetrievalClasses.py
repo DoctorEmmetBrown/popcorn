@@ -15,7 +15,7 @@ from MISTII_1 import processProjectionMISTII_1
 from MISTI import MISTI
 from OpticalFlow2020 import processProjectionOpticalFlow2020
 from Pavlov2020 import tie_Pavlovetal2020 as pavlov2020
-# from LCS_DF import processProjectionLCS_DF
+from LCS_DF import processProjectionLCS_DF
 from LCS import processProjectionLCS
 from speckle_matching import processProjectionUMPA
 from XSVT import processProjectionXSVT
@@ -87,7 +87,8 @@ class Phase_Retrieval_Experiment:
         self.define_experiment_values()
         self.define_algorithmic_values(do)
         
-        self.methods_functions={'LCS':processProjectionLCS, 
+        self.methods_functions={'LCS':processProjectionLCS,
+                                'LCS_DF':processProjectionLCS_DF,
                                 'UMPA':processProjectionUMPA,
                                 'XSVT':processProjectionXSVT,
                                 'MISTI':MISTI,

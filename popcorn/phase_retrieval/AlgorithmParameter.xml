@@ -1,7 +1,7 @@
 <list_experiments>
     <experiment>
         <experiment_name>MoucheSimapAout2017</experiment_name>
-        <nb_of_point>5</nb_of_point>
+        <nb_of_point>25</nb_of_point>
         <pad_size>0</pad_size>
         <pad_type>reflect</pad_type>
         <do_deconvolution>False</do_deconvolution>
@@ -9,7 +9,7 @@
         <absorption_correction_sigma>15</absorption_correction_sigma>
         <max_shift>2</max_shift>
         <sigma_regularization>1</sigma_regularization>
-        <LCS_median_filter>3</LCS_median_filter>
+        <LCS_median_filter>1</LCS_median_filter>
         <umpaNw>5</umpaNw>
         <MIST_median_filter>3</MIST_median_filter>
         <XSVT_Nw>1</XSVT_Nw>
@@ -17,7 +17,7 @@
     </experiment>
 
     <experiment>
-        <experiment_name>Patte21_Simap_mars2021</experiment_name>
+        <experiment_name>Patte_XSVTTest</experiment_name>
         <nb_of_point>25</nb_of_point>
         <pad_size>0</pad_size>
         <pad_type>reflect</pad_type>
@@ -47,7 +47,7 @@
         <XSVT_median_filter>3</XSVT_median_filter>
         <MIST_median_filter>3</MIST_median_filter>
         <proj_to_treat_start>0</proj_to_treat_start>
-        <proj_to_treat_end>720</proj_to_treat_end>
+        <proj_to_treat_end>5</proj_to_treat_end>
     </experiment>
 
 </list_experiments>
