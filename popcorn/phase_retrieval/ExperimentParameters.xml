@@ -1,8 +1,8 @@
 <list_experiments>
     <experiment>
         <experiment_name>MoucheSimapAout2017</experiment_name>
-        <exp_folder>/Users/quenot/Data/SIMAP/MoucheSimapAout2017/Binedx2_Clean15/deconvolved0p9/</exp_folder>
-        <output_folder>/Users/quenot/Documents/PhaseRetrieval/Results/MoucheSimapAout2017Binedx2/</output_folder>
+        <exp_folder>/Users/quenot/Data/SIMAP/MoucheSimapAout2017/Deconvolved/</exp_folder>
+        <output_folder>/Users/quenot/Documents/PhaseRetrieval/Results/MoucheSimapAout2017/</output_folder>
         <output_images_format>tif</output_images_format>
         <energy unit="keV">27</energy>
         <pixel unit="m">48e-6</pixel>
@@ -12,7 +12,7 @@
         <beta>1.29e-9</beta>
         <source_size unit="um">2</source_size>
         <detector_PSF unit="pix">0.9</detector_PSF>
-        <crop_on>True</crop_on>
+        <crop_on>False</crop_on>
         <cropDebX unit="pix">500</cropDebX>
         <cropDebY unit="pix">500</cropDebY>
         <cropEndX unit="pix">700</cropEndX>
@@ -40,8 +40,8 @@
     
     <experiment>
         <experiment_name>Tomo_md1217</experiment_name>
-        <exp_folder>/Users/quenot/Data/ID17/GeorgetteMain/HA1224_24um_Georgette_60kev_Speckle_main_000__00*_/</exp_folder>
-        <output_folder>/Users/quenot/Documents/PhaseRetrieval/Results/Georgette/</output_folder>
+        <exp_folder>/Users/quenot/Data/ID17/MD1295/Tomo_Rat6/Tomo_floor1_pressure1/tomo_rat6_floor01_Pressure1_Speck*_/</exp_folder>
+        <output_folder>/Users/quenot/Documents/PhaseRetrieval/Results/Tomo_Rat6/</output_folder>
         <energy unit="keV">33</energy>
         <pixel unit="m">6e-6</pixel>
         <dist_object_detector unit="m">5.3</dist_object_detector>

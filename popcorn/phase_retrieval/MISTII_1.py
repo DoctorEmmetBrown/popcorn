@@ -14,8 +14,10 @@ import numpy as np
 from matplotlib import cm
 import matplotlib as mpl
 from scipy.ndimage.filters import gaussian_filter, median_filter
+from matplotlib.colors import hsv_to_rgb, rgb_to_hsv
 from scipy.sparse.linalg import lsmr
 from matplotlib import pyplot as plt
+from numba import jit
 import colorsys
 
 def MISTII_1(experiment):
@@ -109,6 +111,75 @@ def MISTII_1(experiment):
     
     return phi, Deff_xx,Deff_yy,Deff_xy
 
+@jit(nopython=True)
+def fast_loop_theta(thetapad, saturation, gaussian, Nx, Ny, size):
+    thetaresult=np.zeros((Nx,Ny))
+    i0=0
+    j0=0
+    for i in range(size, Nx+size):
+        for j in range(size, Ny+size):
+            patch=thetapad[i-size:i+size,j-size:j+size]*2
+            cg=gaussian*np.cos(patch)
+            wcos=np.sum(gaussian*np.cos(patch))
+            wsin=np.sum(gaussian*np.sin(patch))
+            norm=np.sqrt(wcos**2+wsin**2)
+            saturation[i0,j0]=norm
+            # wcos=np.median(np.cos(patch))
+            # wsin=np.median(np.sin(patch))            
+            if wcos==0:
+                newVal=np.pi/2
+            else:
+                newVal=np.arctan2(wsin,wcos)
+                # print(newVal)
+            thetaresult[i0,j0]=newVal/2          
+            j0+=1
+        i0+=1
+        j0=0
+    return thetaresult, saturation
+    
+def create_gaussian_shape(sigma):
+    size=round(sigma*3)
+    Qx, Qy = np.meshgrid((np.arange(0, 2*size) - np.floor(size) - 1), (np.arange(0, 2*size) - np.floor(size) - 1)) #frequency ranges of the images in fqcy space
+
+    g = np.exp(-(((Qx)**2) / 2. / sigma**2 + ((Qy)**2) / 2. / sigma**2))
+    return g/np.sum(g)
+    
+def correctTheta(theta, sigma=5):
+    size=round(sigma*3)
+    gaussian=create_gaussian_shape(sigma)
+    Nx, Ny=theta.shape
+    saturation=np.zeros((Nx,Ny))
+    thetapad=np.pad(theta, size, mode='reflect')
+    
+    thetaresult, saturation=fast_loop_theta(thetapad,saturation, gaussian, Nx, Ny, size)
+    thetaresult[thetaresult<0]+=np.pi
+    saturation=saturation/np.max(saturation)
+    plt.figure()
+    plt.imshow(theta)
+    plt.title(" theta")
+    plt.colorbar()
+    plt.show()
+    
+    plt.figure()
+    plt.imshow(thetaresult)
+    plt.title("filtered theta")
+    plt.colorbar()
+    plt.show()
+    return  thetaresult,saturation
+
+
+def std_normalize(image, n_std=3, no_min=False):
+    std_dev=np.std(image)
+    mean_image=np.mean(image)
+    if no_min==True:
+        min_im=0
+    else:
+        min_im=mean_image-n_std*std_dev
+    max_im=mean_image+n_std*std_dev
+    image=(image-min_im)/(max_im-min_im)
+    image=np.clip(image, 0, 1)
+    return image
+
 def processProjectionMISTII_1(experiment):
     """
     This function calls PavlovDirDF to compute the tensors of the directional dark field and the phase of the sample
@@ -118,7 +189,49 @@ def processProjectionMISTII_1(experiment):
     #Calculate directional darl field
     phi, Deff_xx,Deff_yy,Deff_xy=MISTII_1(experiment)
     
+    a11=(Deff_xy*Deff_yy)
+    a22=(Deff_xy*Deff_xx)
+    a12=Deff_xx*Deff_yy/2
+        
+    A=a11
+    C=a22
+    B=a12
+    maskEllipsce=1-((A>0)*(A*C-B**2>0))
+    
+    theta=0.5*np.arctan2(2*a12,a11-a22)
+    
+    Ap1=np.abs(a11*np.sin(theta)**2+a22*np.cos(theta)**2+2*a12*np.sin(theta)*np.cos(theta))
+    Bp1=np.abs(a11*np.cos(theta)**2+a22*np.sin(theta)**2-2*a12*np.sin(theta)*np.cos(theta))
+    Ap=np.max([Ap1,Bp1], axis=0)
+    Bp=np.min([Ap1,Bp1], axis=0)
+    a=np.sqrt(Ap)
+    b=np.sqrt(Bp)
+    theta[Ap1<Bp1]+=np.pi/2
+    theta[theta<0]+=np.pi
+    
+    # excentricity=np.sqrt(1-b/a)
+    excentricity=abs(a-b)#(np.sqrt(a**2+b**2)/(a)-1)*2
+    
+    excentricity[maskEllipsce]=0
+    area=(a*b)
+    area[area<0]=0
+    excentricity[excentricity>1]=1
+    
     #Post processing tests
+    alpha=0.0000001
+    Deff_xx=abs(Deff_xx)
+    Deff_yy=abs(Deff_yy)
+    sign_Deff_xy=np.sign(Deff_xy)*1.
+
+        
+    threshold=0.1
+    Deff_yy[abs(Deff_yy)>threshold]=alpha
+    Deff_xx[abs(Deff_xx)>threshold]=alpha
+    Deff_xy[abs(Deff_xy)>threshold]=alpha*sign_Deff_xy[abs(Deff_xy)>threshold]
+    Deff_yy[abs(Deff_yy)==0]=alpha
+    Deff_xx[abs(Deff_xx)==0]=alpha
+    Deff_xy[abs(Deff_xy)==0]=alpha*sign_Deff_xy[abs(Deff_xy)==0]
+    
     #Median filter
     medFiltSize=experiment.MIST_median_filter
     if medFiltSize!=0:
@@ -126,29 +239,48 @@ def processProjectionMISTII_1(experiment):
         Deff_xx=median_filter(Deff_xx, medFiltSize)
         Deff_yy=median_filter(Deff_yy, medFiltSize)
         Deff_xy=median_filter(Deff_xy, medFiltSize)
+    if medFiltSize!=0:
+        area=median_filter(area, medFiltSize)
+        excentricity=median_filter(excentricity, medFiltSize)
+    stdarea=np.std(area)
+    area=abs(area)*1e3#/(3*stdarea)
+    area[area>1]=1
     
-    #Normalization of the result and restrict to thresholds
-    a1=np.mean(np.mean([Deff_xx,Deff_yy,Deff_xy]))
-    b1=np.mean(np.std([Deff_xx,Deff_yy,Deff_xy]))
-    Deff_xx=((Deff_xx-a1)/(3*b1))
-    Deff_yy=((Deff_yy-a1)/(3*b1))
-    Deff_xy=((Deff_xy-a1)/(3*b1))
-    print(b1)
+    #NORMALIZATION
     Deff_xx[Deff_xx>1]=1
     Deff_yy[Deff_yy>1]=1
+    # Deff_xy=abs(Deff_xy)
     Deff_xy[Deff_xy>1]=1
-    Deff_xx[Deff_xx<0]=0
-    Deff_yy[Deff_yy<0]=0
-    Deff_xy[Deff_xy<0]=0
+    
+    IntensityDeff=np.sqrt((Deff_xx**2+Deff_yy**2+Deff_xy**2)/3)
+    
+    theta, sat=correctTheta(theta, medFiltSize*2)
+    theta=theta/np.pi
     
     #Trying to create a coloured image from tensor (method probably wrong for now)
-    colouredImage=np.zeros((( Nx, Ny,3)))
-    colouredImage[:,:,0]=abs(Deff_xx)
-    colouredImage[:,:,1]=abs(Deff_yy)
+    colouredImage=np.zeros(((Nx, Ny,3)))
+    colouredImage[:,:,0]=Deff_xx
+    colouredImage[:,:,1]=Deff_yy
     colouredImage[:,:,2]=abs(Deff_xy)
-    colouredImage[colouredImage>1]=1
     
-    #colouredImage=mpl.colors.hsv_to_rgb(colouredImage)
+    colouredImageExc=np.zeros(((Nx, Ny,3)))
+    colouredImageExc[:,:,0]=theta
+    colouredImageExc[:,:,1]=sat
+    colouredImageExc[:,:,2]=std_normalize(excentricity,no_min=True)
+    
+    colouredImagearea=np.zeros(((Nx, Ny,3)))
+    colouredImagearea[:,:,0]=theta
+    colouredImagearea[:,:,1]=sat#area 
+    colouredImagearea[:,:,2]=std_normalize(area,no_min=True)
+    
+    colouredImageDir=np.zeros(((Nx, Ny,3)))
+    colouredImageDir[:,:,0]=theta
+    colouredImageDir[:,:,1]=sat 
+    colouredImageDir[:,:,2]=std_normalize(IntensityDeff,no_min=True) #1-np.exp(-IntensityDeff) 
+    
+    colouredImageExc=hsv_to_rgb(colouredImageExc)
+    colouredImagearea=hsv_to_rgb(colouredImagearea)
+    colouredImageDir=hsv_to_rgb(colouredImageDir)
+    
 
-    return {'phi': phi, 'Deff_xx': Deff_xx, 'Deff_yy': Deff_yy, 'Deff_xy': Deff_xy, 'ColoredDeff': colouredImage}
-
+    return {'phi': phi, 'Deff_xx': Deff_xx, 'Deff_yy': Deff_yy, 'Deff_xy': Deff_xy, 'excentricity': excentricity,'area':area, 'oriented_DF_exc': colouredImageExc, 'oriented_DF_area': colouredImagearea, 'oriented_DF_norm':colouredImageDir, 'theta':theta, 'local_orientation_strength':sat}
