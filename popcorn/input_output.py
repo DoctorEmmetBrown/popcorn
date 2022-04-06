@@ -39,8 +39,19 @@ def create_list_of_files(folder_name, extension):
     list_of_files = glob.glob(folder_name + '/*' + extension)
     list_of_files.sort()
     if len(list_of_files) == 0:
-        raise Exception('Error: No file corresponds to the given extension: .' + extension)
+        if "tif" in extension.lower():
+            extension = "edf"
+            list_of_files = glob.glob(folder_name + '/*' + extension)
+            list_of_files.sort()
+        elif "edf" in extension.lower():
+            extension = "tif"
+            list_of_files = glob.glob(folder_name + '/*' + extension)
+            list_of_files.sort()
+        else:
+            raise Exception('Error: No file corresponds to the given extension: .' + extension)
 
+    if len(list_of_files) == 0:
+        raise Exception('Error: No file corresponds to the following extensions: .tif and .edf')
     return list_of_files
 
 
@@ -75,11 +86,12 @@ def open_image(filename):
         return im
 
 
-def open_sequence(filenames_or_input_folder):
+def open_sequence(filenames_or_input_folder, extension="tif"):
     """opens a sequence of images
 
     Args:
         filenames_or_input_folder (str): file names
+        extension (str):                 files extension
 
     Returns:
         (numpy.ndarray): sequence of 2D images
@@ -89,11 +101,8 @@ def open_sequence(filenames_or_input_folder):
         raise Exception('Error: no file corresponds to the given path/extension')
     # We check if the given filenames is a regular expression of input files:
     if type(filenames_or_input_folder) != list:
-        # We try opening either .tif files
-        list_of_files = create_list_of_files(filenames_or_input_folder, "tif")
-        # or .edf files
-        if len(list_of_files) == 0:
-            list_of_files = create_list_of_files(filenames_or_input_folder, "edf")
+        # We try opening .extension files
+        list_of_files = create_list_of_files(filenames_or_input_folder, extension)
     else:
         list_of_files = filenames_or_input_folder
     # If the created list_of_files is empty
@@ -307,7 +316,7 @@ def save_tif_sequence_and_crop(image, bounding_box, path, bit=32, header=None):
 
     for i in range(cropped_image.shape[0]):
         cropped_slice = cropped_image[i, :, :]
-        image_path = path + '{:04d}'.format(i) + '.tif'
+        image_path = path + '{:04d}'.format(i)
         save_tif_image(cropped_slice, image_path, bit, header=header)
 
 
