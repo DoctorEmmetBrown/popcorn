@@ -1,4 +1,5 @@
 import numpy as np
+import glob
 
 from popcorn.image_processing import segmentation, mathematical_morphology
 from popcorn.spectral_imaging import registration
@@ -7,6 +8,28 @@ from popcorn import input_output, resampling
 from popcorn.spectral_imaging.material_decomposition import three_materials_decomposition
 
 import skimage.io as io
+
+
+def data_initialization_pipeline(input_folder, z_cropping_values=[], x_y_cropping_values=[], binning_factor=1.0,
+                                 output_folder="", bit=32):
+    """Formats ESRF KES-CT reconstructed images in order ot be used by Popcorn. This includes: 16bit to 32 bit and .edf
+    to .tif conversion, cropping along z axis, cropping along x/y axis, binning.
+
+    Args:
+        input_folder (str): input folder path (contains all the reconstructed data folders)
+        z_cropping_values (list[int]): list of first/last slices indices
+        x_y_cropping_values (list[int]): list of first/last row/column indices (same for x and y)
+        binning_factor (float):  binning factor
+        output_folder (str):  output_folder, if not specified: uses input folder
+        bit (int):  bits of input images
+
+    Returns:
+        None
+    """
+
+    list_of_folders = glob.glob(input_folder + "*/")
+
+    print(list_of_folders)
 
 
 def conversion_pipeline(above_folder, below_folder, bin_factor, above_min, above_max, below_min, below_max):
@@ -43,7 +66,7 @@ def skull_alignment_pipeline(image, modality, element=None):
     """computes all the skull segmentation and rat aligning with z axis calculations
 
     Args:
-        image (str):    input above image path
+        image (str):    input above image
         modality (str): esrf or spcct
         element (str):  K-edge element (Au, I, Gd...)
 
@@ -56,11 +79,11 @@ def skull_alignment_pipeline(image, modality, element=None):
     else:
         threshold_value = segmentation.find_threshold_value(modality)
     mask = image > threshold_value
-
+    print("tresh", threshold_value)
     # -- Extracting skull
     above_skull, skull_bbox, \
-        barycenter_jaw_one, barycenter_jaw_two, \
-        y_max_jaw_one, y_max_jaw_two = segmentation.extract_skull_and_jaws(mask)
+    barycenter_jaw_one, barycenter_jaw_two, \
+    y_max_jaw_one, y_max_jaw_two = segmentation.extract_skull_and_jaws(mask)
 
     # 1) First rotation based on the position of skull/jaws
     print("... Beginning the first rotation ...")
@@ -89,24 +112,86 @@ def skull_alignment_pipeline(image, modality, element=None):
 
     # We re-segment the skull/jaws
     mask = straightened_image > threshold_value
-
     above_skull, skull_bbox, \
-        barycenter_jaw_one, barycenter_jaw_two, \
-        y_max_jaw_one, y_max_jaw_two = segmentation.extract_skull_and_jaws(mask)
+    barycenter_jaw_one, barycenter_jaw_two, \
+    y_max_jaw_one, y_max_jaw_two = segmentation.extract_skull_and_jaws(mask)
+
+    input_output.save_tif_sequence(above_skull, "E:\\CT_md1217\\0873_05\\Au\\test\\")
 
     # 3) Third rotation based on the symmetry of the skull
     print("... Beginning the third rotation ...")
+    print(skull_bbox)
     final_image, final_skull, symmetry_angle = registration.symmetry_based_registration(straightened_image,
                                                                                         above_skull,
                                                                                         skull_bbox,
                                                                                         throat_coordinates,
-                                                                                        20)
+                                                                                        40)
 
-    return throat_coordinates, triangle_angle, rotation_matrix, symmetry_angle, offset
+    return throat_coordinates, triangle_angle, rotation_matrix, symmetry_angle, offset * 2
+
+
+def multi_modal_registration_pipeline(low_res_image_folder, low_res_pixel_size, high_res_image_folder,
+                                      high_res_image_pixel_size):
+    """multi-modal registration pipeline
+
+    Args:
+        low_res_image_folder (str):        low resolution image folder
+        low_res_pixel_size (float):        low resolution image pixel size
+        high_res_image_folder (str):       high resolution image folder
+        high_res_image_pixel_size (float): high resolution image pixel size
+
+    Returns:
+        None
+    """
+    # 1. Input images opening
+    print("Step 1/6 - opening")
+    print("opening low_res_image")
+    low_res_image = input_output.open_sequence(low_res_image_folder)
+    print("opening high_res_image")
+    high_res_image = input_output.open_sequence(high_res_image_folder)
+
+    # 2. Resizing
+    print("Step 2/6 - resizing")
+    image_size_ratio = high_res_image_pixel_size / low_res_pixel_size
+
+    ref_image = np.zeros([int(high_res_image.shape[0] * image_size_ratio),
+                          int(high_res_image.shape[1] * image_size_ratio),
+                          int(high_res_image.shape[2] * image_size_ratio)])
+
+    high_res_image, ref_image = resampling.resize_image(high_res_image, ref_image)
+
+    # 3. Distance maps
+    print("Step 3/6 - contour/distance map")
+    # low_res_contour_map = ?
+    # high_res_contour_map = ?
+
+    # 4. Registration computation
+    print("Step 4/6 - computing registration")
+    rotation = registration.registration_computation(moving_image=low_res_image,
+                                                     ref_image=high_res_image,
+                                                     transform_type="rotation",
+                                                     metric="cc",
+                                                     moving_mask=None,
+                                                     ref_mask=None,
+                                                     verbose=True)
+
+    # 5. Registration application
+    print("Step 5/6 - applying registration")
+    output_image = registration.apply_itk_transformation(image=low_res_image,
+                                                         transformation=rotation,
+                                                         interpolation_type="linear",
+                                                         ref_img=high_res_image)
+
+    # 6. Saving image
+    print("Step 6/6 - saving image")
+    output_folder = input_output.remove_last_folder_in_path(high_res_image_folder) + "\\registration_result\\"
+    input_output.save_tif_sequence(output_image, output_folder)
+
+    print("image saved in", output_folder)
 
 
 def all_images_alignment_pipeline(input_folder, modality, spcct_image=None, element="Au"):
-    #TODO spcct-esrf image alignment
+    # TODO spcct-esrf image alignment
     """
 
     Args:
@@ -131,7 +216,9 @@ def all_images_alignment_pipeline(input_folder, modality, spcct_image=None, elem
     binning_factor = 2
     binned_image = resampling.bin_resize(above_image, binning_factor)
 
-    throat_coordinates, triangle_angle, rotation_matrix, symmetry_angle, offset = skull_alignment_pipeline(binned_image, modality, element)
+    throat_coordinates, triangle_angle, rotation_matrix, symmetry_angle, offset = skull_alignment_pipeline(binned_image,
+                                                                                                           modality,
+                                                                                                           element)
 
     threshold_value = segmentation.find_threshold_value(element, "esrf")
 
@@ -180,6 +267,7 @@ def all_images_alignment_pipeline(input_folder, modality, spcct_image=None, elem
                                             input_folder + "Aligned_Below_Skull\\")
     print("-------------------------------------")
 
+
 def _extracted_from_all_images_alignment_pipeline_4(input_folder, arg1, arg2):
     above_list_of_files = input_output.create_list_of_files(
         input_folder + arg1, 'tif'
@@ -188,6 +276,7 @@ def _extracted_from_all_images_alignment_pipeline_4(input_folder, arg1, arg2):
     result = input_output.open_sequence(above_list_of_files)
     print(arg2)
     return result
+
 
 def different_energies_registration_pipeline(input_folder, kedge_material="Au", secondary_material="I",
                                              translation_bool=False, rotation_bool=True):
@@ -251,7 +340,7 @@ def different_energies_registration_pipeline(input_folder, kedge_material="Au", 
     if rotation_bool:
         above_skull = registration.apply_itk_transformation(above_skull, rotation_transform, "nearest")
 
-    main_concentration_map, second_concentration_map, water_concentration_map\
+    main_concentration_map, second_concentration_map, water_concentration_map \
         = three_materials_decomposition(above_image, below_image, kedge_material=kedge_material,
                                         secondary_material=secondary_material)
 
@@ -292,19 +381,22 @@ def quantify_nanoparticles_in_brain_pipeline(input_folder, kedge_material):
     # animationCreation.saveGold(input_folder, concentration_map, segmented_cells, 0, main_element) TODO
 
 
-def esrf_spcct_registration_pipeline(working_folder, esrf_resolution, spcct_resolution, inversion = False):
-
+def esrf_spcct_registration_pipeline(working_folder, esrf_resolution, spcct_resolution, inversion=False):
     # ---- PART 1 ----
     if inversion:
-        spcct_image = resampling.flip_along_z_axis(io.imread(working_folder + "SPCCT_Acquisition\\SPCCT_Acquisition.tif"))
+        spcct_image = resampling.flip_along_z_axis(
+            io.imread(working_folder + "SPCCT_Acquisition\\SPCCT_Acquisition.tif"))
 
-        gold_np_concentrations = resampling.flip_along_z_axis(io.imread(working_folder + "SPCCT_Gold_Concentrations\\SPCCT_Gold_Concentrations.tif"))
-        iodine_np_concentrations = resampling.flip_along_z_axis(io.imread(working_folder + "SPCCT_Iodine_Concentrations\\SPCCT_Iodine_Concentrations.tif"))
+        gold_np_concentrations = resampling.flip_along_z_axis(
+            io.imread(working_folder + "SPCCT_Gold_Concentrations\\SPCCT_Gold_Concentrations.tif"))
+        iodine_np_concentrations = resampling.flip_along_z_axis(
+            io.imread(working_folder + "SPCCT_Iodine_Concentrations\\SPCCT_Iodine_Concentrations.tif"))
     else:
         spcct_image = io.imread(working_folder + "SPCCT_Acquisition\\SPCCT_Acquisition.tif")
 
         gold_np_concentrations = io.imread(working_folder + "SPCCT_Gold_Concentrations\\SPCCT_Gold_Concentrations.tif")
-        iodine_np_concentrations =io.imread(working_folder + "SPCCT_Iodine_Concentrations\\SPCCT_Iodine_Concentrations.tif")
+        iodine_np_concentrations = io.imread(
+            working_folder + "SPCCT_Iodine_Concentrations\\SPCCT_Iodine_Concentrations.tif")
 
     ## Resizing images
     ratio = spcct_resolution / esrf_resolution
@@ -325,3 +417,8 @@ def esrf_spcct_registration_pipeline(working_folder, esrf_resolution, spcct_reso
     #                             SPCCTImage, IodineConcentrationImage, True) #TODO
     # fullSkullExtractionPipeline(folderName + "SPCCT_Acquisition_cropped\\", folderName + "SPCCT_Iodine_Concentrations_cropped\\", folderName + "SPCCT_Skull\\", SPCCTImage, IodineConcentrationImage, True)
     print("FINISH")
+
+
+if __name__ == '__main__':
+    input_folder = "D:\\Clement_BACKUP\\Annee_3\\"
+    data_initialization_pipeline(input_folder)
