@@ -1,7 +1,13 @@
+import sys
+
 import numpy as np
 
 from skimage.transform import resize
 import SimpleITK as Sitk
+import pandas as pd
+
+sys.path.append("popcorn\\spectral_imaging\\")
+
 
 def conversion_from_uint16_to_float32(image, min_value, max_value):
     """Converts 16 bit uint into 32 bit float using min max parameters (0 -> min, 65535 -> max)
@@ -143,3 +149,56 @@ def resize_image(moving_image, reference_image):
     moving_image = Sitk.GetArrayFromImage(moving_image_itk)
     reference_image = Sitk.GetArrayFromImage(reference_image_itk)
     return moving_image, reference_image
+
+
+def convert_from_mu_to_hounsfield_unit(image, normalized_spectrum):
+    """convert an attenuation image from cm-1 to Hounsfield Unit
+
+    Args:
+        image (np.ndarray): input cm-1 image
+        normalized_spectrum (np.ndarray): spectrum used for image acquisition (1D vector)
+
+    Returns:
+        (np.ndarray): converted Hounsfield Unit image
+
+    """
+    water_attenuations = pd.read_csv('water_attenuation.csv').to_numpy().flatten()
+    mu_water = np.sum(normalized_spectrum*water_attenuations[0:normalized_spectrum.shape[0]])
+
+    return 1000 * (image - np.ones(image.shape)*mu_water)/mu_water
+
+
+def convert_from_hounsfield_unit_to_mu(image, normalized_spectrum):
+    """convert an attenuation image from Hounsfield Unit to cm-1
+
+    Args:
+        image (np.ndarray): input Hounsfield Unit image
+        normalized_spectrum (np.ndarray): spectrum used for image acquisition (1D vector)
+
+    Returns:
+        (np.ndarray): converted cm-1 image
+
+    """
+    water_attenuations = pd.read_csv('water_attenuation.csv').to_numpy().flatten()
+    mu_water = np.sum(normalized_spectrum*water_attenuations[0:normalized_spectrum.shape[0]])
+
+    return (image/1000*mu_water) + np.ones(image.shape)*mu_water
+
+
+def interpolate_two_images(first_image, second_image, interpolation_weight):
+    """interpolates two images based on interpolation weight [0: first_image, 1: second_image]
+
+    Args:
+        first_image (numpy.ndarray):  first image to interpolate
+        second_image (numpy.ndarray): second image to interpolate
+        interpolation_weight (float): weight used for interpolation
+
+    Returns:
+        (numpy.ndarray): interpolated image
+    """
+    if first_image.shape != second_image.shape:
+        raise Exception("The input images need to have the same shape !")
+    first_image_weights = np.ones(first_image.shape) * (1-interpolation_weight)
+    second_image_weights = np.ones(second_image.shape) * (1-interpolation_weight)
+
+    return first_image*first_image_weights + second_image * second_image_weights

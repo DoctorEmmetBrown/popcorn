@@ -325,7 +325,7 @@ def straight_throat_rotation(image, throat_mask_img=None, direction_vector=None,
 
         direction_vector = np.flip(np.copy(normalized_total_vector))
 
-        throat_coordinates = [centroid_list[0][1], centroid_list[0][0], centroid_list[0][2]]  # [x, y]
+        throat_coordinates = np.array([centroid_list[0][1], centroid_list[0][0], centroid_list[0][2]])  # [x, y]
 
     rotation_matrix = calculate_rotation_matrix_between_3d_vectors(direction_vector, np.array([0, 0, 1]))
 
@@ -376,6 +376,11 @@ def symmetry_based_registration(image, skull, skull_bounding_box, throat_coordin
     diff = 1
 
     correct_angle = 0
+
+    import popcorn.input_output as in_out
+
+    in_out.save_tif_sequence(skull_to_study, "D:\\CT_md1217\\0873_05\\Au\\qsd\\")
+
     for increment, i in enumerate(range(number_of_iterations*2)):
 
         angle = float(-number_of_iterations + i) / 180 * math.pi
@@ -406,7 +411,6 @@ def symmetry_based_registration(image, skull, skull_bounding_box, throat_coordin
         number_of_zeros = np.zeros(left_half_skull.shape)
         number_of_zeros[right_half_image == 0] = 1
         number_of_zeros[left_half_image == 0] = 1
-
         subtraction = right_half_skull - left_half_skull
         count = len(subtraction[subtraction != 0])
 
@@ -417,7 +421,7 @@ def symmetry_based_registration(image, skull, skull_bounding_box, throat_coordin
         if diff > normalized_value:
             correct_angle = angle
             diff = normalized_value
-
+    print(cross_correlation_list)
     image_copy = np.copy(image)
     skull_copy = np.copy(skull)
 
@@ -467,12 +471,16 @@ def apply_rotation_pipeline(image, local_triangle_angle, rotation_matrix, local_
         (numpy.ndarray) transformed image
     """
     # Step 1
+    print("Image initial size:", image.shape)
     image = compute_2d_rotation(image, local_triangle_angle, "linear")
+    print("Image first size:", image.shape)
     # Step 2
     image = compute_3d_rotation(image, rotation_matrix, local_throat_coordinates,
                                 translation=np.array([0, 0, binned_offset]), size_change=1.5)
+    print("Image second size:", image.shape)
     # Step 3
     image = compute_2d_rotation(image, symmetry_angle, "linear")
+    print("Image last size:", image.shape)
 
     return image
 
@@ -525,8 +533,10 @@ def set_registration_parameters(method, metric, transform_type="translation", re
     if transform_type == "translation":
         method.SetOptimizerAsRegularStepGradientDescent(learningRate=1.0,
                                                         minStep=1e-3,
-                                                        numberOfIterations=500,
+                                                        numberOfIterations=100,
                                                         gradientMagnitudeTolerance=1e-8)
+
+        # 4 ---> TRANSFORMATION
         transform = Sitk.TranslationTransform(dimension)
     else:
         method.SetOptimizerAsRegularStepGradientDescent(learningRate=1e-3,
@@ -583,7 +593,6 @@ def registration_computation(moving_image, ref_image, transform_type="rotation",
 
     calculated_transform = registration_method.Execute(ref_image_itk, moving_image_itk)
 
-    print("Transform :", calculated_transform)
     print("Transform :", calculated_transform.GetParameters())
 
     return calculated_transform
@@ -595,7 +604,7 @@ def apply_itk_transformation(image, transformation, interpolation_type="linear",
     Args:
         image (numpy.ndarray):           input image
         transformation (Sitk.Transform): SimpleITK Transform
-        interpolation_type (str):        interpolation type : can be "linear" or "nearestneighbor"
+        interpolation_type (str):        interpolation type : can be "linear" or "nearest"
         ref_img (numpy.ndarray):         reference image (for shape information)
 
     Returns:
@@ -607,7 +616,7 @@ def apply_itk_transformation(image, transformation, interpolation_type="linear",
     else:
         interpolator = Sitk.sitkNearestNeighbor
     image_itk = Sitk.GetImageFromArray(image)
-    if ref_img:
+    if ref_img is not None:
         ref_img_itk = Sitk.GetImageFromArray(ref_img)
         image_itk = Sitk.Resample(image_itk, ref_img_itk, transformation, interpolator, 0.0,
                                   image_itk.GetPixelIDValue())
