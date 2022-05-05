@@ -48,7 +48,7 @@ def tie_Pavlovetal2020(experiment):
     delta = experiment.delta
     beta = experiment.beta
 
-    absMask=gaussian_filter(np.median(experiment.sample_images),experiment.absorption_correction_sigma)/gaussian_filter(np.median(experiment.reference_images),experiment.absorption_correction_sigma)
+    absMask=1#gaussian_filter(np.median(experiment.sample_images),experiment.absorption_correction_sigma)/gaussian_filter(np.median(experiment.reference_images),experiment.absorption_correction_sigma)
 
     waveNumber = (2 * pi) / lambda_energy
     mu = 2 * waveNumber * beta
@@ -62,7 +62,7 @@ def tie_Pavlovetal2020(experiment):
     if experiment.reference_images.ndim>2:
         Is_divided_by_Ir=np.median(Is_divided_by_Ir,axis=0)
 
-    numerator = 1 - Is_divided_by_Ir
+    numerator = Is_divided_by_Ir
 
 
     fftNumerator = fftshift(fft2(numerator))
@@ -111,8 +111,9 @@ def tie_Pavlovetal2020(experiment):
     # inverse fourier transform
     tmpThickness = ifft2(ifftshift(tmp))  # F-1
     img_thickness = np.real(tmpThickness)
+    img_thickness[img_thickness<=0]=0.000000001
     # Diision by mu
-    img_thickness = img_thickness / mu
+    img_thickness = -np.log(img_thickness) / mu
     # multiplication to be in micron
     img_thickness = img_thickness * 1e6
 
