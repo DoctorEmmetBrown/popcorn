@@ -422,9 +422,9 @@ class Phase_Retrieval_Experiment:
         padSize = self.pad_size
         for key, value in result.items():
             if padSize >0:
-                if value.dim==2:
+                if value.ndim==2:
                     width, height = value.shape
-                if value.dim==3:
+                if value.ndim==3:
                     width, height, _ = value.shape
                 value=value[padSize: width - padSize, padSize: height - padSize]
             currentFolder=self.output_folder+currentMethod+key
