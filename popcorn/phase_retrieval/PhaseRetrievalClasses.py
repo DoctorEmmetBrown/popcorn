@@ -330,7 +330,7 @@ class Phase_Retrieval_Experiment:
             IrEnd = openSeq(refTakenEnd)
             Is = openSeq(sampTaken)
 
-        Ir=IrStart*(Nproj-iproj)+IrEnd*iproj
+        Ir=(IrStart*(Nproj-iproj)+IrEnd*iproj)/Nproj
 
         # On cree un white a partir de la reference pour normaliser
         if len(whiteImage)==0:
