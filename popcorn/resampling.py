@@ -21,7 +21,7 @@ def conversion_from_uint16_to_float32(image, min_value, max_value):
         (numpy.ndarray): converted image (float32)
     """
     image = image.astype(np.float32)
-    return (image/65535) * (max_value - min_value) - min_value
+    return (image/65535) * (max_value - min_value) + min_value
 
 
 def conversion_from_float32_to_uint16(image, min_value, max_value):
@@ -94,6 +94,27 @@ def bin_resize(image, bin_factor):
         raise Exception('bin_factor must be strictly positive')
 
 
+def bin_resize_anisotropic(image, bin_factor_x, bin_factor_y, bin_factor_z):
+    """resizes the image depending on a bin_factor
+
+    Args:
+        image (numpy.ndarray): input image
+        bin_factor (int): binning factor
+
+    Returns:
+        (numpy.ndarray): binned image
+    """
+    nb_slices, width, height = image.shape
+    if bin_factor_x * bin_factor_y * bin_factor_z > 0:
+        nb_slices = int(nb_slices/bin_factor_z)
+        width = int(width/bin_factor_x)
+        height = int(height/bin_factor_y)
+        dim = (nb_slices, width, height)
+        return resize(image, dim, preserve_range=True)
+    else:
+        raise Exception('bin_factor must be strictly positive')
+
+
 def flip_along_z_axis(input_image):
     """flips an image along z axis
 
@@ -132,10 +153,10 @@ def resize_image(moving_image, reference_image):
                       reference_image.shape[0]]  # Arbitrary sizes, smallest size that yields desired results.
     reference_spacing = [phys_sz / (sz - 1) for sz, phys_sz in zip(reference_size, reference_physical_size)]
 
-    reference_image = Sitk.Image(reference_size, moving_image_itk.GetPixelIDValue())
-    reference_image.SetOrigin(reference_origin)
-    reference_image.SetSpacing(reference_spacing)
-    reference_image.SetDirection(reference_direction)
+    final_ref_image = Sitk.Image(reference_size, moving_image_itk.GetPixelIDValue())
+    final_ref_image.SetOrigin(reference_origin)
+    final_ref_image.SetSpacing(reference_spacing)
+    final_ref_image.SetDirection(reference_direction)
 
     # Modify the transformation to align the centers of the original and reference image instead of their origins.
     centering_transform = Sitk.AffineTransform(dimension)
@@ -143,7 +164,7 @@ def resize_image(moving_image, reference_image):
                                moving_image.shape[0] / reference_image.shape[0]))
 
     centering_transform.SetTranslation((0, 0, 1))
-    moving_image_itk = Sitk.Resample(moving_image_itk, reference_image, centering_transform, Sitk.sitkLinear, 0.0)
+    moving_image_itk = Sitk.Resample(moving_image_itk, final_ref_image, centering_transform, Sitk.sitkLinear, 0.0)
 
     # Start of registration declaration
     moving_image = Sitk.GetArrayFromImage(moving_image_itk)

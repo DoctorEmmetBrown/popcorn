@@ -70,6 +70,7 @@ class Phase_Retrieval_Experiment:
         self.result_UMPA={}
         self.result_XSVT={}
         self.output_images_format="edf" #"edf" or "tif"
+        self.positions_to_pic=None
 
         # ALGORITHMIC PARAMETERS
         self.xml_algorithmic_file_name="AlgorithmParameter.xml"
@@ -166,7 +167,7 @@ class Phase_Retrieval_Experiment:
                 self.deconvolution_type=self.getText(current_exp.getElementsByTagName("deconvolution_type")[0])
                 self.absorption_correction_sigma=int(self.getText(current_exp.getElementsByTagName("absorption_correction_sigma")[0]))
                 self.max_shift=int(self.getText(current_exp.getElementsByTagName("max_shift")[0]))
-                if do["LCS"]:
+                if do["LCS"] or do["LCS_DF"]:
                     self.LCS_median_filter=int(self.getText(current_exp.getElementsByTagName("LCS_median_filter")[0]))
                 if do["UMPA"]:
                     self.umpaNw=int(self.getText(current_exp.getElementsByTagName("umpaNw")[0]))
@@ -281,25 +282,47 @@ class Phase_Retrieval_Experiment:
         # refFolder = self.exp_folder + 'ref/'
         # sampleFolder = self.exp_folder + 'sample/'
         expFolder=self.exp_folder
+        sampFolder=expFolder+'/sample/*'
+        refFolder=expFolder+'/ref'
+        refFolderBefore=expFolder+'/ref_before'
+        refFolderAfter=expFolder+'/ref_after'
+        if os.path.isdir(refFolder):
+            refImagesStart = glob.glob(refFolder+'/*')
+            refImagesStart.sort()
+            refImagesEnd=refImagesStart
+        elif os.path.isdir(refFolderBefore) and os.path.isdir(refFolderAfter):
+            refImagesStart = glob.glob(refFolderBefore+'/*')
+            refImagesStart.sort()
+            refImagesEnd = glob.glob(refFolderAfter+'/*')
+            refImagesEnd.sort()
+        else:
+            raise Exception('Reference images folder not found.')
 
-        refImagesStart = glob.glob(self.exp_folder + '/refHST0000.edf')+ glob.glob(self.exp_folder + '/ref0000_0000.edf') 
-        refImagesStart.sort()
-        NprojString='%4.2d'%Nproj
-        refImagesEnd = glob.glob(self.exp_folder+ '/refHST'+NprojString+'.edf') + glob.glob(self.exp_folder + '/ref0000_0720.edf')
-        refImagesEnd.sort()
+        #refImagesStart = glob.glob(self.exp_folder + '/refHST0000.edf')+ glob.glob(self.exp_folder + '/ref0000_0000.edf') 
+        #refImagesStart.sort()
+        #NprojString='%4.2d'%Nproj
+        #refImagesEnd = glob.glob(self.exp_folder+ '/refHST'+NprojString+'.edf') + glob.glob(self.exp_folder + '/ref0000_0720.edf')
+        #refImagesEnd.sort()
         
         sampImages=[]
-        justfolder=self.exp_folder.split('/')[-2]
+        #justfolder=self.exp_folder.split('/')[-2]
         iprojString='%4.4d'%iproj
-        samppath=self.exp_folder+justfolder+iprojString+'.edf'
-        sampImages=glob.glob(self.exp_folder+'/'+justfolder+iprojString+'.edf')
-        
+        #samppath=self.exp_folder+justfolder+iprojString+'.edf'
+        #sampImages=glob.glob(self.exp_folder+'/'+justfolder+iprojString+'.edf')
+        sampFolders=glob.glob(sampFolder)
+        sampFolders.sort()
+        for folder in sampFolders:
+            samp_im_path=glob.glob(folder+'/*'+iprojString+'.edf')+glob.glob(folder+'/*'+iprojString+'.tif')
+            sampImages.append(samp_im_path[0])
         sampImages.sort()
         
-        
+        if len(sampImages) != len(refImagesStart) or len(sampImages) != len(refImagesEnd):
+            raise Exception(f"Not same number of membrane positions found for ref and sample images. N sample im:{len(sampImages)} N ref before {len(refImagesStart)}")
         
         whiteImage= glob.glob(self.exp_folder+'white.tif')+glob.glob(self.exp_folder+'White.tif')+glob.glob(self.exp_folder+'white.tiff')
         darkImage= glob.glob(self.exp_folder+'dark.tif')+glob.glob(self.exp_folder+'dark.tif')+glob.glob(self.exp_folder+'dark.tiff')
+        
+        
         if self.nb_of_point >= len(refImagesStart):
             print("Nb of points limited to ", len(refImagesStart))
             self.nb_of_point=len(refImagesStart)
@@ -307,30 +330,37 @@ class Phase_Retrieval_Experiment:
             IrEnd = openSeq(refImagesEnd)
             Is = openSeq(sampImages)
         else: # On sellectionne aleatoirement les n points parmi toutes les donnees disponibles
-            indexOfImagesPicked = []
             refTakenStart = []
             refTakenEnd = []
             sampTaken = []
-            number=0
-            while len(indexOfImagesPicked) < self.nb_of_point:
-                # indexOfImagesPicked.append(number)
-                # refTaken.append(refImages[number])
-                # sampTaken.append(sampImages[number])
-                # number+=1
-                number = random.randint(0, len(refImagesStart) - 1)
-                if not number in indexOfImagesPicked:
-                    indexOfImagesPicked.append(number)
-                    refTakenStart.append(refImagesStart[number])
-                    refTakenEnd.append(refImagesEnd[number])
-                    sampTaken.append(sampImages[number])
+            if self.positions_to_pic is None:
+                print('Membrane positions being selected randomly')
+                self.positions_to_pic = []
+                number=0
+                while len(self.positions_to_pic) < self.nb_of_point:
+                    # indexOfImagesPicked.append(number)
+                    # refTaken.append(refImages[number])
+                    # sampTaken.append(sampImages[number])
+                    # number+=1
+                    number = random.randint(0, len(refImagesStart) - 1)
+                    if not number in self.positions_to_pic:
+                        self.positions_to_pic.append(number)
+                        self.positions_to_pic.sort()
+                        
+            for number in self.positions_to_pic:
+                refTakenStart.append(refImagesStart[number])
+                refTakenEnd.append(refImagesEnd[number])
+                sampTaken.append(sampImages[number])
+            
             refTakenStart.sort()
             refTakenEnd.sort()
+            print("Position index of images selected:", self.positions_to_pic)
             sampTaken.sort()
             IrStart = openSeq(refTakenStart)
             IrEnd = openSeq(refTakenEnd)
             Is = openSeq(sampTaken)
 
-        Ir=IrStart*(Nproj-iproj)+IrEnd*iproj
+        Ir=(IrStart*(Nproj-iproj)+IrEnd*iproj)/Nproj
 
         # On cree un white a partir de la reference pour normaliser
         if len(whiteImage)==0:
@@ -342,8 +372,8 @@ class Phase_Retrieval_Experiment:
         
         # Ir=(Ir-dark)/(white-dark)
         # Is=(Is-dark)/(white-dark)
-        self.reference_images=np.asarray(Ir, dtype=np.float64)#/white
-        self.sample_images=np.asarray(Is, dtype=np.float64)#/white
+        self.reference_images=np.asarray(Ir, dtype=np.float64)/white
+        self.sample_images=np.asarray(Is, dtype=np.float64)/white
 
         if self.crop_on:
             self.reference_images = self.reference_images[:, self.cropDebX:self.cropEndX,self.cropDebY:self.cropEndY]
