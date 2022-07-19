@@ -5,25 +5,25 @@ Created on Mon Mar 15 13:46:27 2021.
 
 @author: quenot
 """
-from pagailleIO import save_image, openSeq, openImage
+from popcorn.phase_retrieval.pagailleIO import save_image, openSeq, openImage
 import glob
 import random
 import os
 from scipy.ndimage.filters import gaussian_filter
-from MISTII_2 import processProjectionMISTII_2
-from MISTII_1 import processProjectionMISTII_1
-from MISTI import MISTI
-from OpticalFlow2020 import processProjectionOpticalFlow2020
-from Pavlov2020 import tie_Pavlovetal2020 as pavlov2020
-from LCS_DF import processProjectionLCS_DF
-from LCS import processProjectionLCS
-from speckle_matching import processProjectionUMPA
-from XSVT import processProjectionXSVT
+from popcorn.phase_retrieval.MISTII_2 import processProjectionMISTII_2
+from popcorn.phase_retrieval.MISTII_1 import processProjectionMISTII_1
+from popcorn.phase_retrieval.MISTI import MISTI
+from popcorn.phase_retrieval.OpticalFlow2020 import processProjectionOpticalFlow2020
+from popcorn.phase_retrieval.Pavlov2020 import tie_Pavlovetal2020 as pavlov2020
+from popcorn.phase_retrieval.LCS_DF import processProjectionLCS_DF
+from popcorn.phase_retrieval.LCS import processProjectionLCS
+from popcorn.phase_retrieval.speckle_matching import processProjectionUMPA
+from popcorn.phase_retrieval.XSVT import processProjectionXSVT
 import datetime
 from matplotlib import pyplot as plt
 import numpy as np
 from xml.dom import minidom
-from ImageProcessing import deconvolve
+from popcorn.phase_retrieval.ImageProcessing import deconvolve
 
 class Phase_Retrieval_Experiment:
 

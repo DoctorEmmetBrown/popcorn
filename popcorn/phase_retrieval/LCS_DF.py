@@ -6,12 +6,12 @@ Created on Mon Mar 15 13:46:27 2021.
 @author: quenot
 """
 import numpy as np
-import frankoChellappa  as fc
+from popcorn.phase_retrieval import frankoChellappa  as fc
 from scipy.ndimage.filters import gaussian_filter, median_filter
 from scipy.ndimage import laplace
 from matplotlib import pyplot as plt
 from skimage import color, data, restoration
-from phaseIntegration import kottler, LarkinAnissonSheppard
+from popcorn.phase_retrieval.phaseIntegration import kottler, LarkinAnissonSheppard
 
 
 def LCS_DF(experiment):

@@ -8,8 +8,8 @@ Date: July 2015
 
 import numpy as np
 from scipy import signal as sig
-import frankoChellappa  as fc
-from OpticalFlow2020 import kottler, LarkinAnissonSheppard
+from popcorn.phase_retrieval import frankoChellappa  as fc
+from popcorn.phase_retrieval.OpticalFlow2020 import kottler, LarkinAnissonSheppard
 
 
 def processProjectionUMPA(experiment):
