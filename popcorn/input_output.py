@@ -83,7 +83,13 @@ def open_image(filename):
         return im.data
     elif "tif" in filename or "tiff" in filename:
         im = imageio.imread(filename)
-        return im
+
+        arr=np.asarray(im,dtype='float32')
+        if len(arr.shape)==3:
+            if(arr.shape[2]>3):
+                arr=arr[:,:,0:3]
+            arr=arr[:,:,2]+arr[:,:,1]*256+arr[:,:,0]*256*256
+        return arr
 
 
 def open_sequence(filenames_or_input_folder, extension="tif"):
@@ -112,7 +118,7 @@ def open_sequence(filenames_or_input_folder, extension="tif"):
     # Next line is computed iff given regex/list of files correspond to existing files that can be opened
     if len(list_of_files) > 0:
         reference_image = open_image(str(list_of_files[0]))
-        height, width = reference_image.shape
+        height, width, = reference_image.shape[-2:]
         # We create an empty image sequence
         sequence = np.zeros((len(list_of_files), height, width), dtype=np.float32)
         # We fill the created empty sequence
@@ -292,6 +298,7 @@ def save_tif_sequence(image, path, bit=32, header=None):
     Returns:
         None
     """
+    print(path)
     for i in range(image.shape[0]):
         image_path = path + '{:04d}'.format(i)
         save_tif_image(image[i, :, :], image_path, bit, header=header)
