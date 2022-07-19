@@ -454,6 +454,25 @@ def command_iteration(method):
     # print("Position = ", method.GetOptimizerPosition())
 
 
+def command_iteration_widget(method, widget):
+    """registration verbose output function
+
+    Args:
+        method (Sitk.ImageRegistrationMethod): registration method
+        widget: QWidget
+    Returns: None
+
+    """
+
+    output_txt = widget.output.toPlainText()
+
+    output_txt = output_txt + "{0:3} = {1:10.8f}".format(method.GetOptimizerIteration(),
+                                                         method.GetMetricValue()) + "\n"
+
+    widget.my_signal.emit(output_txt)
+    # widget.output.setText(output_txt)
+
+
 def apply_rotation_pipeline(image, local_triangle_angle, rotation_matrix, local_throat_coordinates, binned_offset,
                             symmetry_angle):
     """applies all the rotations with the previously calculated angles/rotation matrix in order to align the rat with
@@ -556,7 +575,7 @@ def set_registration_parameters(method, metric, transform_type="translation", re
 
 
 def registration_computation(moving_image, ref_image, transform_type="rotation", metric="cc", moving_mask=None,
-                             ref_mask=None, verbose=False):
+                             ref_mask=None, verbose=False, widget=None):
     """computes transform between two images based on both metric and masks (optional)
 
     Args:
@@ -567,11 +586,12 @@ def registration_computation(moving_image, ref_image, transform_type="rotation",
         moving_mask (np.ndarray):  mask-based registration image to register
         ref_mask (np.ndarray):     mask-based registration image to register on
         verbose (bool):            False: no output but the result, True: prints each iteration metric
-
+        widget(QWidget):           Widget for then the fonction is call from gui
     Returns:
         (Sitk.Transform): computed transformation
     """
     # itk image conversion
+
     ref_image_itk = Sitk.GetImageFromArray(ref_image)
     moving_image_itk = Sitk.GetImageFromArray(moving_image)
 
@@ -591,10 +611,17 @@ def registration_computation(moving_image, ref_image, transform_type="rotation",
     if verbose:
         registration_method.AddCommand(Sitk.sitkIterationEvent, lambda: command_iteration(registration_method))
 
+    if widget != None:
+        registration_method.AddCommand(Sitk.sitkIterationEvent,
+                                       lambda: command_iteration_widget(registration_method, widget))
+
     calculated_transform = registration_method.Execute(ref_image_itk, moving_image_itk)
 
     print("Transform :", calculated_transform.GetParameters())
-
+    if widget != None:
+        output_txt = widget.output.toPlainText()
+        output_txt = output_txt + "Transform :" + str(calculated_transform.GetParameters()) + "\n"
+        # widget.output.setText(output_txt)
     return calculated_transform
 
 
