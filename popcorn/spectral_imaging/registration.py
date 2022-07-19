@@ -39,7 +39,7 @@ def apply_2d_rotation_to_a_vector(vector, angle):
     s = math.sin(float(angle))
 
     return np.array([vector[0] * c - vector[1] * s,
-                    vector[0] * s + vector[1] * c])
+                     vector[0] * s + vector[1] * c])
 
 
 def compute_2d_rotation(image, angle, interpolator_type="linear"):
@@ -98,9 +98,9 @@ def calculate_rotation_matrix_between_3d_vectors(moving_vector, ref_vector):
     # Rotation matrix calculation
     trans_matrix = np.array([[0, -cross[2], cross[1]], [cross[2], 0, -cross[0]], [-cross[1], cross[0], 0]])
     return (
-        np.eye(3)
-        + trans_matrix
-        + trans_matrix.dot(trans_matrix) * ((1 - scalar) / (normalized ** 2))
+            np.eye(3)
+            + trans_matrix
+            + trans_matrix.dot(trans_matrix) * ((1 - scalar) / (normalized ** 2))
     )
 
 
@@ -119,7 +119,7 @@ def compute_3d_rotation(image, rotation_matrix, center_of_rotation, translation=
 
     """
     # Image size reference
-    ref_size_image = np.zeros((int(image.shape[0]*size_change), image.shape[1], image.shape[2]))
+    ref_size_image = np.zeros((int(image.shape[0] * size_change), image.shape[1], image.shape[2]))
 
     # Conversion to simpleITK array
     ref_size_image_itk = Sitk.GetImageFromArray(ref_size_image)
@@ -223,13 +223,13 @@ def straight_triangle_rotation(image, skull, skull_bounding_box, barycenter_jaw_
     target_vector = np.array([np.linalg.norm(jaws_vector), 0])
     if jaws_vector[1] > 0:
         angle = -math.acos(np.dot(target_vector, jaws_vector) /
-                           (np.linalg.norm(jaws_vector)*np.linalg.norm(target_vector)))
+                           (np.linalg.norm(jaws_vector) * np.linalg.norm(target_vector)))
     else:
         angle = math.acos(np.dot(target_vector, jaws_vector) /
-                          (np.linalg.norm(jaws_vector)*np.linalg.norm(target_vector)))
+                          (np.linalg.norm(jaws_vector) * np.linalg.norm(target_vector)))
 
-    skull_to_center_vector = np.array([skull_center[0] - image.shape[2]/2,
-                                       skull_center[1] - image.shape[1]/2])
+    skull_to_center_vector = np.array([skull_center[0] - image.shape[2] / 2,
+                                       skull_center[1] - image.shape[1] / 2])
     new_skull_to_center_vector = apply_2d_rotation_to_a_vector(skull_to_center_vector, angle)
 
     jaw_one_to_center_vector = np.array([barycenter_jaw_one[0] - image.shape[2] / 2,
@@ -289,12 +289,12 @@ def straight_throat_rotation(image, throat_mask_img=None, direction_vector=None,
         list_of_ys.sort()
         list_of_xs.sort()
         # total_vector = sum_list_of_vectors(vectors_list)
-        total_vector = [1, list_of_ys[len(list_of_ys)//2], list_of_xs[len(list_of_xs)//2]]
+        total_vector = [1, list_of_ys[len(list_of_ys) // 2], list_of_xs[len(list_of_xs) // 2]]
         # print(centroid_list)
-        normalized_total_vector = total_vector/np.linalg.norm(total_vector)
-        normalized_current_vector = vectors_list[0]/np.linalg.norm(vectors_list[0])
+        normalized_total_vector = total_vector / np.linalg.norm(total_vector)
+        normalized_current_vector = vectors_list[0] / np.linalg.norm(vectors_list[0])
         for vector in vectors_list:
-            normalized_current_vector = vector/np.linalg.norm(vector)
+            normalized_current_vector = vector / np.linalg.norm(vector)
             # print(np.dot(normalized_total_vector, normalized_current_vector))
         while np.dot(normalized_total_vector, normalized_current_vector) < 0.92:
             del vectors_list[0]
@@ -302,15 +302,15 @@ def straight_throat_rotation(image, throat_mask_img=None, direction_vector=None,
             del list_of_ys[0]
             del list_of_xs[0]
             # total_vector = sum_list_of_vectors(vectors_list)
-            total_vector = [1, list_of_ys[len(list_of_ys)//2], list_of_xs[len(list_of_xs)//2]]
-            normalized_total_vector = total_vector/np.linalg.norm(total_vector)
+            total_vector = [1, list_of_ys[len(list_of_ys) // 2], list_of_xs[len(list_of_xs) // 2]]
+            normalized_total_vector = total_vector / np.linalg.norm(total_vector)
             normalized_current_vector = vectors_list[0] / np.linalg.norm(vectors_list[0])
 
         # total_vector = sum_list_of_vectors(vectors_list)
-        total_vector = [1, list_of_ys[len(list_of_ys)//2], list_of_xs[len(list_of_xs)//2]]
+        total_vector = [1, list_of_ys[len(list_of_ys) // 2], list_of_xs[len(list_of_xs) // 2]]
         print(total_vector)
-        normalized_total_vector = total_vector/np.linalg.norm(total_vector)
-        normalized_current_vector = vectors_list[-1]/np.linalg.norm(vectors_list[-1])
+        normalized_total_vector = total_vector / np.linalg.norm(total_vector)
+        normalized_current_vector = vectors_list[-1] / np.linalg.norm(vectors_list[-1])
         print(centroid_list)
 
         while np.dot(normalized_total_vector, normalized_current_vector) < 0.92:
@@ -319,8 +319,8 @@ def straight_throat_rotation(image, throat_mask_img=None, direction_vector=None,
             del list_of_ys[-1]
             del list_of_xs[-1]
             # total_vector = sum_list_of_vectors(vectors_list)
-            total_vector = [1, list_of_ys[len(list_of_ys)//2], list_of_xs[len(list_of_xs)//2]]
-            normalized_total_vector = total_vector/np.linalg.norm(total_vector)
+            total_vector = [1, list_of_ys[len(list_of_ys) // 2], list_of_xs[len(list_of_xs) // 2]]
+            normalized_total_vector = total_vector / np.linalg.norm(total_vector)
             normalized_current_vector = vectors_list[-1] / np.linalg.norm(vectors_list[-1])
 
         direction_vector = np.flip(np.copy(normalized_total_vector))
@@ -365,7 +365,7 @@ def symmetry_based_registration(image, skull, skull_bounding_box, throat_coordin
         skull_bounding_box[0] = int(skull_bounding_box[1] - (skull_bounding_box[1] - throat_coordinates[0]) * 2)
 
     front_slices_to_delete, bottom_slices_to_delete = count_the_needed_translation_for_black_slices(image)
-    if front_slices_to_delete + bottom_slices_to_delete < image.shape[0]/2:
+    if front_slices_to_delete + bottom_slices_to_delete < image.shape[0] / 2:
         image_to_study = image[front_slices_to_delete:image.shape[0] - bottom_slices_to_delete, :, :]
         skull_to_study = skull[front_slices_to_delete:image.shape[0] - bottom_slices_to_delete, :, :]
     else:
@@ -381,7 +381,7 @@ def symmetry_based_registration(image, skull, skull_bounding_box, throat_coordin
 
     in_out.save_tif_sequence(skull_to_study, "D:\\CT_md1217\\0873_05\\Au\\qsd\\")
 
-    for increment, i in enumerate(range(number_of_iterations*2)):
+    for increment, i in enumerate(range(number_of_iterations * 2)):
 
         angle = float(-number_of_iterations + i) / 180 * math.pi
 
@@ -392,15 +392,15 @@ def symmetry_based_registration(image, skull, skull_bounding_box, throat_coordin
         resulting_skull = compute_2d_rotation(skull_copy, angle, "nearest")
 
         cropped_image = resulting_image[:,
-                                        skull_bounding_box[2]:skull_bounding_box[3] + 1,
-                                        skull_bounding_box[0]:skull_bounding_box[1] + 1]
+                        skull_bounding_box[2]:skull_bounding_box[3] + 1,
+                        skull_bounding_box[0]:skull_bounding_box[1] + 1]
         flipped_image = cropped_image[:, :, ::-1]
         right_half_image = np.copy(flipped_image[:, :, int(flipped_image.shape[2] / 2):flipped_image.shape[2]])
         left_half_image = cropped_image[:, :, int(cropped_image.shape[2] / 2):cropped_image.shape[2]]
 
         cropped_skull = resulting_skull[:,
-                                        skull_bounding_box[2]:skull_bounding_box[3] + 1,
-                                        skull_bounding_box[0]:skull_bounding_box[1] + 1]
+                        skull_bounding_box[2]:skull_bounding_box[3] + 1,
+                        skull_bounding_box[0]:skull_bounding_box[1] + 1]
         flipped_skull = cropped_skull[:, :, ::-1]
         left_half_skull = np.copy(flipped_skull[:, :, int(flipped_skull.shape[2] / 2):flipped_skull.shape[2]])
         right_half_skull = cropped_skull[:, :, int(cropped_skull.shape[2] / 2):cropped_skull.shape[2]]
@@ -425,17 +425,17 @@ def symmetry_based_registration(image, skull, skull_bounding_box, throat_coordin
     image_copy = np.copy(image)
     skull_copy = np.copy(skull)
 
-    print("Best angle :", correct_angle, "rad; in deg :", correct_angle/math.pi*180, "°")
+    print("Best angle :", correct_angle, "rad; in deg :", correct_angle / math.pi * 180, "°")
 
     resulting_image = compute_2d_rotation(image_copy, correct_angle, "linear")
     resulting_skull = compute_2d_rotation(skull_copy, correct_angle, "nearest")
 
     cropped_image = resulting_image[:,
-                                    skull_bounding_box[2]:skull_bounding_box[3] + 1,
-                                    skull_bounding_box[0]:skull_bounding_box[1] + 1]
+                    skull_bounding_box[2]:skull_bounding_box[3] + 1,
+                    skull_bounding_box[0]:skull_bounding_box[1] + 1]
     cropped_skull = resulting_skull[:,
-                                    skull_bounding_box[2]:skull_bounding_box[3] + 1,
-                                    skull_bounding_box[0]:skull_bounding_box[1] + 1]
+                    skull_bounding_box[2]:skull_bounding_box[3] + 1,
+                    skull_bounding_box[0]:skull_bounding_box[1] + 1]
 
     return np.copy(cropped_image), np.copy(cropped_skull), correct_angle
 
