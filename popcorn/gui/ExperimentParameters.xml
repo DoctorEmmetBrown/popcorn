@@ -1,0 +1,136 @@
+<list_experiments>
+	<experiment>
+		<experiment_name>MoucheSimapAout2017</experiment_name>
+		<exp_folder>/Users/quenot/Data/SIMAP/MoucheSimapAout2017/Deconvolved/</exp_folder>
+		<output_folder>/Users/quenot/Documents/PhaseRetrieval/Results/MoucheSimapAout2017/</output_folder>
+		<output_images_format>tif</output_images_format>
+		<energy unit="keV">27</energy>
+		<pixel unit="m">48e-6</pixel>
+		<dist_object_detector unit="m">0.41</dist_object_detector>
+		<dist_source_object unit="m">0.12</dist_source_object>
+		<delta>2.97e-7</delta>
+		<beta>1.29e-9</beta>
+		<source_size unit="um">2</source_size>
+		<detector_PSF unit="pix">0.9</detector_PSF>
+		<crop_on>False</crop_on>
+		<cropDebX unit="pix">500</cropDebX>
+		<cropDebY unit="pix">500</cropDebY>
+		<cropEndX unit="pix">700</cropEndX>
+		<cropEndY unit="pix">700</cropEndY>
+	</experiment>
+	<experiment>
+		<experiment_name>Patte_XSVTTest</experiment_name>
+		<exp_folder>/Users/quenot/Data/ID17/Patte_XSVTTest/</exp_folder>
+		<output_folder>/Users/quenot/Documents/PhaseRetrieval/Results/Patte_XSVTTest/</output_folder>
+		<energy unit="keV">52</energy>
+		<pixel unit="m">6e-6</pixel>
+		<dist_object_detector unit="m">140</dist_object_detector>
+		<dist_source_object unit="m">6</dist_source_object>
+		<delta>2.97e-7</delta>
+		<beta>1.29e-9</beta>
+		<source_size unit="um">2</source_size>
+		<detector_PSF unit="pix">1.2</detector_PSF>
+		<crop_on>True</crop_on>
+		<cropDebX unit="pix">50</cropDebX>
+		<cropDebY unit="pix">500</cropDebY>
+		<cropEndX unit="pix">1100</cropEndX>
+		<cropEndY unit="pix">1250</cropEndY>
+	</experiment>
+	<experiment>
+		<experiment_name>Tomo_md1217</experiment_name>
+		<exp_folder>/Users/quenot/Data/ID17/MD1295/Tomo_Rat6/Tomo_floor1_pressure1/tomo_rat6_floor01_Pressure1_Speck*_/</exp_folder>
+		<output_folder>/home/strobe/Documents/Paul_ANDRE/Resultat/</output_folder>
+		<energy unit="keV">33</energy>
+		<pixel unit="m">6e-6</pixel>
+		<dist_object_detector unit="m">5.3</dist_object_detector>
+		<dist_source_object unit="m">140</dist_source_object>
+		<delta>3.49E-07</delta>
+		<beta>3.57E-10</beta>
+		<source_size unit="um">10</source_size>
+		<detector_PSF unit="pix">1.2</detector_PSF>
+		<tomo>True</tomo>
+		<number_of_projections>0720</number_of_projections>
+		<crop_on>False</crop_on>
+		<cropDebX unit="pix">200</cropDebX>
+		<cropDebY unit="pix">200</cropDebY>
+		<cropEndX unit="pix">500</cropEndX>
+		<cropEndY unit="pix">500</cropEndY>
+	</experiment>
+	<experiment>
+		<experiment_name>Test</experiment_name>
+		<exp_folder>/home/strobe/Documents/Paul_ANDRE/Git/popcorn/phase_retrieval/CORRECT_DATA/</exp_folder>
+		<output_folder>/home/strobe/Documents/Paul_ANDRE/Resultat/</output_folder>
+		<output_images_format>edf</output_images_format>
+		<energy unit="keV">27</energy>
+		<pixel unit="m">48e-6</pixel>
+		<dist_object_detector unit="m">0.41</dist_object_detector>
+		<dist_source_object unit="m">0.12</dist_source_object>
+		<delta>2.97e-7</delta>
+		<beta>1.29e-9</beta>
+		<source_size unit="um">2</source_size>
+		<detector_PSF unit="pix">0.9</detector_PSF>
+		<crop_on>False</crop_on>
+		<cropDebX unit="pix">500</cropDebX>
+		<cropDebY unit="pix">500</cropDebY>
+		<cropEndX unit="pix">700</cropEndX>
+		<cropEndY unit="pix">700</cropEndY>
+	</experiment>
+	<experiment>
+		<experiment_name>xenocs2</experiment_name>
+		<Tomo>False</Tomo>
+		<exp_folder>/home/strobe/Documents/Paul_ANDRE/Test_Clara/</exp_folder>
+		<output_folder>/home/strobe/Documents/Paul_ANDRE/Resultat/</output_folder>
+		<energy unit="keV">8.6</energy>
+		<pixel unit="m">75</pixel>
+		<dist_object_detector unit="m">1.825</dist_object_detector>
+		<dist_source_object unit="m">550</dist_source_object>
+		<delta>4e-06</delta>
+		<beta>7e-09</beta>
+		<source_size unit="um">60</source_size>
+		<detector_PSF unit="pix">1</detector_PSF>
+		<crop_on>False</crop_on>
+		<cropDebX unit="pix">0</cropDebX>
+		<cropDebY unit="pix">0</cropDebY>
+		<cropEndX unit="pix">0</cropEndX>
+		<cropEndY unit="pix">0</cropEndY>
+	</experiment>
+	<experiment>
+		<experiment_name>xenocs</experiment_name>
+		<Tomo>False</Tomo>
+		<exp_folder>/home/strobe/Documents/Paul_ANDRE/Test_Clara/</exp_folder>
+		<output_folder>/home/strobe/Documents/Paul_ANDRE/Resultat/</output_folder>
+		<energy unit="keV">8.6</energy>
+		<pixel unit="m">75</pixel>
+		<dist_object_detector unit="m">1.825</dist_object_detector>
+		<dist_source_object unit="m">550</dist_source_object>
+		<delta>4e-06</delta>
+		<beta>7e-09</beta>
+		<source_size unit="um">60</source_size>
+		<detector_PSF unit="pix">1</detector_PSF>
+		<crop_on>False</crop_on>
+		<cropDebX unit="pix">0</cropDebX>
+		<cropDebY unit="pix">0</cropDebY>
+		<cropEndX unit="pix">0</cropEndX>
+		<cropEndY unit="pix">0</cropEndY>
+	</experiment>
+	<experiment>
+		<experiment_name>Test_Tomo</experiment_name>
+		<tomo>True</tomo>
+		<exp_folder>/home/strobe/Documents/tresse/</exp_folder>
+		<output_folder>/home/strobe/Documents/Paul_ANDRE/Resultat/</output_folder>
+		<number_of_projections>360</number_of_projections>
+		<energy unit="keV">9</energy>
+		<pixel unit="m">75e-6</pixel>
+		<dist_object_detector unit="m">1</dist_object_detector>
+		<dist_source_object unit="m">1</dist_source_object>
+		<delta>2e-7</delta>
+		<beta>2e-10</beta>
+		<source_size unit="um">60</source_size>
+		<detector_PSF unit="pix">1</detector_PSF>
+		<crop_on>False</crop_on>
+		<cropDebX unit="pix">0</cropDebX>
+		<cropDebY unit="pix">0</cropDebY>
+		<cropEndX unit="pix">0</cropEndX>
+		<cropEndY unit="pix">0</cropEndY>
+	</experiment>
+</list_experiments>
