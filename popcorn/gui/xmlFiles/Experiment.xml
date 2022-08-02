@@ -1,0 +1,57 @@
+
+<listExperiment>
+    <experiment>
+        <name>Fil_Nylon_ID17</name>
+        <distSourceToMembrane unit="m">140</distSourceToMembrane>
+        <distMembraneToObject unit="m">1.6</distMembraneToObject>
+        <distObjectToDetector unit="m">3.6</distObjectToDetector>
+        <membraneName>Mask_CuSn_From_txt</membraneName>
+        <sampleName>filNylon</sampleName>
+        <sampleType>AnalyticalSample</sampleType>
+        <detectorName>sCMOS_ESRF</detectorName>
+        <sourceName>id17</sourceName>
+        <meanShotCount>30000</meanShotCount>
+        <inVacuum>True</inVacuum>
+    </experiment>
+   
+    <experiment>
+        <name>id17_ContrastPhantom</name>
+        <distSourceToMembrane unit="m">144</distSourceToMembrane>
+        <distMembraneToObject unit="m">1.6</distMembraneToObject>
+        <distObjectToDetector unit="m">3.6</distObjectToDetector>
+        <membraneName>Mask_CuSn_From_txt_config1</membraneName>
+        <sampleName>ContrastPhantomID17</sampleName>
+        <sampleType>AnalyticalSample</sampleType>
+        <detectorName>sCMOS_ESRF2</detectorName>
+        <sourceName>id17</sourceName>
+        <meanShotCount>30000</meanShotCount>
+    </experiment>
+    
+    <experiment>
+        <name>SIMAP_SpheresInTube</name>
+        <distSourceToMembrane unit="m">0.8</distSourceToMembrane>
+        <distMembraneToObject unit="m">0.2</distMembraneToObject>
+        <distObjectToDetector unit="m">1</distObjectToDetector>
+        <membraneName>Mask_CuSn_From_txt</membraneName>
+        <sampleName>filNylon</sampleName>
+        <sampleType>AnalyticalSample</sampleType>
+        <detectorName>Eiger</detectorName>
+        <sourceName>simap</sourceName>
+        <meanShotCount>27600</meanShotCount>
+    </experiment>
+    
+    <experiment>
+        <name>SpectralClinic_ContrastPhantom</name>
+        <distSourceToMembrane unit="m">0.4</distSourceToMembrane>
+        <distMembraneToObject unit="m">0.1</distMembraneToObject>
+        <distObjectToDetector unit="m">0.5</distObjectToDetector>
+        <membraneName>Mask_CuSn_From_txt_config3</membraneName>
+        <sampleName>ContrastPhantomSpectralClinic</sampleName>
+        <sampleType>AnalyticalSample</sampleType>
+        <detectorName>SPC</detectorName>
+        <sourceName>id17</sourceName>
+        <meanShotCount>27600</meanShotCount>
+        <plateName>C_plate</plateName>
+    </experiment>
+</listExperiment>
+

@@ -1,0 +1,117 @@
+<listSamples>
+    
+    <!--MEMBRANES-->
+
+    <sample>
+        <name>Mask_CuSn_From_txt</name>
+        <myType>membrane</myType>
+        <myGeometryFunction>getMembraneSegmentedFromFile</myGeometryFunction>
+        <myPMMAThickness unit="um">6000</myPMMAThickness>
+        <myMaterials>CuSn,PMMA</myMaterials>
+        <myMeanSphereRadius>50</myMeanSphereRadius>
+        <myNbOfLayers>3</myNbOfLayers>
+    </sample>
+    
+    <sample>
+        <name>Mask_CuSn_From_txt_config1</name>
+        <myType>membrane</myType>
+        <myGeometryFunction>getMembraneSegmentedFromFile</myGeometryFunction>
+        <myPMMAThickness unit="um">4000</myPMMAThickness>
+        <myMaterials>Cu,PMMA</myMaterials>
+        <myMeanSphereRadius>15</myMeanSphereRadius>
+        <myNbOfLayers>2</myNbOfLayers>
+    </sample>
+    
+    <sample>
+        <name>Mask_CuSn_From_txt_config3</name>
+        <myType>membrane</myType>
+        <myGeometryFunction>getMembraneSegmentedFromFile</myGeometryFunction>
+        <myPMMAThickness unit="um">4000</myPMMAThickness>
+        <myMaterials>CuSn,PMMA</myMaterials>
+        <myMeanSphereRadius>25</myMeanSphereRadius>
+        <myNbOfLayers>2</myNbOfLayers>
+    </sample>
+    
+    <sample>
+        <name>Mask_CuSn_From_edf</name>
+        <myType>membrane</myType>
+        <myGeometryFunction>getMembraneFromFile</myGeometryFunction>
+        <myMembraneFile>Samples/Membranes/CuSn_dim300x400_oversamp2_margin0_radius25</myMembraneFile>
+        <myPMMAThickness unit="um">4000</myPMMAThickness>
+        <myMaterials>Fe,PMMA</myMaterials>
+    </sample>
+    
+    <!--SAMPLES OF INTEREST-->
+    
+    <sample>
+        <name>filNylon</name>
+        <myType>sample_of_interest</myType>
+        <myGeometryFunction>CreateSampleCylindre</myGeometryFunction>
+        <myRadius unit="um">700</myRadius>
+        <myOrientation unit="degree">30</myOrientation>
+        <myMaterials>Nylon</myMaterials>
+    </sample>
+    
+    <sample>
+        <name>PMMA_sphere</name>
+        <myType>sample_of_interest</myType>
+        <myGeometryFunction>CreateSampleSphere</myGeometryFunction>
+        <myRadius unit="um">1000</myRadius>
+        <myMaterials>PMMA</myMaterials>
+    </sample>
+    
+    <sample>
+        <name>spheres_in_cylinder</name>
+        <myType>sample_of_interest</myType>
+        <myGeometryFunction>CreateSampleSpheresInCylinder</myGeometryFunction>
+        <myMaterials>Muscle,Cartilage,SolidWater</myMaterials>
+    </sample>
+    
+    <sample>
+        <name>your_own_geometry</name>
+        <myType>sample_of_interest</myType>
+        <myGeometryFunction>CreateYourSampleGeometry</myGeometryFunction>
+        <myMaterials>Muscle</myMaterials>
+    </sample>
+    
+    
+    <sample>
+        <name>spheres_in_parallelepiped</name>
+        <myType>sample_of_interest</myType>
+        <myGeometryFunction>CreateSampleSpheresInParallelepiped</myGeometryFunction>
+        <myMaterials>Muscle,Lung,SolidWater</myMaterials>
+    </sample>
+    
+    <sample>
+        <name>ContrastPhantomID17</name>
+        <myType>sample_of_interest</myType>
+        <myGeometryFunction>generateContrastPhantom</myGeometryFunction>
+        <myMaterials>CorticalBoneCB250pct,Bone,CorticalBoneCB230pct,Solid Water,Adipose,InnerBone,Breast,Liver,CorticalBoneSB3,Brain,Air,Air,SolidWater</myMaterials>
+    </sample>
+    
+    <sample>
+        <name>ContrastPhantomSpectralClinic</name>
+        <myType>sample_of_interest</myType>
+        <myGeometryFunction>loadSampleGeometryFromImages</myGeometryFunction>
+        <myGeometryFolder>Samples/ContrastPhantom/CP_pixsize25um_1000x3000_angle50deg/</myGeometryFolder>
+        <myMaterials>CorticalBoneCB250pct,Bone,CorticalBoneCB230pct,SolidWater,Adipose,InnerBone,Breast,Liver,CorticalBoneSB3,Brain,Air,Air,SolidWater</myMaterials>
+    </sample>
+    
+    <!--ADDITIONNAL ELEMENTS-->
+    
+    <sample>
+        <name>C_plate</name>
+        <myType>thin_film</myType> <!--element that will be placed in front of the detector-->
+        <myGeometryFunction>get_my_thickness</myGeometryFunction>
+        <myMaterials>CarbonFiber</myMaterials>
+        <myThickness unit="um">2500</myThickness>
+    </sample>
+    
+    <sample>
+        <name>air_volume</name>
+        <myType>volume</myType>
+        <myGeometryFunction>get_my_thickness</myGeometryFunction>
+        <myMaterials>Air</myMaterials>
+    </sample>
+    
+</listSamples>

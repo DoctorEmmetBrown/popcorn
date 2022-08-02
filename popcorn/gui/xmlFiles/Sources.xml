@@ -1,0 +1,44 @@
+<listSources>
+    <source>
+        <name>id17</name>
+        <myType>Monochromatic</myType>
+        <mySize unit="um">10</mySize>
+        <myEnergy unit="kev">52</myEnergy>
+    </source>
+    
+    <source>
+        <name>simap</name>
+        <myType>Polychromatic</myType>
+        <mySize unit="um">50</mySize>
+        <sourceVoltage unit="kVp">50</sourceVoltage>
+        <filterMaterial>Al</filterMaterial>
+        <filterThickness unit="mm">0.2</filterThickness>
+        <myEnergySampling unit="keV">2</myEnergySampling>
+        <myTargetMaterial>W</myTargetMaterial>
+    </source>
+    
+    <source>
+        <name>simap2</name>
+        <myType>Polychromatic</myType>
+        <spectrumFromXls>True</spectrumFromXls>
+        <pathXlsSpectrum>Sources/W_50kVp.xls</pathXlsSpectrum>
+        <energyUnit>eV</energyUnit> <!--eV, keV or MeV-->
+        <energyColumnKey>Energy</energyColumnKey>
+        <fluenceColumnKey>Flux</fluenceColumnKey>
+        <myEnergySampling unit="keV">4</myEnergySampling>
+        <mySize unit="um">50</mySize>
+    </source>
+    
+    <source>
+        <name>clinic</name>
+        <myType>Polychromatic</myType>
+        <mySize unit="um">20</mySize>
+        <sourceVoltage unit="kVp">55</sourceVoltage>
+        <filterMaterial>Al</filterMaterial>
+        <filterThickness unit="mm">2.5</filterThickness>
+        <myEnergySampling unit="keV">5</myEnergySampling>
+        <myTargetMaterial>W</myTargetMaterial>
+    </source>
+    
+</listSources>
+    

@@ -1,0 +1,58 @@
+<listDetectors>
+    <detector>
+        <name>sCMOS_ESRF</name>
+        <myDimensions>
+            <dimX>200</dimX>
+            <dimY>200</dimY>
+        </myDimensions>
+        <myPixelSize unit="um">6</myPixelSize>
+        <myPSF unit="pixel">0</myPSF>
+    </detector>
+    
+    <detector>
+        <name>Eiger</name>
+        <myDimensions>
+            <dimX>200</dimX>
+            <dimY>200</dimY>
+        </myDimensions>
+        <photonCounting>True</photonCounting>
+        <myPixelSize unit="um">75</myPixelSize>
+        <myPSF unit="pixel">0</myPSF>
+    </detector>
+    
+    <detector>
+        <name>flatPanelSimap</name>
+        <myDimensions>
+            <dimX>300</dimX>
+            <dimY>200</dimY>
+        </myDimensions>
+        <myPixelSize unit="um">50</myPixelSize>
+        <myPSF unit="pixel">1</myPSF>
+        <myScintillatorMaterial>CsI</myScintillatorMaterial>
+        <myScintillatorThickness unit="um">400</myScintillatorThickness>
+    </detector>
+    
+    <detector>
+        <name>sCMOS_ESRF2</name>
+        <myDimensions>
+            <dimX>500</dimX>
+            <dimY>1500</dimY>
+        </myDimensions>
+        <myPixelSize unit="um">24</myPixelSize>
+        <myPSF unit="pixel">1.2</myPSF>
+        <myBinsThersholds>20,30</myBinsThersholds>
+    </detector>
+    
+    <detector>
+        <name>SPC</name>
+        <myDimensions>
+            <dimX>500</dimX>
+            <dimY>1500</dimY>
+        </myDimensions>
+        <myPixelSize unit="um">50</myPixelSize>
+        <myPSF unit="pixel">0</myPSF>
+        <myScintillatorMaterial>CsI</myScintillatorMaterial>
+        <myScintillatorThickness unit="um">600</myScintillatorThickness>
+    </detector>
+    
+</listDetectors>
