@@ -7,8 +7,8 @@ from qtrangeslider import QRangeSlider
 from PyQt6.QtCharts import *
 
 from popcorn import input_output
-from popcorn.spectral_imaging.registration import registration_computation
-from popcorn.spectral_imaging.registration import apply_itk_transformation
+from spectral_imaging.registration import registration_computation
+from spectral_imaging.registration import apply_itk_transformation
 from datetime import datetime
 
 class Recalage(QWidget):

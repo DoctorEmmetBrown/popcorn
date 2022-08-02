@@ -2,7 +2,7 @@ import os
 from math import ceil
 import numpy as np
 from popcorn.input_output import open_image, save_tif_image
-from resampling import conversion_from_float32_to_uint16
+from popcorn.resampling import conversion_from_float32_to_uint16
 
 
 def padding_image(image, pad_size):

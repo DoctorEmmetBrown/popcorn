@@ -6,7 +6,7 @@ import sys
 from qtrangeslider import QRangeSlider
 from PyQt6.QtCharts import *
 
-from popcorn.input_output import *
+from input_output import *
 from datetime import datetime
 import xml.etree.cElementTree as ET
 

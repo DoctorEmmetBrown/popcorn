@@ -6,7 +6,7 @@ import sys
 from qtrangeslider import QRangeSlider
 from PyQt6.QtCharts import *
 import numpy as np
-from popcorn import input_output
+
 
 import time
 class Image():

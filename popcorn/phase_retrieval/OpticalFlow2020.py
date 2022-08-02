@@ -15,7 +15,7 @@ from numpy.fft import fftfreq as fftfreq
 import numpy as np
 from math import pi as pi
 from math import floor as floor
-from popcorn.phase_retrieval import frankoChellappa  as fc
+import frankoChellappa  as fc
 from scipy.ndimage import gaussian_filter
 
 def derivativesByOpticalflow(intensityImage,derivative,pixsize=1,sig_scale=0):

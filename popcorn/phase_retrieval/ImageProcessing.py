@@ -6,7 +6,7 @@ Created on Tue Mar 16 16:27:17 2021
 @author: quenot
 """
 from skimage import restoration
-from popcorn.phase_retrieval.pagailleIO import saveEdf, openSeq, openImage
+from pagailleIO import saveEdf, openSeq, openImage
 import numpy as np
 import glob
 
