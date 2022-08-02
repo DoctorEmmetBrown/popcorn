@@ -55,7 +55,7 @@ class Stitching(QWidget):
         self.window.show()
 
     def stitching_start(self):
-        thread = start_thread()
+        thread = start_thread(self)
         thread.run()
     def stitching_start_exec(self):
 
