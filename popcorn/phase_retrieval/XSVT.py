@@ -5,8 +5,8 @@ from itertools import product, chain
 from scipy.interpolate import interp2d
 from functools import partial
 from scipy.ndimage.filters import median_filter
-from popcorn.phase_retrieval import frankoChellappa as fc
-from popcorn.phase_retrieval.OpticalFlow2020 import kottler, LarkinAnissonSheppard
+import frankoChellappa as fc
+from OpticalFlow2020 import kottler, LarkinAnissonSheppard
 
 
 def processProjectionXSVT(experiment):

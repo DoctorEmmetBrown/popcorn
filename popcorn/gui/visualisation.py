@@ -7,13 +7,12 @@ from qtrangeslider import QRangeSlider
 from PyQt6.QtCharts import *
 
 
-from popcorn.input_output import *
+from input_output import *
 from time import *
 import imagecodecs
 
 class Visualisation(QWidget):
     my_signal = pyqtSignal(int)
-
     def __init__(self, father):
         super().__init__()
         self.liste_image = []
@@ -252,8 +251,7 @@ class Visualisation(QWidget):
         im_np = np.copy(im)
         
         im_np=im_np.astype("uint32")
-        
-        print(self.image_3D_np.image.shape)
+
         
         
         if self.image_3D_np.color:
