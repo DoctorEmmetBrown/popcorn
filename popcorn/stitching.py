@@ -7,10 +7,10 @@ import time
 from skimage import filters
 import numpy as np
 
-from popcorn.input_output import open_image, open_sequence, save_tif_image, open_cropped_sequence, save_tif_sequence, \
+from input_output import open_image, open_sequence, save_tif_image, open_cropped_sequence, save_tif_sequence, \
     open_cropped_image, create_list_of_files
-from popcorn.spectral_imaging.registration import registration_computation, apply_itk_transformation
-from popcorn.resampling import interpolate_two_images
+from spectral_imaging.registration import registration_computation, apply_itk_transformation
+from resampling import interpolate_two_images
 
 # -- registration library --
 import SimpleITK as Sitk
@@ -66,7 +66,6 @@ def stitch_multiple_folders_into_one(list_of_folders, output_folder, delta_z, lo
                 top_image_filenames.sort(reverse=True)
             else:
                 top_image_filenames.sort()
-
             # We use delta_z to determine the theoretical overlapping slice index
             supposed_bottom_overlap_slice = nb_slices - int((nb_slices - delta_z) / 2)
             supposed_top_overlap_slice = int((nb_slices - delta_z) / 2)
@@ -84,6 +83,7 @@ def stitch_multiple_folders_into_one(list_of_folders, output_folder, delta_z, lo
                                             supposed_top_overlap_slice + int(security_band_size)]
 
                     # We load the corresponding bands
+
                     bottom_band_image = open_sequence(bottom_band_filenames)
                     top_band_image = open_sequence(top_band_filenames)
 
