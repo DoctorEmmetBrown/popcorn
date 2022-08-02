@@ -14,6 +14,15 @@ import sys
 from qtrangeslider import QRangeSlider
 from PyQt6.QtCharts import *
 
+from pathlib import Path
+path_root = Path(__file__).parents[1]
+path_root = str(path_root)
+if str(path_root) not in sys.path :
+    print("a",str(path_root))
+    sys.path.append(str(path_root))
+    sys.path.append(str(path_root)+"phase_retrieval")
+else :
+    print("coucou")
 
 from popcorn.input_output import *
 from visualisation import *
@@ -22,13 +31,14 @@ from decomposition import *
 from recalage import *
 from recup_phase import *
 from stitching_gui import *
+from paresis import *
 class MainWindow(QMainWindow):
 
 
 
     def __init__(self):
         super().__init__()  # Constructeur parent
-        self.resize(1000, 1000)  # Redimension de la fenetre
+        self.showMaximized()  # Redimension de la fenetre
 
         self.mainWidget = QWidget()  # widget principal
         self.layoutMainW = (
@@ -110,6 +120,16 @@ class MainWindow(QMainWindow):
         )  # widget sur lequel on mettra les elements
 
         self.TabW.addTab(self.rightWidgetStitching, "Stitching")
+        ####Fin
+
+        ###########################
+        ####Debut du widget de Droite pour utiliser la fonction de stitching
+
+        self.rightWidgetParesis = Paresis(
+            self
+        )  # widget sur lequel on mettra les elements
+
+        self.TabW.addTab(self.rightWidgetParesis, "Paresis")
         ####Fin
 
 # ------#
