@@ -1,3 +1,10 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Wed May  4 13:33:28 2022
+
+@author: Clara.magnin
+"""
+
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
@@ -10,7 +17,8 @@ from xml.dom import minidom
 from InputOutput.pagailleIO import openImage, saveEdf, openSeq
 from matplotlib import pyplot as plt
 import imutils
-import glob
+import matplotlib.animation as animation
+from scipy import ndimage
 
 def CreateSampleSphere(myName, dimX, dimY, pixelSize):
     """
@@ -88,12 +96,10 @@ def CreateSampleCylindre(myName, dimX, dimY, pixelSize):
     Nyp=2*dimY
     diffx=int((Nxp-dimX)/2)
     diffy=int((Nyp-dimY)/2)
+
     Sample=np.zeros((Nxp,Nyp))
     myRadius=myRadius_um/pixelSize
     
-    if 2*myRadius>Nxp or 2*myRadius>Nyp:
-        raise Exception('The sample is too big for the detector field of view (increase dimX, dimY)')
-
     for j in range(Nyp):
         if (abs(Nyp/2-j)<myRadius):
             Sample[:,j]=2*np.sqrt(myRadius**2-(Nyp/2-j)**2)
@@ -123,12 +129,12 @@ def CreateSampleSpheresInCylinder(myName, dimX, dimY, pixelSize):
 
     """
     #Define geometry parameters
-    myRadius0=500 #um Spheres radius
-    myRadius2=myRadius0*2 #um  Cylinder radius
+    myRadius0=300 #um Spheres radius
+    myRadius2=910
+    #myRadius2=myRadius0*2 #um  Cylinder radius
     posY=dimY//2 # horizontal position of the cylinder 
     posXmuscle=int(np.round(myRadius0*3/pixelSize)) #vertical position of 1st sphere
     posXcart=int(np.round(myRadius0*7/pixelSize)) #vertical position of 2nd sphere
-    
     
     parameters={}
     Sample=np.zeros((3,dimX,dimY))
@@ -136,9 +142,6 @@ def CreateSampleSpheresInCylinder(myName, dimX, dimY, pixelSize):
     patchSize2=int(np.ceil(myRadius))
     patchSize=patchSize2*2
     spherePatch=np.zeros((patchSize,patchSize))
-    
-    if 2*myRadius>dimX or 2*myRadius>dimY:
-        raise Exception(f'The sample is too big for the detector field of view (increase dimX, dimY)')
     
     for i in range(patchSize):
         for j in range(patchSize):
@@ -148,10 +151,6 @@ def CreateSampleSpheresInCylinder(myName, dimX, dimY, pixelSize):
             
     Tube=np.zeros((dimX,dimY))
     myRadius=myRadius2/pixelSize
-    
-    if 2*myRadius>dimX or 2*myRadius>dimY:
-        raise Exception(f'The sample is too big for the detector field of view (increase dimX, dimY)')
-    
     for j in range(dimY):
         if (abs(dimY/2-j)<myRadius):
             Tube[:,j]=2*np.sqrt(myRadius**2-(dimY/2-j)**2)
@@ -209,10 +208,6 @@ def CreateSampleSpheresInParallelepiped(myName, dimX0, dimY0, pixelSize):
     patchSize=patchSize2*2
     spherePatch=np.zeros((patchSize,patchSize))
     
-    if 2*myRadius>dimX or 2*myRadius>dimY:
-        raise Exception(f'The sample is too big for the detector field of view (increase dimX, dimY)')
-    
-    
     if abs(posXcart-posXmuscle)<myRadius*2:
         print("/!\ sample spheres overlapping!")
         
@@ -224,11 +219,6 @@ def CreateSampleSpheresInParallelepiped(myName, dimX0, dimY0, pixelSize):
             
     Tube=np.zeros((dimX,dimY))
     myRadius=myRadius2/pixelSize
-
-    if 2*myRadius>dimX or 2*myRadius>dimY:
-        raise Exception(f'The sample is too big for the detector field of view (increase dimX, dimY)')
-    
-    
     for j in range(dimX):
         if (abs(dimY/2-j)<myRadius*3/4):
             Tube[:,j]=myRadius*2#2*np.sqrt(myRadius**2-(dimX/2-j)**2)
@@ -260,42 +250,10 @@ def CreateSampleSpheresInParallelepiped(myName, dimX0, dimY0, pixelSize):
     return Sample*pixelSize*1e-6, parameters
 
 
-def loadSampleGeometryFromImages(myGeometryFolder,dimX, dimY, pixsize):
-    """
-    Opens sample thickness maps saved as images contained in myGeometryFolder. thickness must be in m.
-
-    Args:
-        myGeometryFolder (string): path of the folder containing sample thicknesses as images (.tif, .tiff or .edf).
-        dimX (int): study dimension in x.
-        dimY (int): study dimension in y.
-        pixelSize (float): pixel size in the sample plane.
-
-    Raises:
-        Exception: The sample geometry you are trying to load does not exist or is incorrectly named.
-
-    Returns:
-        geometry (3D numpy array): thickness maps for different materials (3 in this case) [material, dimX, dimY].
-        parameters (dictionnary of tuples): Any parameter related to the geomtry that you want stored in the final text file. (value, "unit")
-
-    """
-    filepaths=glob.glob(myGeometryFolder+"/*.tif")+ glob.glob(myGeometryFolder+"/*.tiff")+glob.glob(myGeometryFolder+"/*.edf")
-    filepaths.sort()
-    # print(filepath)
-    geometry=[]
-    print(f'Your loaded geometry comprises thickness maps for {len(filepaths)} materials')
-    if filepaths!=[]:
-        for i in range(len(filepaths)):
-            geometry.append(openImage(filepaths[i]))
-    else:
-        raise Exception("The sample geometry you are trying to load does not exist or is incorrectly named:", myGeometryFolder)   
-    parameters={}
-    parameters['myGeometryFolder']=(myGeometryFolder, '')
-    return geometry, parameters
-
 
 def CreateYourSampleGeometry(myName, dimX0, dimY0, pixelSize):  
     """
-    ********EXAMPLE TO EDIT******
+    Creates the geometry EXAMPLE TO MODIFY
     Create one thickness map per material - give as many material in the xml as the thickness maps here
 
     Args:
@@ -309,38 +267,88 @@ def CreateYourSampleGeometry(myName, dimX0, dimY0, pixelSize):
         parameters (dictionnary of tuples): Any parameter related to the geomtry that you want stored in the final text file. (value, "unit")
 
     """
-    print(f'Creating your own geometry for sample {myName}')
-    nMaterials=1 #how many materials will compose your sample
-    Geometry=np.ones((nMaterials,dimX0, dimY0)) # geometry you will return. Tune each material map as you wish
+    thickness=1e-2 #objet fera max 2 mm
+    Geometry=np.zeros((1,dimX0, dimY0))
+
     
-    thickness=5*1e-6 #5um given in m
-    Geometry=Geometry*thickness
+    def julia_quadratic(zx, zy, cx, cy, threshold):
+        """Calculates whether the number z[0] = zx + i*zy with a constant c = x + i*y
+        belongs to the Julia set. In order to belong, the sequence 
+        z[i + 1] = z[i]**2 + c, must not diverge after 'threshold' number of steps.
+        The sequence diverges if the absolute value of z[i+1] is greater than 4.
+        
+        :param float zx: the x component of z[0]
+        :param float zy: the y component of z[0]
+        :param float cx: the x component of the constant c
+        :param float cy: the y component of the constant c
+        :param int threshold: the number of iterations to considered it converged
+        """
+        # initial conditions
+        z = complex(zx, zy)
+        c = complex(cx, cy)
+        
+        for i in range(threshold):
+            z = z**2 + c
+            if abs(z) > 4.:  # it diverged
+                return i
+            
+        return threshold - 1  # it didn't diverge
     
-    # Create a dictionnary containing tuples with the values and unit of the geometry you want to save in the text file
-    # If there is no unit, still use a tuple with an empty string in second position
+    x_start, y_start = -1.5, -1.5  # an interesting region starts here
+    width, height = 3,3  # for 4 units up and right
+    density_per_unit = 330 # how many pixles per unit
+    
+    # real and imaginary axis
+    re = np.linspace(x_start, x_start + width, width * density_per_unit )
+    im = np.linspace(y_start, y_start + height, height * density_per_unit)
+    
+    
+    threshold = 20  # max allowed iterations
+    frames = 900  # number of frames in the animation
+    
+    # we represent c as c = r*cos(a) + i*r*sin(a) = r*e^{i*a}
+    r = 0.7885
+    a = np.linspace(0, 2*np.pi, frames)
+    
+    fig = plt.figure(figsize=(10, 10))  # instantiate a figure to draw
+    ax = plt.axes()  # create an axes object
+    
+    def animate(i):
+        ax.clear()  # clear axes object
+        ax.set_xticks([], [])  # clear x-axis ticks
+        ax.set_yticks([], [])  # clear y-axis ticks
+        
+        X = np.empty((len(re), len(im)))  # the initial array-like image
+        cx, cy = r * np.cos(a[i]), r * np.sin(a[i])  # the initial c number
+        
+        # iterations for the given threshold
+        for i in range(len(re)):
+            for j in range(len(im)):
+                X[i, j] = julia_quadratic(re[i], im[j], cx, cy, threshold)
+        
+        img = X.T
+        img[img<4]=0
+        img=ndimage.uniform_filter(img, size=6)
+        print(img)
+        plt.imshow(img, interpolation="bicubic", cmap='magma')
+        #plt.imshow(img)
+        plt.show()
+        return img
+    
+
+
+    Geometry[0,535:dimX0-535,:dimY0-38]=animate(300)
+    
+    
     parameters={}
     parameters['geometry thickness']=(thickness, 'um')
-    parameters['geometry other parameter']=("unitlessParameter", '')
-    return Geometry, parameters
+    
+    return Geometry*1e-4, parameters
+
+
+
+
+
 
 def getText(node):
     return node.childNodes[0].nodeValue
-
-if __name__ == "__main__":
-    detector_dimX=300 #pixels
-    detector_dimY=300 #pixels
-    detectorPixelSize=50 #um
-    
-    distSourceToSample=0.5 #m
-    distanceSampleToDetector=1 #m
-    overSampling=2
-    magnification=(distSourceToSample+distanceSampleToDetector)/distSourceToSample
-    
-    studyPixelSize=detectorPixelSize/magnification/overSampling
-    studyDimX=detector_dimX*overSampling
-    studyDimY=detector_dimY*overSampling
-    
-    print(f'The sample geometry you need is {studyDimX}x{studyDimY} pixels with a pixels size of {studyPixelSize} um')
-    print('Reminder: the thickness map must be in meter')
-    
- 

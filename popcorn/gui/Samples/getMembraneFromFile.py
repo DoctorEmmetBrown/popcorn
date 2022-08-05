@@ -77,19 +77,18 @@ def getMembraneSegmentedFromFile(sample,dimX,dimY,pixSize, pointNum, supportThic
         parameters_dic (dictionnary): thickness maps of the grains and support thickness.
 
     """
-    myMembraneFile="Samples/Membranes/CuSn.txt"
     margin=int(np.ceil(10*sample.myMeanSphereRadius/pixSize)) #in pix
     margin2=int(np.floor(margin/2))
     parameters_dic={}
     
-    if myMembraneFile.split('/')[-1]=='CuSn.txt':
+    if sample.myMembraneFile.split('/')[-1]=='CuSn.txt':
         corrFactor=sample.myMeanSphereRadius/12.8 #to adapt the scale to the mean sphere radius desired
         membraneSizeinFilex=int(np.floor(8102))*corrFactor+sample.myMeanSphereRadius
         membraneSizeinFiley=int(np.floor(9740))*corrFactor+sample.myMeanSphereRadius
     else: 
         raise Exception("Enter segmented membrane size ")
     
-    with open(myMembraneFile) as file:
+    with open(sample.myMembraneFile) as file:
         parameters=json.load(file)
     parameters=np.asarray(parameters) #change list to numpy array 2D [nsphere, values] 
     parameters=parameters*corrFactor  #to adapt the scale to the mean sphere radius desired
@@ -182,11 +181,12 @@ if __name__ == "__main__":
     
     # PARAMETERS
     number_of_positions=1
+    imageMargins=0
     overSamp=2
     Nx=300 #Detector size
     Ny=400
-    dimX=int((Nx)*overSamp)
-    dimY=int((Ny)*overSamp)
+    dimX=int((Nx+2*imageMargins)*overSamp)
+    dimY=int((Ny+2*imageMargins)*overSamp)
     dist_source_membrane=144 #in m
     dist_membrane_detector=5.2 #in m
     detector_pixel_size=24 #in um
@@ -194,7 +194,7 @@ if __name__ == "__main__":
     pixSize=detector_pixel_size/overSamp/magnification
     
     membrane=Membrane()
-    storingFolder='Membranes/CuSn_dim'+str(Nx)+'x'+str(Ny)+'_oversamp'+str(overSamp)+'_radius'+str(membrane.myMeanSphereRadius)+'/'
+    storingFolder='Membranes/CuSn_dim'+str(Nx)+'x'+str(Ny)+'_oversamp'+str(overSamp)+'_margin'+str(imageMargins)+'_radius'+str(membrane.myMeanSphereRadius)+'/'
     
     if not os.path.exists(storingFolder):
         os.mkdir(storingFolder)
