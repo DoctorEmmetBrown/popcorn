@@ -11,11 +11,6 @@ path_root = str(path_root)+"/PARESIS-master/CodePython/"
 if str(path_root) not in sys.path :
     print(str(path_root))
     sys.path.append(str(path_root))
-else :
-    print("coucou")
-print(sys.path)
-
-
 import datetime
 import xml.etree.cElementTree as ET
 import time
@@ -24,7 +19,15 @@ import importlib
 
 
 class Paresis(QWidget):
+    """
+    class which contains the different elements needed for Paresis
+    """
     def __init__(self, father):
+        """
+        init and create button/window
+        Args:
+            father: QMainWindow from GUI_popcorn
+        """
         super().__init__()
         self.father = father
         self.layoutParesis = QGridLayout()  # layout en grille
@@ -85,16 +88,26 @@ class Paresis(QWidget):
         self.samples_button = QPushButton("Samples")
         self.layoutParesis.addWidget(self.samples_button,5,0,1,2)
 
+        self.membranes_button = QPushButton("Membrane")
+        self.layoutParesis.addWidget(self.membranes_button, 5, 2, 1, 2)
+
         self.sources_button = QPushButton("Sources")
-        self.layoutParesis.addWidget(self.sources_button,5,2,1,2)
+        self.layoutParesis.addWidget(self.sources_button,6,0,1,2)
 
         self.reset_button = QPushButton("Reset all")
         self.reset_button.clicked.connect(self.reset_all)
-        self.layoutParesis.addWidget(self.reset_button,6,0,1,4)
+        self.layoutParesis.addWidget(self.reset_button,7,0,1,4)
+
+        self.add_list_button = QPushButton("Add list")
+        self.add_list_button.clicked.connect(self.add_list)
+        self.layoutParesis.addWidget(self.add_list_button,9,0,1,4)
+
+        self.list_exp=QTextEdit()
+        self.layoutParesis.addWidget(self.list_exp, 10, 0, 1, 4)
 
         self.start_button = QPushButton("Start")
         self.start_button.clicked.connect(self.start)
-        self.layoutParesis.addWidget(self.start_button,7,0,1,4)
+        self.layoutParesis.addWidget(self.start_button, 11, 0, 1, 4)
 
         self.experiment_window = experiment(self)
         self.experiment_button.clicked.connect(self.display_experiment)
@@ -106,10 +119,37 @@ class Paresis(QWidget):
         self.samples_window = samples(self)
         self.samples_button.clicked.connect(self.display_samples)
 
+        self.membranes_window = membranes(self)
+        self.membranes_button.clicked.connect(self.display_membranes)
+
         self.sources_window = sources(self)
         self.sources_button.clicked.connect(self.display_sources)
+    def add_list(self):
+        """
+        add the parameter to the QTextEdit
+        Returns:
+            void
+        """
+        self.experiment_window.write_xml()
+        self.detector_window.write_xml()
+        self.samples_window.write_xml()
+        self.membranes_window.write_xml()
+        self.sources_window.write_xml()
 
+        t = self.list_exp.toPlainText()
+        t = t+self.name_value.text()+','\
+            + self.output_value.text()+',' \
+            + self.overSampling_value.text() + ',' \
+            + self.nbExpPoints_value.text()+','\
+            + self.format_value.currentText()+','\
+            + self.simulation_type_value.currentText()+'\n'
+        self.list_exp.setText(t)
     def change_exp_name(self):
+        """
+        if experiment is chenged, then change self.experiment_window.name_value wit the same name
+        Returns:
+
+        """
         self.experiment_window.name_value.setText(self.name_value.text())
 
     def change_output(self):
@@ -122,68 +162,132 @@ class Paresis(QWidget):
             print(self.output_value.text())
 
     def reset_all(self):
+        """
+        reset all parameters from this class and from all this windows (experiment/detector/sample/membrane/source)
+        Returns:
+            void
+        """
+        self.name_value.setText("")
+        self.output_value.setText("")
+        self.nbExpPoints_value.setText("")
+        self.overSampling_value.setText("")
+        self.format_value.setCurrentIndex(0)
+        self.simulation_type_value.setCurrentIndex(0)
         self.experiment_window.reset()
         self.detector_window.reset()
         self.samples_window.reset()
         self.sources_window.reset()
 
-    def display_general(self):
-        self.general_window.hide()
-        self.general_window.show()
-
     def display_experiment(self):
+        """
+        hide then shw experiment window
+        Returns:
+
+        """
         self.experiment_window.hide()
         self.experiment_window.show()
 
     def display_detector(self):
+        """
+        hide then shw detector window
+        Returns:
+
+        """
         self.detector_window.hide()
         self.detector_window.show()
 
     def display_samples(self):
+        """
+        hide then shw sample window
+        Returns:
+
+        """
         self.samples_window.hide()
         self.samples_window.show()
 
+    def display_membranes(self):
+        """
+        hide then shw membrane window
+        Returns:
+
+        """
+        self.membranes_window.hide()
+        self.membranes_window.show()
+
     def display_sources(self):
+        """
+        hide then shw source window
+        Returns:
+
+        """
         self.sources_window.hide()
         self.sources_window.show()
 
     def start(self):
+        """
+        start paresis in a thread
+        Returns:
+
+        """
         thread = start_thread(self)
         thread.run()
 
     def start_exec(self):
-        """main of the simulation code.
+        """
+        Read parameters from QTextEdit and do paresis
+        """
 
-         Notes:
-             Set the parameters below and parameters in .xml files then run
-         """
-        Experiment=importlib.import_module('Experiment')
-        pagailleIO=importlib.import_module('InputOutput.pagailleIO')
+
+
+
+        text = self.list_exp.toPlainText()
+        text = text.split("\n")
+        for line in text:
+            list_para = line.split(",")
+            if len(list_para) != 6:
+                print("pas assez de para")
+                break
+            print(list_para)
+            self.one_exec_start(list_para)
+    def one_exec_start(self,list_para):
+        """
+        paresis main
+        Args:
+            list_para: contain [experiment_name,outputfile,oversampling,nbExpPoints,saving_format,simulation_type]
+
+        Returns:
+
+        """
+
+        Experiment = importlib.import_module('Experiment')
+        Experiment = Experiment.Experiment
+        pagailleIO = importlib.import_module('InputOutput.pagailleIO')
+        save_image = pagailleIO.save_image
 
         time0 = time.time()  # timer for computation
         exp_dict = {}
 
         ## PARAMETERS TO SET
         # Define experiment
-        exp_dict['experimentName'] = self.name_value.text()
+        exp_dict['experimentName'] = list_para[0]
         # Output filepath to store the result images
-        exp_dict['filepath'] = self.output_value.text()
+        exp_dict['filepath'] = list_para[1]
+        exp_dict['fileN'] = "nylon"
         # Define algorithm parameters
-        print(self.overSampling_value.text())
         exp_dict[
-            'overSampling'] = int(self.overSampling_value.text())  # MUST BE AN INTEGER - >2 for ray-tracing model and even more for Fresnel (cf usefullScripts/getSamplingFactor.py)
+            'overSampling'] = int(list_para[2])  # MUST BE AN INTEGER - >2 for ray-tracing model and even more for Fresnel (cf usefullScripts/getSamplingFactor.py)
         exp_dict[
-            'nbExpPoints'] = int(self.nbExpPoints_value.text())  # number of pair of acquisitions (Ir, Is) simulated with different positions of the membrane
+            'nbExpPoints'] = int(list_para[3])  # number of pair of acquisitions (Ir, Is) simulated with different positions of the membrane
         save = True
-        saving_format = self.format_value.currentText()  # .tif or .edf
-        exp_dict['simulation_type'] = self.simulation_type_value.currentText()  # "Fresnel" or "RayT"
+        saving_format = list_para[4] # .tif or .edf
+        exp_dict['simulation_type'] = list_para[5]  # "Fresnel" or "RayT"
 
         # ************************************************************************
         # **********START OF CALCULATIONS*****************************************
         # ************************************************************************
 
         now = datetime.datetime.now()
-        exp_dict['expID'] = now.strftime("%Y%m%d-%H%M%S")  # define experiment ID
+        exp_dict['expID'] = now.strftime("_")  # define experiment ID
 
         SampleImage = []
         ReferenceImage = []
@@ -194,8 +298,9 @@ class Paresis(QWidget):
 
         print("\n\nINITIALIZING EXPERIMENT PARAMETERS AND GEOMETRIES")
         print("*************************")
-        experiment = Experiment.Experiment(exp_dict)
+        experiment = Experiment(exp_dict)
 
+        # save_image(experiment.mySampleofInterest.myGeometry[0],r"C:\Users\clara.magnin\OneDrive - XENOCS\Documents\Simulations\Simulations_Clara\20220601Algo_comparison\nylonGeometry.tif" )
         print("\nImages calculation")
         print("*************************")
         for pointNum in range(exp_dict['nbExpPoints']):
@@ -220,7 +325,7 @@ class Paresis(QWidget):
                 if exp_dict['simulation_type'] == "Fresnel":
                     expImagesFilePath = exp_dict['filepath'] + 'Fresnel_' + str(exp_dict['expID']) + '/'
                 if exp_dict['simulation_type'] == "RayT":
-                    expImagesFilePath = exp_dict['filepath'] + 'RayTracing_' + str(exp_dict['expID']) + '/'
+                    expImagesFilePath = exp_dict['filepath'] + 'result/'
                 os.mkdir(expImagesFilePath)
                 os.mkdir(expImagesFilePath + 'membraneThickness/')
                 thresholds = experiment.myDetector.det_param['myBinsThersholds'].copy()
@@ -238,23 +343,24 @@ class Paresis(QWidget):
                     os.mkdir(expPathEn[ibin] + 'propag/')
 
             txtPoint = '%2.2d' % pointNum
-            pagailleIO.save_image(experiment.myMembrane.myGeometry[0],
+            print(experiment.myMembrane.myGeometry[0])
+            save_image(experiment.myMembrane.myGeometry[0],
                        expImagesFilePath + 'membraneThickness/' + exp_dict['experimentName'] + '_sampling' + str(
-                           exp_dict['overSampling']) + '_' + str(pointNum) + saving_format)
+                           exp_dict['overSampling']) + '_' + str(pointNum) + "." + saving_format)
 
             if exp_dict['simulation_type'] == "RayT":
-                pagailleIO.save_image(Df, expImagesFilePath + "DF" + saving_format)
+                save_image(Df, expImagesFilePath + "DF" + "." + saving_format)
 
             for ibin in range(Nbin):
-                pagailleIO.save_image(SampleImageTmp[ibin], expPathEn[ibin] + 'sample/sampleImage_' + str(
-                    exp_dict['expID']) + '_' + txtPoint + saving_format)
-                pagailleIO.save_image(ReferenceImageTmp[ibin], expPathEn[ibin] + 'ref/ReferenceImage_' + str(
-                    exp_dict['expID']) + '_' + txtPoint + saving_format)
+                save_image(SampleImageTmp[ibin], expPathEn[ibin] + 'sample/sampleImage_' + str(
+                    exp_dict['expID']) + '_' + txtPoint + "." + saving_format)
+                save_image(ReferenceImageTmp[ibin], expPathEn[ibin] + 'ref/ReferenceImage_' + str(
+                    exp_dict['expID']) + '_' + txtPoint + "." + saving_format)
 
                 if pointNum == 0:
-                    pagailleIO.save_image(PropagImageTmp[ibin],
-                               expPathEn[ibin] + 'propag/PropagImage_' + str(exp_dict['expID']) + '_' + saving_format)
-                    pagailleIO.save_image(White[ibin], expPathEn[ibin] + 'White_' + str(exp_dict['expID']) + '_' + saving_format)
+                    save_image(PropagImageTmp[ibin],
+                               expPathEn[ibin] + 'propag/PropagImage_' + str(exp_dict['expID']) + '_' + "." + saving_format)
+                    save_image(White[ibin], expPathEn[ibin] + 'White_' + str(exp_dict['expID']) + '_' + "." + saving_format)
 
         experiment.saveAllParameters(time0, exp_dict)
 
@@ -263,7 +369,15 @@ class Paresis(QWidget):
 
 
 class experiment(QWidget):
+    """
+    experiment window
+    """
     def __init__(self, father):
+        """
+        init the window
+        Args:
+            father: QWindow (class Paresis)
+        """
         super().__init__()
         self.father = father
         self.layoutExperiment = QGridLayout()  # layout en grille
@@ -298,6 +412,7 @@ class experiment(QWidget):
         self.layoutExperiment.addWidget(self.membraneName_text, 4, 0)
 
         self.membraneName_value = QLineEdit("")
+        self.membraneName_value.textChanged.connect(self.change_membrane_name)
         self.layoutExperiment.addWidget(self.membraneName_value, 4, 1)
 
         self.sampleName_text = QLabel("sampleName")
@@ -352,18 +467,48 @@ class experiment(QWidget):
         self.layoutExperiment.addWidget(self.write_xml_button, 13, 0, 1, 2)
 
     def change_exp_name(self):
+        """
+        if experiment name is changed, change it in class paresis too
+        Returns:
+
+        """
         self.father.name_value.setText(self.name_value.text())
 
     def change_detector_name(self):
+        """
+                if detector name is changed, change it in class detector too
+                Returns:
+
+                """
         self.father.detector_window.name_value.setText(self.detectorName_value.text())
 
     def change_sample_name(self):
-        self.father.samples_window.name_value.setText(self.sampleName_value.text())
+        """
+                if sample name is changed, change it in class samples too
+                Returns:
 
+                """
+        self.father.samples_window.name_value.setText(self.sampleName_value.text())
+    def change_membrane_name(self):
+        """
+                if membrane name is changed, change it in class membrane too
+                Returns:
+
+                """
+        self.father.membranes_window.name_value.setText(self.membraneName_value.text())
     def change_source_name(self):
+        """
+        if source name is changed, change it in class source too
+        Returns:
+
+        """
         self.father.sources_window.name_value.setText(self.sourceName_value.text())
 
     def reset(self):
+        """
+         reset all window's parameters
+
+        """
         self.distSourceToMembrane_value.setText("")
         self.distMembraneToObject_value.setText("")
         self.distObjectToDetector_value.setText("")
@@ -376,19 +521,35 @@ class experiment(QWidget):
         self.inVacuum_value.setChecked(False)
 
     def load(self):
+        """
+        load data from xmlFiles/Experiment.xml
+        firstly scroll only experiment name then the user choose wich one open and then load it with load_exec
+        Args:
+            self:
 
-        exp_name, booleen = QInputDialog.getText(self, "Load experiment", "enter experiment name")
+        Returns:
+
+        """
+        items = []
+        f = open("xmlFiles/Experiment.xml", 'r')
+        texte = f.read()
+        root = ET.fromstring(texte)
+        for experience in root.findall('experiment'):
+            items.append(experience[0].text)
+
+        exp_name, booleen = QInputDialog.getItem(self, "Load experiment", "enter experiment name",items)
         if not booleen:
             return
         self.father.experiment_window.reset()
         self.father.detector_window.reset()
         self.father.samples_window.reset()
+        self.father.membranes_window.reset()
         self.father.sources_window.reset()
         self.load_exec(exp_name)
 
     def load_exec(self, exp_name):
         """
-        Read a xml and load parameters
+        Read a xml and load parameters of experiment with <name>=exp_name
         """
 
         f = open("xmlFiles/Experiment.xml",'r')
@@ -402,6 +563,7 @@ class experiment(QWidget):
         f.close()
         self.father.detector_window.load_exec(self.detectorName_value.text())
         self.father.samples_window.load_exec(self.sampleName_value.text())
+        self.father.membranes_window.load_exec(self.membraneName_value.text())
         self.father.sources_window.load_exec(self.sourceName_value.text())
 
     def change_value(self, name, value):
@@ -439,7 +601,7 @@ class experiment(QWidget):
         """
         write parameters in Experiment.xml
         """
-        f = open("../../../PARESIS-master/CodePython/xmlFiles/Experiment.xml", 'r')
+        f = open("xmlFiles/Experiment.xml", 'r')
         texte = f.read()
         root = ET.fromstring(texte)
         for experience in root.findall('experiment'):
@@ -457,11 +619,11 @@ class experiment(QWidget):
         ET.SubElement(doc, "detectorName").text = self.detectorName_value.text()
         ET.SubElement(doc, "sourceName").text = self.sourceName_value.text()
         ET.SubElement(doc, "meanShotCount").text = self.meanShotCount_value.text()
-        ET.SubElement(doc, "inVacuum").text = str(self.inVacuum_value.isChecked)
+        ET.SubElement(doc, "inVacuum").text = str(self.inVacuum_value.isChecked())
 
         tree = ET.ElementTree(root)
         ET.indent(tree, space="\t", level=0)
-        tree.write("../../../PARESIS-master/CodePython/xmlFiles/Experiment.xml", encoding='utf-8')
+        tree.write("xmlFiles/Experiment.xml", encoding='utf-8')
 
 class detector(QWidget):
     def __init__(self, father):
@@ -474,7 +636,7 @@ class detector(QWidget):
         self.layoutDetector.addWidget(self.name_text, 1, 0)
 
         self.name_value = QLineEdit("")
-        self.name_value.textChanged.connect(self.change_detecor_name)
+        self.name_value.textChanged.connect(self.change_detector_name)
         self.layoutDetector.addWidget(self.name_value, 1, 1)
 
         self.dimX_text = QLabel("dimX")
@@ -537,10 +699,20 @@ class detector(QWidget):
         self.write_xml_button.clicked.connect(self.write_xml)
         self.layoutDetector.addWidget(self.write_xml_button, 13, 0, 1, 2)
 
-    def change_detecor_name(self):
+    def change_detector_name(self):
+        """
+        if detector name is change then change detectorName in experiment
+        Returns:
+
+        """
         self.father.experiment_window.detectorName_value.setText(self.name_value.text())
 
     def reset(self):
+        """
+        reset all detector parameters
+        Returns:
+
+        """
         self.name_value.setText("")
         self.dimX_value.setText("")
         self.dimY_value.setText("")
@@ -552,13 +724,23 @@ class detector(QWidget):
         self.myBinsThersholds_value.setText("")
 
     def load(self):
-        exp_name, booleen = QInputDialog.getText(self, "Load experiment", "enter experiment name")
+        """
+        choose which detector load and lad it
+        Returns:
+
+        """
+        items = []
+        f = open("xmlFiles/Detectors.xml", 'r')
+        texte = f.read()
+        root = ET.fromstring(texte)
+        for experience in root.findall('detector'):
+            items.append(experience[0].text)
+
+        exp_name, booleen = QInputDialog.getItem(self, "Load experiment", "enter experiment name", items)
         if not booleen:
             return
-        self.father.experiment_window.reset()
         self.father.detector_window.reset()
-        self.father.samples_window.reset()
-        self.father.sources_window.reset()
+
         self.load_exec(exp_name)
 
     def load_exec(self,exp_name):
@@ -566,7 +748,7 @@ class detector(QWidget):
         Read a xml and load parameters
         """
         print(exp_name)
-        f = open("../../../PARESIS-master/CodePython/xmlFiles/Detectors.xml",'r')
+        f = open("xmlFiles/Detectors.xml",'r')
         texte = f.read()
         root = ET.fromstring(texte)
         for child in root:
@@ -615,31 +797,48 @@ class detector(QWidget):
         """
         write parameters in Experiment.xml
         """
-        f = open("../../../PARESIS-master/CodePython/xmlFiles/Detectors.xml", 'r')
+        f = open("xmlFiles/Detectors.xml", 'r')
         texte = f.read()
         root = ET.fromstring(texte)
-        for experience in root.findall('experiment'):
+        for experience in root.findall('detector'):
             if experience[0].text == self.name_value.text():
                 root.remove(experience)
 
-        doc = ET.SubElement(root, "experiment")
+        doc = ET.SubElement(root, "detector")
         ET.SubElement(doc, "name").text = self.name_value.text()
-        mydoc = ET.SubElement(doc, "myDimensions")
-        ET.SubElement(mydoc, "dimX").text = self.dimX_value.text()
-        ET.SubElement(mydoc, "dimY").text = self.dimY_value.text()
-        ET.SubElement(doc, "photonCounting").text = str(self.photonCounting_value.text())
-        ET.SubElement(doc, "myPixelSize").text = self.myPixelSize_value.text()
-        ET.SubElement(doc, "myPSF").text = self.myPSF_value.text()
-        ET.SubElement(doc, "myScintillatorMaterial").text = self.myScintillatorMaterial_value.text()
-        ET.SubElement(doc, "myScintillatorThickness").text = self.myScintillatorThickness_value.text()
-        ET.SubElement(doc, "myBinsThersholds").text = self.myBinsThersholds_value.text()
+        if self.dimX_value!="" and self.dimY_value!="":
+            mydoc = ET.SubElement(doc, "myDimensions")
+            ET.SubElement(mydoc, "dimX").text = self.dimX_value.text()
+            ET.SubElement(mydoc, "dimY").text = self.dimY_value.text()
+        if self.photonCounting_value.isChecked():
+            ET.SubElement(doc, "photonCounting").text = str(self.photonCounting_value.isChecked())
+        if self.myPixelSize_value.text():
+            ET.SubElement(doc, "myPixelSize").text = self.myPixelSize_value.text()
+        if self.myPSF_value.text():
+            ET.SubElement(doc, "myPSF").text = self.myPSF_value.text()
+        if self.myScintillatorMaterial_value.text():
+            ET.SubElement(doc, "myScintillatorMaterial").text = self.myScintillatorMaterial_value.text()
+        if self.myScintillatorThickness_value.text():
+            ET.SubElement(doc, "myScintillatorThickness").text = self.myScintillatorThickness_value.text()
+        if self.myBinsThersholds_value.text()!="":
+            print("eflkefhehehezezezjknj",self.myBinsThersholds_value.text())
+            ET.SubElement(doc, "myBinsThersholds").text = self.myBinsThersholds_value.text()
 
         tree = ET.ElementTree(root)
         ET.indent(tree, space="\t", level=0)
-        tree.write("../../../PARESIS-master/CodePython/xmlFiles/Detectors.xml", encoding='utf-8')
+        tree.write("xmlFiles/Detectors.xml", encoding='utf-8')
+
 
 class samples(QWidget):
+    """
+    sample window
+    """
     def __init__(self, father):
+        """
+        init window
+        Args:
+            father: class paresis (QWindow)
+        """
         super().__init__()
         self.father = father
         self.layoutSample = QGridLayout()  # layout en grille
@@ -664,29 +863,18 @@ class samples(QWidget):
         self.myGeometryFunction_value = QLineEdit("")
         self.layoutSample.addWidget(self.myGeometryFunction_value, 3, 1)
 
-        self.myPMMAThickness_text = QLabel("myPMMAThickness (um)")
-        self.layoutSample.addWidget(self.myPMMAThickness_text, 4, 0)
+        self.myGeometryFolder_text = QPushButton("myGeometryFolder")
+        self.myGeometryFolder_text.clicked.connect(self.chooseGeometryFolder)
+        self.layoutSample.addWidget(self.myGeometryFolder_text, 4, 0)
 
-        self.myPMMAThickness_value = QLineEdit("")
-        self.layoutSample.addWidget(self.myPMMAThickness_value, 4, 1)
+        self.myGeometryFolder_value = QLineEdit("")
+        self.layoutSample.addWidget(self.myGeometryFolder_value, 4, 1)
 
         self.myMaterials_text = QLabel("myMaterials")
         self.layoutSample.addWidget(self.myMaterials_text, 5, 0)
 
         self.myMaterials_value = QLineEdit("")
         self.layoutSample.addWidget(self.myMaterials_value, 5, 1)
-
-        self.myMeanSphereRadius_text = QLabel("myMeanSphereRadius")
-        self.layoutSample.addWidget(self.myMaterials_text, 6, 0)
-
-        self.myMeanSphereRadius_value = QLineEdit("")
-        self.layoutSample.addWidget(self.myMaterials_value, 6, 1)
-
-        self.myNbOfLayers_text = QLabel("myNbOfLayers")
-        self.layoutSample.addWidget(self.myNbOfLayers_text, 7, 0)
-
-        self.myNbOfLayers_value = QLineEdit("")
-        self.layoutSample.addWidget(self.myNbOfLayers_value, 7, 1)
 
         self.myRadius_text = QLabel("myRadius (um)")
         self.layoutSample.addWidget(self.myRadius_text, 8, 0)
@@ -711,11 +899,221 @@ class samples(QWidget):
         self.write_xml_button = QPushButton("write_xml")
         self.write_xml_button.clicked.connect(self.write_xml)
         self.layoutSample.addWidget(self.write_xml_button, 13, 0, 1, 2)
-
+    def chooseGeometryFolder(self):
+        """
+        choose a directory thank to QDialog and write him in a QLineEdit (self.myGeometryFolder_value)
+        """
+        path = QFileDialog.getExistingDirectory(self, str("Choose a Directory"))
+        if path != "":
+            self.myGeometryFolder_value.setText(path + '/')
+            print(self.myGeometryFolder_value.text())
     def change_sample_name(self):
+        """
+        il sample name change then change it in experiment too
+        Returns:
+
+        """
         self.father.experiment_window.sampleName_value.setText(self.name_value.text())
 
     def reset(self):
+        """
+        reset all parameters
+        Returns:
+
+        """
+        self.name_value.setText("")
+        self.myType_value.setText("")
+        self.myGeometryFunction_value.setText("")
+        self.myGeometryFolder_value.setText("")
+        self.myMaterials_value.setText("")
+        self.myRadius_value.setText("")
+        self.myOrientation_value.setText("")
+
+    def load(self):
+        """
+        choose a sample and load it
+        Returns:
+
+        """
+        items = []
+        f = open("xmlFiles/Samples.xml", 'r')
+        texte = f.read()
+        root = ET.fromstring(texte)
+        for experience in root.findall('sample'):
+            items.append(experience[0].text)
+
+        exp_name, booleen = QInputDialog.getItem(self, "Load experiment", "enter experiment name", items)
+        if not booleen:
+            return
+        self.father.samples_window.reset()
+        self.load_exec(exp_name)
+    def load_exec(self,exp_name):
+        """
+        Read a xml and load parameters
+        """
+        f = open("xmlFiles/Samples.xml",'r')
+        texte = f.read()
+        root = ET.fromstring(texte)
+        for child in root:
+            if child[0].text==exp_name:
+                for child2 in child:
+                    name,value=child2.tag, child2.text
+                    if name == "myDimensions":
+                        for child3 in child2:
+                            name, value = child3.tag, child3.text
+                            self.change_value(name, value)
+                    else:
+                        self.change_value(name,value)
+        f.close()
+
+
+    def change_value(self, name, value):
+        """
+        switch name and change the value of the QWidget correspond
+
+        """
+        if name == "name":
+            self.name_value.setText(value)
+        elif name == "myType":
+            self.myType_value.setText(value)
+        elif name == "myGeometryFunction":
+            self.myGeometryFunction_value.setText(value)
+        elif name == "myGeometryFolder":
+            self.myGeometryFolder_value.setText(value)
+        elif name == "myMaterials":
+            self.myMaterials_value.setText(value)
+        elif name == "myRadius":
+            self.myRadius_value.setText(value)
+        elif name == "myOrientation":
+            self.myOrientation_value.setText(value)
+
+    def write_xml(self):
+        """
+        write parameters in Experiment.xml
+        """
+        f = open("xmlFiles/Samples.xml", 'r')
+        texte = f.read()
+        root = ET.fromstring(texte)
+        for experience in root.findall('sample'):
+            if experience[0].text == self.name_value.text():
+                root.remove(experience)
+
+        doc = ET.SubElement(root, "sample")
+        ET.SubElement(doc, "name").text = self.name_value.text()
+        if self.myType_value.text()!="":
+            ET.SubElement(doc, "myType").text = self.myType_value.text()
+        if self.myGeometryFunction_value.text() != "":
+            ET.SubElement(doc, "myGeometryFunction").text = self.myGeometryFunction_value.text()
+        if self.myGeometryFolder_value.text() != "":
+            ET.SubElement(doc, "myGeometryFolder").text = self.myGeometryFolder_value.text()
+        if self.myMaterials_value.text() != "":
+            ET.SubElement(doc, "myMaterials").text = self.myMaterials_value.text()
+        if self.myRadius_value.text() != "":
+            ET.SubElement(doc, "myRadius").text = self.myRadius_value.text()
+        if self.myOrientation_value.text() != "":
+            ET.SubElement(doc, "myOrientation").text = self.myOrientation_value.text()
+
+        tree = ET.ElementTree(root)
+        ET.indent(tree, space="\t", level=0)
+        tree.write("xmlFiles/Samples.xml", encoding='utf-8')
+class membranes(QWidget):
+    """
+    membrane window
+    """
+    def __init__(self, father):
+        """
+        init and create button
+        Args:
+            father: class paresis (QWidget)
+        """
+        super().__init__()
+        self.father = father
+        self.layoutMembranes = QGridLayout()  # layout en grille
+        self.setLayout(self.layoutMembranes)
+
+        self.name_text = QLabel("name")
+        self.layoutMembranes.addWidget(self.name_text, 1, 0)
+
+        self.name_value = QLineEdit("")
+        self.name_value.textChanged.connect(self.change_membrane_name)
+        self.layoutMembranes.addWidget(self.name_value, 1, 1)
+
+        self.myType_text = QLabel("myType")
+        self.layoutMembranes.addWidget(self.myType_text, 2, 0)
+
+        self.myType_value = QLineEdit("")
+        self.layoutMembranes.addWidget(self.myType_value, 2, 1)
+
+        self.myGeometryFunction_text = QLabel("myGeometryFunction")
+        self.layoutMembranes.addWidget(self.myGeometryFunction_text, 3, 0)
+
+        self.myGeometryFunction_value = QLineEdit("")
+        self.layoutMembranes.addWidget(self.myGeometryFunction_value, 3, 1)
+
+        self.myPMMAThickness_text = QLabel("myPMMAThickness (um)")
+        self.layoutMembranes.addWidget(self.myPMMAThickness_text, 4, 0)
+
+        self.myPMMAThickness_value = QLineEdit("")
+        self.layoutMembranes.addWidget(self.myPMMAThickness_value, 4, 1)
+
+        self.myMaterials_text = QLabel("myMaterials")
+        self.layoutMembranes.addWidget(self.myMaterials_text, 5, 0)
+
+        self.myMaterials_value = QLineEdit("")
+        self.layoutMembranes.addWidget(self.myMaterials_value, 5, 1)
+
+        self.myMeanSphereRadius_text = QLabel("myMeanSphereRadius")
+        self.layoutMembranes.addWidget(self.myMaterials_text, 6, 0)
+
+        self.myMeanSphereRadius_value = QLineEdit("")
+        self.layoutMembranes.addWidget(self.myMaterials_value, 6, 1)
+
+        self.myNbOfLayers_text = QLabel("myNbOfLayers")
+        self.layoutMembranes.addWidget(self.myNbOfLayers_text, 7, 0)
+
+        self.myNbOfLayers_value = QLineEdit("")
+        self.layoutMembranes.addWidget(self.myNbOfLayers_value, 7, 1)
+
+        self.myMembraneFile_text = QPushButton("myMembraneFile")
+        self.myMembraneFile_text.clicked.connect(self.chooseMembraneFile)
+        self.layoutMembranes.addWidget(self.myMembraneFile_text, 8, 0)
+
+        self.myMembraneFile_value = QLineEdit("")
+        self.layoutMembranes.addWidget(self.myMembraneFile_value, 8, 1)
+
+        self.reset_button = QPushButton("reset")
+        self.reset_button.clicked.connect(self.reset)
+        self.layoutMembranes.addWidget(self.reset_button, 10, 0, 1, 2)
+
+        self.load_button = QPushButton("load")
+        self.load_button.clicked.connect(self.load)
+        self.layoutMembranes.addWidget(self.load_button, 12, 0, 1, 2)
+
+        self.write_xml_button = QPushButton("write_xml")
+        self.write_xml_button.clicked.connect(self.write_xml)
+        self.layoutMembranes.addWidget(self.write_xml_button, 13, 0, 1, 2)
+
+    def chooseMembraneFile(self):
+        """
+        choose a directory thank to QDialog and write him in a QLineEdit (self.myMembraneFile_value)
+        """
+        path = QFileDialog.getExistingDirectory(self, str("Choose a Directory"))
+        if path != "":
+            self.myMembraneFile_value.setText(path + '/')
+            print(self.myMembraneFile_value.text())
+    def change_membrane_name(self):
+        """
+        if name change, change membraneName from experiment window too
+        Returns:
+
+        """
+        self.father.experiment_window.membraneName_value.setText(self.name_value.text())
+    def reset(self):
+        """
+        reset parameters
+        Returns:
+
+        """
         self.name_value.setText("")
         self.myType_value.setText("")
         self.myGeometryFunction_value.setText("")
@@ -723,23 +1121,32 @@ class samples(QWidget):
         self.myMaterials_value.setText("")
         self.myMeanSphereRadius_value.setText("")
         self.myNbOfLayers_value.setText("")
-        self.myRadius_value.setText("")
-        self.myOrientation_value.setText("")
+        self.myMembraneFile_value.setText("")
 
     def load(self):
-        exp_name, booleen = QInputDialog.getText(self, "Load experiment", "enter experiment name")
+        """
+
+        Returns:
+
+        """
+        items = []
+        f = open("xmlFiles/Samples.xml", 'r')
+        texte = f.read()
+        root = ET.fromstring(texte)
+        for experience in root.findall('sample'):
+            items.append(experience[0].text)
+
+        exp_name, booleen = QInputDialog.getItem(self, "Load experiment", "enter experiment name", items)
+
         if not booleen:
             return
-        self.father.experiment_window.reset()
-        self.father.detector_window.reset()
-        self.father.samples_window.reset()
-        self.father.sources_window.reset()
+        self.father.membranes_window.reset()
         self.load_exec(exp_name)
     def load_exec(self,exp_name):
         """
         Read a xml and load parameters
         """
-        f = open("../../../PARESIS-master/CodePython/xmlFiles/Samples.xml",'r')
+        f = open("xmlFiles/Samples.xml",'r')
         texte = f.read()
         root = ET.fromstring(texte)
         for child in root:
@@ -774,38 +1181,45 @@ class samples(QWidget):
             self.myMeanSphereRadius_value.setText(value)
         elif name == "myNbOfLayers":
             self.myNbOfLayers_value.setText(value)
-        elif name == "myRadius":
-            self.myRadius_value.setText(value)
-        elif name == "myOrientation":
-            self.myOrientation_value.setText(value)
+        elif name == "myMembraneFile":
+            self.myMembraneFile_value.setText(value)
+
 
     def write_xml(self):
         """
         write parameters in Experiment.xml
         """
-        f = open("../../../PARESIS-master/CodePython/xmlFiles/Samples.xml", 'r')
+        f = open("xmlFiles/Samples.xml", 'r')
         texte = f.read()
         root = ET.fromstring(texte)
-        for experience in root.findall('experiment'):
+        for experience in root.findall('sample'):
             if experience[0].text == self.name_value.text():
                 root.remove(experience)
 
-        doc = ET.SubElement(root, "experiment")
+        doc = ET.SubElement(root, "sample")
         ET.SubElement(doc, "name").text = self.name_value.text()
-        ET.SubElement(doc, "myType").text = str(self.myType_value.text())
-        ET.SubElement(doc, "myGeometryFunction").text = self.myGeometryFunction_value.text()
-        ET.SubElement(doc, "myPMMAThickness").text = self.myPMMAThickness_value.text()
-        ET.SubElement(doc, "myMaterials").text = self.myMaterials_value.text()
-        ET.SubElement(doc, "myMeanSphereRadius").text = self.myMeanSphereRadius_value.text()
-        ET.SubElement(doc, "myNbOfLayers").text = self.myNbOfLayers_value.text()
-        ET.SubElement(doc, "myRadius").text = self.myRadius_value.text()
-        ET.SubElement(doc, "myOrientation").text = self.myOrientation_value.text()
-
+        if self.myType_value.text()!="":
+            ET.SubElement(doc, "myType").text = self.myType_value.text()
+        if self.myGeometryFunction_value.text() != "":
+            ET.SubElement(doc, "myGeometryFunction").text = self.myGeometryFunction_value.text()
+        if self.myPMMAThickness_value.text() != "":
+            ET.SubElement(doc, "myPMMAThickness").text = self.myPMMAThickness_value.text()
+        if self.myMaterials_value.text() != "":
+            ET.SubElement(doc, "myMaterials").text = self.myMaterials_value.text()
+        if self.myMeanSphereRadius_value.text() != "":
+            ET.SubElement(doc, "myMeanSphereRadius").text = self.myMeanSphereRadius_value.text()
+        if self.myNbOfLayers_value.text() != "":
+            ET.SubElement(doc, "myNbOfLayers").text = self.myNbOfLayers_value.text()
+        if self.myMembraneFile_value.text() != "":
+            ET.SubElement(doc, "myMembraneFile").text = self.myMembraneFile_value.text()
         tree = ET.ElementTree(root)
         ET.indent(tree, space="\t", level=0)
-        tree.write("../../../PARESIS-master/CodePython/xmlFiles/Samples.xml", encoding='utf-8')
+        tree.write("xmlFiles/Samples.xml", encoding='utf-8')
 
 class sources(QWidget):
+    """
+    source window
+    """
     def __init__(self, father):
         super().__init__()
         self.father = father
@@ -904,7 +1318,12 @@ class sources(QWidget):
         self.layoutSources.addWidget(self.write_xml_button, 17, 0, 1, 2)
 
     def change_source_name(self):
-            self.father.experiment_window.sourceName_value.setText(self.name_value.text())
+        """
+        if name change, change sourceName from experiment too
+        Returns:
+
+        """
+        self.father.experiment_window.sourceName_value.setText(self.name_value.text())
 
     def reset(self):
         self.name_value.setText("")
@@ -922,12 +1341,24 @@ class sources(QWidget):
         self.fluenceColumnKey_value.setText("")
 
     def load(self):
-        exp_name, booleen = QInputDialog.getText(self, "Load experiment", "enter experiment name")
+        """
+        chooose a source to load and load it
+        Args:
+            self:
+
+        Returns:
+
+        """
+        items = []
+        f = open("xmlFiles/Sources.xml", 'r')
+        texte = f.read()
+        root = ET.fromstring(texte)
+        for experience in root.findall('source'):
+            items.append(experience[0].text)
+
+        exp_name, booleen = QInputDialog.getItem(self, "Load experiment", "enter experiment name", items)
         if not booleen:
             return
-        self.father.experiment_window.reset()
-        self.father.detector_window.reset()
-        self.father.samples_window.reset()
         self.father.sources_window.reset()
         self.load_exec(exp_name)
     def load_exec(self,exp_name):
@@ -935,7 +1366,7 @@ class sources(QWidget):
         Read a xml and load parameters
         """
 
-        f = open("../../../PARESIS-master/CodePython/xmlFiles/Sources.xml",'r')
+        f = open("xmlFiles/Sources.xml",'r')
         texte = f.read()
         root = ET.fromstring(texte)
         for child in root:
@@ -985,35 +1416,46 @@ class sources(QWidget):
         """
         write parameters in Experiment.xml
         """
-        f = open("../../../PARESIS-master/CodePython/xmlFiles/Sources.xml", 'r')
+        f = open("xmlFiles/Sources.xml", 'r')
         texte = f.read()
         root = ET.fromstring(texte)
-        for experience in root.findall('experiment'):
+        for experience in root.findall('source'):
             if experience[0].text == self.name_value.text():
                 root.remove(experience)
 
-        doc = ET.SubElement(root, "experiment")
+        doc = ET.SubElement(root, "source")
         ET.SubElement(doc, "name").text = self.name_value.text()
-        ET.SubElement(doc, "myType").text = str(self.myType_value.text())
-        ET.SubElement(doc, "mySize").text = self.mySize_value.text()
-        ET.SubElement(doc, "sourceVoltage").text = self.sourceVoltage_value.text()
-        ET.SubElement(doc, "filterMaterial").text = self.filterMaterial_value.text()
-        ET.SubElement(doc, "filterThickness").text = self.filterThickness_value.text()
-        ET.SubElement(doc, "myEnergySampling").text = self.myEnergySampling_value.text()
-        ET.SubElement(doc, "myTargetMaterial").text = self.myTargetMaterial_value.text()
-        ET.SubElement(doc, "spectrumFromXls").text = self.spectrumFromXls_value.text()
-        ET.SubElement(doc, "energyUnit").text = self.energyUnit_value.text()
-        ET.SubElement(doc, "energyColumnKey").text = self.energyColumnKey_value.text()
-        ET.SubElement(doc, "fluenceColumnKey").text = self.fluenceColumnKey_value.text()
+        if self.myType_value.text()!="":
+            ET.SubElement(doc, "myType").text = self.myType_value.text()
+        if self.mySize_value.text() != "":
+            ET.SubElement(doc, "mySize").text = self.mySize_value.text()
+        if self.sourceVoltage_value.text() != "":
+            ET.SubElement(doc, "sourceVoltage").text = self.sourceVoltage_value.text()
+        if self.filterMaterial_value.text() != "":
+            ET.SubElement(doc, "filterMaterial").text = self.filterMaterial_value.text()
+        if self.filterThickness_value.text() != "":
+            ET.SubElement(doc, "filterThickness").text = self.filterThickness_value.text()
+        if self.myEnergySampling_value.text() != "":
+            ET.SubElement(doc, "myEnergySampling").text = self.myEnergySampling_value.text()
+        if self.myTargetMaterial_value.text() != "":
+            ET.SubElement(doc, "myTargetMaterial").text = self.myTargetMaterial_value.text()
+        if self.spectrumFromXls_value.text() != "":
+            ET.SubElement(doc, "spectrumFromXls").text = self.spectrumFromXls_value.text()
+        if self.energyUnit_value.text() != "":
+            ET.SubElement(doc, "energyUnit").text = self.energyUnit_value.text()
+        if self.energyColumnKey_value.text() != "":
+            ET.SubElement(doc, "energyColumnKey").text = self.energyColumnKey_value.text()
+        if self.fluenceColumnKey_value.text() != "":
+            ET.SubElement(doc, "fluenceColumnKey").text = self.fluenceColumnKey_value.text()
 
         tree = ET.ElementTree(root)
         ET.indent(tree, space="\t", level=0)
-        tree.write("../../../PARESIS-master/CodePython/xmlFiles/Sources.xml", encoding='utf-8')
+        tree.write("xmlFiles/Sources.xml", encoding='utf-8')
 
 
 class start_thread(QThread):
     """
-    thread for the load bar
+    thread for the start paresis
     """
     def __init__(self,gui):
         super().__init__()
