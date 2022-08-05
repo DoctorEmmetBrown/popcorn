@@ -30,7 +30,15 @@ NON FONCTIONNEL
 
 
 class Stitching(QWidget):
+    """
+    class which contains the different elements needed for stitching
+    """
     def __init__(self, father):
+        """
+        init and create button
+        Args:
+            father: QWigdet (in our case it's QMainWindow from GUI_popcorn
+        """
         super().__init__()
         self.father = father
         self.layoutStitching = QGridLayout()  # Son layout en grille
@@ -51,14 +59,28 @@ class Stitching(QWidget):
         self.layoutStitching.addWidget(self.preview_stitching, 2, 0)
 
     def stitching_para(self):
+        """
+        hide then show the stitching window
+        Returns: void
+
+        """
         self.window.hide()
         self.window.show()
 
     def stitching_start(self):
+        """
+        Create a thread and run it
+        Returns: void
+
+        """
         thread = start_thread(self)
         thread.run()
     def stitching_start_exec(self):
-
+        """
+        read parameter from the gui and do stitching
+        Returns:
+            void
+        """
         inputFolder = self.window.liste_folder
         mainOutputFolder = self.window.display_output_folder.toPlainText()
 
@@ -167,7 +189,15 @@ class Stitching(QWidget):
 
 
 class Stitching_window(QWidget):
+    """
+    Class for the stitching window
+    """
     def __init__(self, father):
+        """
+        init and create button
+        Args:
+            father: class Stitching
+        """
         super().__init__()
         self.father = father
         self.layoutStitching = QGridLayout()  # Son layout en grille
@@ -256,6 +286,11 @@ class Stitching_window(QWidget):
 
         self.already_load=False
     def reset(self):
+        """
+        reset all parameter
+        Returns:
+            void
+        """
         self.liste_folder = []
         self.display_list_folder.setText("")
 
@@ -278,6 +313,11 @@ class Stitching_window(QWidget):
         self.previewImage = QLabel()
 
     def open_folder(self):
+        """
+        choose a file and add it in self.liste_folder and self.display_list_folder
+        Then change self.already_load to False
+        Returns: void
+        """
         path = QFileDialog.getExistingDirectory(self, str("Choose Exp Directory"))
         if path != "":
             self.liste_folder.append(path + '/')
@@ -285,11 +325,20 @@ class Stitching_window(QWidget):
         self.already_load=False
 
     def choose_output_folder(self):
+        """
+        choose a file and add it in self.display_output_folder
+        Returns: void
+        """
         path = QFileDialog.getExistingDirectory(self, str("Choose Output Directory"))
         if path != "":
             self.display_output_folder.setText(path + '/')
 
     def display_min_max(self):
+        """
+        hide or show min/max depending of if sixteenBitConversion_value is checked or not
+        Returns:
+
+        """
         if self.sixteenBitConversion_value.isChecked():
             self.maxIm16Bit_text.show()
             self.minIm16Bit_text.show()
@@ -302,6 +351,14 @@ class Stitching_window(QWidget):
             self.minIm16Bit_value.hide()
 
     def previewResult(self):
+        """
+        Copy a slice of a file in the input on Image Stitching and run stitching. Then show the result on the window.
+        If 2 previewResult are call with the same input copy are not do.
+
+        Returns:
+            void
+        """
+
         list_file_preview = []
         path = os.getcwd()
         path = path + "/Image Stitching/"
@@ -368,6 +425,9 @@ class Stitching_window(QWidget):
         self.already_load=True
 
 class start_thread(QThread):
+    """
+    Thread that run stitching
+    """
     def __init__(self,gui):
         super().__init__()
         self.gui=gui
