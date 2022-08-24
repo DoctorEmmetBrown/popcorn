@@ -535,32 +535,35 @@ def multiple_tile_registration(input_folder, radix, starting_position="top-left-
     # 2. Concatenation of same line tiles, line are saved in combined_line_XX folders
     for nb_line in range(number_of_lines):
         for n in range(number_of_channels):
-            x_position = 0
             list_of_list_of_tile_images = []
             list_of_len_tile = []
-            # We add each tile one after the other, slice by slice
+            # For this purpose, we need to list all input slices
             for nb_col in range(number_of_columns):
                 idx = nb_line * number_of_columns + nb_col
                 temp_folder = os.path.join(list_of_channels[n], "registered_tile_" + str(folders_indices[idx]), "")
                 list_of_list_of_tile_images.append(create_list_of_files(temp_folder, "tif"))
                 list_of_len_tile.append(len(list_of_list_of_tile_images[-1]))
 
+            # We add each tile one after the other, slice by slice
             for nb_slice in range(min(list_of_len_tile)):
-                full_width = ref_width * number_of_columns  #- supposed_overlap * (number_of_columns - 1)
+                x_position = 0
+                full_width = ref_width * number_of_columns  ##- supposed_overlap * (number_of_columns - 1)
                 empty_slice = np.zeros((ref_height, full_width), dtype=np.uint16)
                 overlap_final_x = supposed_overlap
                 for nb_col in range(number_of_columns):
                     image_number = nb_line * number_of_columns + nb_col
+                    trsf_idx = nb_line * (number_of_columns-1) + nb_col - 1
+                    #print("Registration of Tile #", image_number)
 
-                    # The first tile doesn't need any registration
+                    # The first tile doesn't need any registration but need to be cropped until the overlapping area
                     if nb_col == 0:
                         out_ref_slice = open_image(list_of_list_of_tile_images[nb_col][nb_slice])
 
                         # Adapt overlap transformation given the final overlap in X
-                        trsf_idx = nb_line * number_of_columns + nb_col
+                        #print("Transformation ids:", trsf_idx+1, "with Tile #", image_number+1)
                         overlap_final_x = np.ceil(
                             supposed_overlap
-                            + list_of_transformations[trsf_idx].GetParameters()[0]).astype(np.int16)
+                            + list_of_transformations[trsf_idx+1].GetParameters()[0]).astype(np.int16)
 
                         #print("Line:", nb_line, "\nFinal overlap in X between col", image_number, "and col", image_number + 1, "in /X (pix):", overlap_final_x)
                         x_position = ref_width - overlap_final_x
@@ -573,15 +576,13 @@ def multiple_tile_registration(input_folder, radix, starting_position="top-left-
                         out_mov_slice = open_image(list_of_list_of_tile_images[nb_col][nb_slice])
 
                         # Adapt overlap window given the final overlap in X
-                        trsf_idx = nb_line * number_of_columns + nb_col -1
+                        #print("Transformation ids:", trsf_idx, "with Tile #", image_number-1)
                         overlap_final_x = np.ceil(np.absolute(
                             supposed_overlap
                             + list_of_transformations[trsf_idx].GetParameters()[0])).astype(np.int16)
                         #print("Line:", nb_line, "\nFinal overlap in X between col", trsf_idx-1, "and col", trsf_idx, "in /X (pix):", overlap_final_x)
                         overlapped_ref_slice = np.zeros((ref_height, overlap_final_x), dtype=np.uint16)
                         overlapped_mov_slice = np.zeros((ref_height, overlap_final_x), dtype=np.uint16)
-                        #woverlapped_ref_slice = np.zeros((ref_height, overlap_final_x), dtype=np.uint16)
-                        #woverlapped_mov_slice = np.zeros((ref_height, overlap_final_x), dtype=np.uint16)
 
                         # Compute weight matrix for overlapping part along the width axis
                         comment = """
@@ -604,47 +605,43 @@ def multiple_tile_registration(input_folder, radix, starting_position="top-left-
                         w_2d_W = np.tile(w_1d_W, (ref_height, 1))
 
                         # Then there is a need to handle the overlap between the 2 tiles
-                        ##x_position = ref_width - overlap_final_x
-                        overlapped_ref_slice = out_ref_slice[:, x_position:]
-                        overlapped_mov_slice = out_mov_slice[:, supposed_overlap-overlap_final_x:supposed_overlap]
-                        #comment="""
-                        # version 1: Compute the sum of the two weighted overlapping parts and copy it to the final image
+                        x_pos_ref_start = ref_width - overlap_final_x + (nb_col-1) * (supposed_overlap-overlap_final_x)
+                        if x_pos_ref_start+overlap_final_x > out_ref_slice.shape[1]:
+                            slice_to_copy = out_ref_slice[:, x_pos_ref_start:]
+                            overlapped_ref_slice[:, :slice_to_copy.shape[1]] = slice_to_copy
+                        else:
+                            slice_to_copy = out_ref_slice[:, x_pos_ref_start:x_pos_ref_start+overlap_final_x]
+                            overlapped_ref_slice = slice_to_copy
+                        x_pos_mov_start = (nb_col) * (supposed_overlap-overlap_final_x)
+                        overlapped_mov_slice = out_mov_slice[:, x_pos_mov_start:x_pos_mov_start+overlap_final_x]
                         # Apply weight to each overlapping parts
                         woverlapped_ref_slice = overlapped_ref_slice * w_2d_W
-                        # After registration comes the cropping part (based on initial supposed overlap)
                         woverlapped_mov_slice = overlapped_mov_slice * (1 - w_2d_W)
-                        # Compute the sum of the two weighted overlapping parts and copy it to the final image
+                        # Compute the sum of the two weighted overlapping parts
                         overlapped_section = np.nansum(np.array([woverlapped_ref_slice, woverlapped_mov_slice]), axis=0)
-                        #"""
-
-                        comment = """
-                        # version 2: Compute the mean of the two overlapping parts and copy it to the final image
-                        overlapped_section_stack = np.array([overlapped_ref_slice,
-                                                             overlapped_mov_slice],
-                                                            dtype=np.float_)
-                        overlapped_section_stack[overlapped_section_stack == 0] = np.nan
-                        overlapped_section = np.nanmean(overlapped_section_stack, axis=0).astype(np.int16)
-                        """
-                        # Copy the resulting overlap part
+                        # Copy the resulting overlap part to the final image
                         empty_slice[:, x_position:x_position + overlap_final_x] = overlapped_section
+                        x_position += overlap_final_x
 
+                        # -- Manage non-overlapping part = Copy non-overlapping part as it is
                         if nb_col == number_of_columns - 1:
-                            # -- Manage next column part
-                            x_position += overlap_final_x
-                            # -- Manage non-overlapping part of the moving tile
-                            # Copy non-overlapping part as it is
-                            slice_to_copy = out_mov_slice[:, supposed_overlap:]
+                            x_pos_mov_start = (nb_col) * (supposed_overlap - overlap_final_x) + overlap_final_x
+                            x_pos_mov_stop = x_pos_mov_start + (ref_width - overlap_final_x)
+                            slice_to_copy = out_mov_slice[:, x_pos_mov_start:x_pos_mov_stop]
                             empty_slice[:, x_position:x_position + slice_to_copy.shape[1]] = slice_to_copy
                         else:
                             # Prepare for next column if there is
-                            # -- Manage non-overlapping part of the moving tile
-                            # Copy non-overlapping part as it is
+                            #print("Transformation ids:", trsf_idx+1, "with Tile #", image_number + 1)
                             next_overlap_final_x = np.ceil(np.absolute(
                                 supposed_overlap
                                 + list_of_transformations[trsf_idx+1].GetParameters()[0])).astype(np.int16)
-                            slice_to_copy = out_mov_slice[:, supposed_overlap:]
-                            x_position += slice_to_copy.shape[1] - next_overlap_final_x
-                            overlapped_ref_slice = out_slice[:, out_slice.shape[1] - overlap_final_x:]
+                            #next_x_position = ref_width - next_overlap_final_x
+                            x_pos_mov_start = (nb_col) * (supposed_overlap - overlap_final_x) + overlap_final_x
+                            x_pos_mov_stop = x_pos_mov_start + (ref_width - overlap_final_x - next_overlap_final_x)
+
+                            slice_to_copy = out_mov_slice[:, x_pos_mov_start:x_pos_mov_stop]
+                            empty_slice[:, x_position:x_position + slice_to_copy.shape[1]] = slice_to_copy
+                            x_position += slice_to_copy.shape[1]
 
                 temp_folder = os.path.join(list_of_channels[n], "combined_line_" + str(nb_line), "")
                 if verbose:
@@ -677,23 +674,28 @@ def multiple_tile_registration(input_folder, radix, starting_position="top-left-
     # 2bis. Crop Black pixel row of combine line
     # https://codereview.stackexchange.com/questions/132914/crop-black-border-of-image-using-numpy
 
-    def crop_image_only_x(img, tol=0):
+    def crop_image_outside_xyz(img, tol=0):
         # img is 2D or 3D image data
         # tol  is tolerance
         mask = img > tol
-        if img.ndim == 3:
-            mask = mask.any(0)  # 0: for Y,X  (image is ZYX)
-        row_size, col_size = mask.shape
+        slice_size, row_size, col_size = mask.shape
         mask0, mask1 = mask.any(0), mask.any(1)
-        r_start, r_end = mask1.argmax(), row_size - mask1[::-1].argmax()
-        return r_start, r_end
+        coords_yx = np.argwhere(mask0)
+        # Bounding box of non-black pixels.
+        r_start, c_start = coords_yx.min(axis=0)
+        r_end, c_end = coords_yx.max(axis=0) + 1
+        coords_zx = np.argwhere(mask1)
+        # Bounding box of non-black pixels.
+        s_start, _ = coords_zx.min(axis=0)
+        s_end, _ = coords_zx.max(axis=0) + 1
+        return s_start, s_end, r_start, r_end, c_start, c_end
 
     for nb_line in range(number_of_lines):
         # a. read in first channel 2DTIFF sequence
         in_img_path = os.path.join(list_of_channels[0], "combined_line_" + str(nb_line))
         sequence = open_sequence(in_img_path, imtype=np.uint16)
         # b. get row coordinates for cropping
-        row_start, row_end = crop_image_only_x(sequence, tol=0)
+        _, _, row_start, row_end, _, _ = crop_image_outside_xyz(sequence, tol=0)
         print("Kept rows in line ", nb_line, ": [", row_start, ",", row_end, "]")
 
         for n in range(number_of_channels):
@@ -705,7 +707,7 @@ def multiple_tile_registration(input_folder, radix, starting_position="top-left-
             save_tif_sequence(cropped_sequence, temp_folder, bit=16)
             print("Cropped line number", nb_line, "channel", n, "saved !")
     #"""
-    comment="""
+    #comment="""
     # 3. Registration computation, we compute the offset between each neighboring lines
     # Registration is computed on the first channel (channel 0)
     list_of_transformations = []
@@ -740,6 +742,8 @@ def multiple_tile_registration(input_folder, radix, starting_position="top-left-
             print("Final Offset (after correction):", transformation.GetParameters())
         list_of_transformations.append(transformation)
 
+    # """
+    # comment="""
     # 4. Registration of each line (Because of memory limitations)
     # Application of the registration on each channel
     # Registered line are saved in registered_line_XX folders (expect line 0 which has no transformation)
@@ -756,6 +760,8 @@ def multiple_tile_registration(input_folder, radix, starting_position="top-left-
         print("3. Second Registrations time:", (time.time() - time_start))
         time_start = time.time()
 
+    #"""
+    # comment="""
     # 5. Concatenation of every lines of the final grid, one channel at a time
     for n in range(number_of_channels):
         list_of_line_images = []
@@ -771,57 +777,118 @@ def multiple_tile_registration(input_folder, radix, starting_position="top-left-
                 list_of_line_images.append(create_list_of_files(temp_folder, "tif"))
             list_of_len.append(len(list_of_line_images[-1]))
 
+        # We add each line one after the other, slice by slice
         for nb_slice in range(min(list_of_len)):
             y_position = 0
-            full_width = ref_width * number_of_columns - supposed_overlap * (number_of_columns - 1)
-            full_height = ref_height * number_of_lines - supposed_overlap * (number_of_lines - 1)
+            full_width = ref_width * number_of_columns ##- supposed_overlap * (number_of_columns - 1)
+            full_height = ref_height * number_of_lines ##- supposed_overlap * (number_of_lines - 1)
             empty_slice = np.zeros((full_height, full_width), dtype=np.uint16)
-            overlapped_ref_slice = np.zeros((supposed_overlap, full_width), dtype=np.uint16)
-            overlapped_mov_slice = np.zeros((supposed_overlap, full_width), dtype=np.uint16)
-
-            # Compute weight matrix for overlapping part along the height axis
-            mixing_size = supposed_overlap - (2 * supposed_overlap // 3)
-            x_line = np.arange(mixing_size) + mixing_size
-            y_line = -1 / (x_line[-1] - x_line[0]) * (x_line - x_line[-1])
-            w_1d_H = np.concatenate((np.ones(supposed_overlap // 3), y_line, np.zeros(supposed_overlap // 3)))
-            w_1d_H = w_1d_H.astype('e')
-            w_1d_H = np.reshape(w_1d_H, (-1, 1))
-            w_2d_H = np.tile(w_1d_H, (1, full_width))
-
+            overlap_final_y = supposed_overlap
+            overlap_with_prev_line = 0
+            overlap_with_next_line = 0
             # Concatenation
             for nb_line in range(number_of_lines):
-                out_slice = open_image(list_of_line_images[nb_line][nb_slice])
-                # The first tile doesn't need any registration
+                image_number = nb_line
+                trsf_idx = nb_line - 1
+                #print("Registration of Line #", image_number)
+
+                # The first line doesn't need any registration but need to be cropped until the overlapping area
                 if nb_line == 0:
-                    y_position = out_slice.shape[0] - supposed_overlap
-                    empty_slice[0:y_position, :] = out_slice[0:y_position, :]
-                    overlapped_ref_slice = out_slice[y_position:, :]
+                    out_ref_slice = open_image(list_of_line_images[nb_line][nb_slice])
+
+                    # Adapt overlap transformation given the final overlap in Y
+                    #("Transformation ids:", trsf_idx+1, "with Line #", image_number+1)
+                    overlap_final_y = np.ceil(
+                        supposed_overlap
+                        + list_of_transformations[trsf_idx + 1].GetParameters()[1]).astype(np.int16)
+
+                    y_position = ref_height - overlap_final_y
+                    empty_slice[0:y_position, :] = out_ref_slice[0:y_position, :]
+                    ##overlapped_ref_slice = out_slice[y_position:, :]
+
+                # The next tile need to be registered/cropped
                 else:
                     # -- Manage overlapping part
+                    out_ref_slice = open_image(list_of_line_images[nb_line - 1][nb_slice])
+                    out_mov_slice = open_image(list_of_line_images[nb_line][nb_slice])
+
+                    # Adapt overlap window given the final overlap in Y
+                    #print("Transformation ids:", trsf_idx, "with Line #", image_number-1)
+                    overlap_final_y = np.ceil(np.absolute(
+                        supposed_overlap
+                        + list_of_transformations[trsf_idx].GetParameters()[1])).astype(np.int16)
+                    # print("Line:", nb_line, "\nFinal overlap in X between col", trsf_idx-1, "and col", trsf_idx, "in /X (pix):", overlap_final_x)
+                    overlapped_ref_slice = np.zeros((overlap_final_y, full_width), dtype=np.uint16)
+                    overlapped_mov_slice = np.zeros((overlap_final_y, full_width), dtype=np.uint16)
+
+                    # Compute weight matrix for overlapping part along the height axis
+                    # version 2: 1 (1/3) - linear from 1 to 0 (1/3) - 0 (1/3)
+                    mixing_size = overlap_final_y // 3
+                    bef_size = (overlap_final_y - mixing_size) // 2
+                    aft_size = overlap_final_y - mixing_size - bef_size
+                    x_line = np.arange(mixing_size) + mixing_size
+                    y_line = -1 / (x_line[-1] - x_line[0]) * (x_line - x_line[-1])
+                    w_1d_H = np.concatenate((np.ones(bef_size), y_line, np.zeros(aft_size)))
+                    w_1d_H = w_1d_H.astype('e')
+                    w_1d_H = np.reshape(w_1d_H, (-1, 1))
+                    w_2d_H = np.tile(w_1d_H, (1, full_width))
+
+                    # Then there is a need to handle the overlap between the 2 lines
+                    # pour line 1:
+                    # y_pos_ref_start = ref_height - overlap_with_prev_line - overlap_with_next_line + supposed_overlap
+                    # overlapped_ref_slice = out_ref_slice[y_pos_ref_start:y_pos_ref_start+overlap_final_y, :]
+                    # pour line 2:
+                    # y_pos_ref_start = ref_height - overlap_with_prev_line - diff (-16) + supposed_overlap
+                    y_pos_ref_start = ref_height - overlap_final_y + (nb_line - 1) * (supposed_overlap - overlap_final_y)
+                    overlapped_ref_slice = out_ref_slice[y_pos_ref_start:y_pos_ref_start+overlap_final_y, :]
+                    y_pos_mov_start = (nb_line) * (supposed_overlap-overlap_final_y)
+                    y_pos_mov_stop = (nb_line) * (supposed_overlap-overlap_final_y)+overlap_final_y
+
+                    if y_pos_mov_start < 0:
+                        slice_to_copy = out_mov_slice[:y_pos_mov_stop, :]
+                        overlapped_mov_slice[(overlap_final_y - slice_to_copy.shape[0]):, :] = slice_to_copy
+                        overlapped_mov_slice[:(overlap_final_y - slice_to_copy.shape[0]), :] = overlapped_ref_slice[:(overlap_final_y - slice_to_copy.shape[0]), :]
+                    else:
+                        slice_to_copy = out_mov_slice[y_pos_mov_start:y_pos_mov_stop, :]
+                        overlapped_mov_slice = slice_to_copy
+
                     # Apply weight to each overlapping parts
-                    ##woverlapped_ref_slice = overlapped_ref_slice * w_2d_H
-                    overlapped_mov_slice = out_slice[0:supposed_overlap, :]
-                    ##woverlapped_mov_slice = overlapped_mov_slice * (1 - w_2d_H)
-                    # Compute the sum of the two weighted overlapping parts and copy it to the final image
-                    ##overlapped_section = np.nansum(np.array([woverlapped_ref_slice, woverlapped_mov_slice]), axis=0)
-                    overlapped_section_stack = np.array([overlapped_ref_slice,
-                                                         overlapped_mov_slice],
-                                                        dtype=np.float_)
-                    overlapped_section_stack[overlapped_section_stack == 0] = np.nan
-                    overlapped_section = np.nanmean(overlapped_section_stack, axis=0).astype(np.int16)
-                    # Copy the resulting overlap part
-                    empty_slice[y_position:y_position + supposed_overlap, :] = overlapped_section
-                    #
-                    y_position += supposed_overlap
-                    # -- Manage non-overlapping part
-                    # Copy non-overlapping part as it is
-                    slice_to_copy = out_slice[supposed_overlap:, :]
-                    empty_slice[y_position:y_position + slice_to_copy.shape[0], :] = slice_to_copy
-                    # Prepare for next column if there is
-                    y_position += slice_to_copy.shape[0] - supposed_overlap
-                    overlapped_ref_slice = out_slice[out_slice.shape[0] - supposed_overlap:, :]
+                    woverlapped_ref_slice = overlapped_ref_slice * w_2d_H
+                    woverlapped_mov_slice = overlapped_mov_slice * (1 - w_2d_H)
+                    # Compute the sum of the two weighted overlapping parts
+                    overlapped_section = np.nansum(np.array([woverlapped_ref_slice, woverlapped_mov_slice]), axis=0)
+                    # Copy the resulting overlap part to the final image
+                    empty_slice[y_position:y_position + overlap_final_y, :] = overlapped_section
+                    y_position += overlap_final_y
+
+                    # -- Manage non-overlapping part = Copy non-overlapping part as it is
+                    if nb_line == number_of_lines - 1:
+                        y_pos_mov_start = overlap_final_y + (nb_line) * (supposed_overlap - overlap_final_y)
+                        y_pos_mov_stop = y_pos_mov_start + (ref_height - overlap_final_y)
+                        slice_to_copy = out_mov_slice[y_pos_mov_start:y_pos_mov_stop, :]
+                        empty_slice[y_position:y_position + slice_to_copy.shape[0], :] = slice_to_copy
+                    else:
+                        # Prepare for next line if there is
+                        #print("Transformation ids:", trsf_idx+1, "with Line #", image_number + 1)
+                        next_overlap_final_y = np.ceil(np.absolute(
+                            supposed_overlap
+                            + list_of_transformations[trsf_idx + 1].GetParameters()[1])).astype(np.int16)
+                        #next_y_position = ref_height - next_overlap_final_y
+                        diff_overlap = supposed_overlap - overlap_final_y
+                        y_pos_mov_start = overlap_final_y + (nb_line) * diff_overlap
+                        if diff_overlap < 0:
+                            y_pos_mov_stop = ref_height + diff_overlap - next_overlap_final_y
+                        else:
+                            y_pos_mov_stop = y_pos_mov_start + (ref_height - overlap_final_y - next_overlap_final_y)
+                        slice_to_copy = out_mov_slice[y_pos_mov_start:y_pos_mov_stop, :]
+                        empty_slice[y_position:y_position + slice_to_copy.shape[0], :] = slice_to_copy
+                        y_position += slice_to_copy.shape[0]
+                    overlap_with_prev_line = overlap_final_y
+                    overlap_with_next_line = next_overlap_final_y
 
             temp_folder = os.path.join(list_of_channels[n], "final_image", radix + '{:04d}'.format(nb_slice))
+            if verbose:
+                print("-> Saving slice number", nb_slice, "in folder", temp_folder)
             save_tif_image(empty_slice, temp_folder, bit=16)
 
             if 'empty_slice' in locals():
@@ -844,20 +911,10 @@ def multiple_tile_registration(input_folder, radix, starting_position="top-left-
         print("4. Second Concatenation time:", (time.time() - time_start))
         print("Total:", (time.time() - full_time_start))
 
+    #"""
+    # comment="""
     # 5bis. Crop Black pixel row of combine line
     # https://codereview.stackexchange.com/questions/132914/crop-black-border-of-image-using-numpy
-
-    def crop_image_outside_xyz(img, tol=0):
-        # img is 2D or 3D image data
-        # tol  is tolerance
-        mask = img > tol
-        slice_size, row_size, col_size = mask.shape
-        mask0, mask1, mask2 = mask.any(0), mask.any(1), mask.any(2)
-        s_start, s_end = mask0.argmax(), slice_size - mask0[::-1].argmax()
-        c_start, c_end = mask1.argmax(), col_size - mask1[::-1].argmax()
-        r_start, r_end = mask2.argmax(), row_size - mask2[::-1].argmax()
-        return s_start, s_end, r_start, r_end, c_start, c_end
-
     # a. read in first channel 2DTIFF sequence
     in_img_path = os.path.join(list_of_channels[0], "final_image")
     sequence = open_sequence(in_img_path, imtype=np.uint16)
@@ -886,7 +943,7 @@ def multiple_tile_registration(input_folder, radix, starting_position="top-left-
         for nb_dir in range(len(list_of_directory_to_remove)):
             print("dir to remove", list_of_directory_to_remove[nb_dir])
             shutil.rmtree(list_of_directory_to_remove[nb_dir])
-    """
+    #"""
 
 if __name__ == "__main__":
     # INPUT GUI
