@@ -7,6 +7,7 @@ import fabio.tifimage as tif
 
 import numpy as np
 import imageio
+from skimage import io
 
 from popcorn.resampling import bin_resize
 
@@ -82,7 +83,7 @@ def open_image(filename):
         im = fabio.open(filename)
         return im.data
     elif "tif" in filename or "tiff" in filename:
-        im = imageio.imread(filename)
+        im = io.imread(filename)
 
         arr=np.asarray(im,dtype='float32')
         if len(arr.shape)==3:
@@ -298,7 +299,6 @@ def save_tif_sequence(image, path, bit=32, header=None):
     Returns:
         None
     """
-    print(path)
     for i in range(image.shape[0]):
         image_path = path + '{:04d}'.format(i)
         save_tif_image(image[i, :, :], image_path, bit, header=header)
