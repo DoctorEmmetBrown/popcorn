@@ -43,11 +43,11 @@ def apply_2d_rotation_to_a_vector(vector, angle):
 
 
 def compute_2d_rotation(image, angle, interpolator_type="linear"):
-    """computes a 2d rotation on an image based on an angle around axis z
+    """computes a 2d rotation on an image based on an angle (rad) around axis z
 
     Args:
         image (numpy.ndarray):   input image
-        angle (float):           angle
+        angle (float):           angle in rad
         interpolator_type (str): type of interpolator (linear or nearest neighbor)
 
     Returns:
@@ -59,12 +59,17 @@ def compute_2d_rotation(image, angle, interpolator_type="linear"):
 
     c = math.cos(float(angle))
     s = math.sin(float(angle))
-    tx.SetMatrix((c, s, 0,
-                  -s, c, 0,
-                  0, 0, 1))
 
     # We use the center of the image to apply a 2D rotation
-    tx.SetCenter((image.shape[2] / 2, image.shape[1] / 2, 0))
+    if image_itk.GetDimension() == 2:
+        tx.SetCenter((image.shape[-1] / 2, image.shape[-2] / 2))
+        tx.SetMatrix((c, s,
+                      -s, c))
+    else:
+        tx.SetCenter((image.shape[-1] / 2, image.shape[-2] / 2, 0))
+        tx.SetMatrix((c, s, 0,
+                      -s, c, 0,
+                      0, 0, 1))
 
     if interpolator_type == "linear":
         interpolator = Sitk.sitkLinear
@@ -553,7 +558,7 @@ def set_registration_parameters(method, metric, transform_type="translation", re
         method.SetOptimizerAsRegularStepGradientDescent(learningRate=1.0,
                                                         minStep=1e-3,
                                                         numberOfIterations=100,
-                                                        gradientMagnitudeTolerance=1e-8)
+                                                        gradientMagnitudeTolerance=1e-4)
 
         # 4 ---> TRANSFORMATION
         transform = Sitk.TranslationTransform(dimension)
@@ -561,7 +566,7 @@ def set_registration_parameters(method, metric, transform_type="translation", re
         method.SetOptimizerAsRegularStepGradientDescent(learningRate=1e-3,
                                                         minStep=1e-5,
                                                         numberOfIterations=50,
-                                                        gradientMagnitudeTolerance=1e-6)
+                                                        gradientMagnitudeTolerance=1e-4)
 
         # 4 ---> TRANSFORMATION
         transform = Sitk.CenteredTransformInitializer(ref_image,
@@ -616,7 +621,7 @@ def registration_computation(moving_image, ref_image, transform_type="rotation",
                                        lambda: command_iteration_widget(registration_method, widget))
 
     calculated_transform = registration_method.Execute(ref_image_itk, moving_image_itk)
-
+    print("stop condition :", registration_method.GetOptimizerStopConditionDescription())
     print("Transform :", calculated_transform.GetParameters())
     if widget != None:
         output_txt = widget.output.toPlainText()
@@ -653,3 +658,44 @@ def apply_itk_transformation(image, transformation, interpolation_type="linear",
     image = Sitk.GetArrayFromImage(image_itk)
 
     return np.copy(image)
+
+
+if __name__ == '__main__':
+
+    input_folder = "D:\\Shiva\\2022_03_25_ID19 insitu scans\\"
+    import popcorn.input_output as input_output
+
+    h19_files = input_output.create_list_of_files(input_folder + "1PC-19h-Overlay ready for IPSDK\\", "tif")
+    first_image = input_output.open_sequence(h19_files).astype(np.float32)
+    first_mask = np.copy(first_image)
+    first_mask[first_mask < 18000] = 0
+    first_mask[first_mask >= 18000] = 1
+
+    d2_files = input_output.create_list_of_files(input_folder + "1PC-2d-Overlay ready for IPSDK\\", "tif")
+    second_image = input_output.open_sequence(d2_files).astype(np.float32)
+    second_mask = np.copy(second_image)
+    second_mask[second_mask < 18000] = 0
+    second_mask[second_mask >= 18000] = 1
+
+    print(first_image.shape)
+    # transfo = registration_computation(second_image, first_image, metric="msq", verbose=True, moving_mask=second_mask,
+    #                                   ref_mask=first_mask)
+
+    first_image_itk = Sitk.GetImageFromArray(first_image)
+    actual_rotation = Sitk.CenteredTransformInitializer(first_image_itk,
+                                                        first_image_itk,
+                                                        Sitk.Euler3DTransform(),
+                                                        Sitk.CenteredTransformInitializerFilter.GEOMETRY)
+
+    transfo_param = [0.01847146525798225, -0.03866990445104079, -0.024078936937358447, -1.0575217957308675e-05, -1.3596892510799607e-05, -3.744774380453559e-05]
+    actual_rotation.SetParameters((transfo_param[0],
+                                   transfo_param[1],
+                                   transfo_param[2],
+                                   transfo_param[3],
+                                   transfo_param[4],
+                                   transfo_param[5]))
+    print(second_image.shape)
+    print((second_image).dtype)
+    output = apply_itk_transformation(second_image, actual_rotation, ref_img=first_image)
+
+    input_output.save_tif_sequence(output, input_folder + "registered_2d\\")
