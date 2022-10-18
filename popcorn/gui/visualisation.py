@@ -57,6 +57,15 @@ class Visualisation(QWidget):
         self.list_filtre = QToolButton(self)
         self.layoutLeft.addWidget(self.list_filtre, 0, 3, 1, 2)
         self.list_filtre.setText("Filters")
+        self.list_filtre.setStyleSheet("""QToolButton{
+                            background-color: #3c627b;
+                            padding: 2px 15px 2px 2px;
+                            border-width: 2px;
+                            border-style: outset;
+                            color: white;
+                            border-color: #263742;
+                            border-radius: 3px;
+                        }""")
         self.list_filtre.showMenu()
         self.list_filtre.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
 
@@ -250,7 +259,8 @@ class Visualisation(QWidget):
         """
         filenames_or_input_folder = QFileDialog.getExistingDirectory(self, str("Open Directory")) + "/"
         name_file = filenames_or_input_folder.split("/")[-2]
-        if filenames_or_input_folder == "":
+        print(filenames_or_input_folder)
+        if filenames_or_input_folder == "/":
             return
 
         dlg = CustomDialogColor()

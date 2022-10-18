@@ -11,10 +11,11 @@ class Decomposition(QWidget):
         self.father = parent
         self.layoutRightTwo = QGridLayout()  # Son layout en grille
         self.setLayout(self.layoutRightTwo)
-        self.TxtMateriau = QLabel("How many material?")
+        self.TxtMateriau = QLabel("Number of materials")
         self.layoutRightTwo.addWidget(self.TxtMateriau, 0, 0)
 
         self.inputNbMat = QLineEdit()
+        self.inputNbMat.setText("3")
         self.layoutRightTwo.addWidget(self.inputNbMat, 0, 1, 1, 4)
         self.inputNbMat.editingFinished.connect(self.addButtonMaterial)
 
@@ -24,9 +25,10 @@ class Decomposition(QWidget):
 
         self.Liste_Combo = []
 
-        self.TxtEne = QLabel("How many energie?")
+        self.TxtEne = QLabel("Number of energies")
         self.layoutRightTwo.addWidget(self.TxtEne, 3, 0)
         self.inputNbEne = QLineEdit()
+        self.inputNbEne.setText("2")
         self.layoutRightTwo.addWidget(self.inputNbEne, 3, 1)
 
         self.inputNbEne.editingFinished.connect(self.addButtonEne)
@@ -38,8 +40,8 @@ class Decomposition(QWidget):
         self.xlsx = QTableWidget()
 
         self.xlsx_densite = QTableWidget()
-        self.Table.addTab(self.xlsx, "Value")
-        self.Table.addTab(self.xlsx_densite, "Density")
+        self.Table.addTab(self.xlsx, "Attenuations table")
+        self.Table.addTab(self.xlsx_densite, "Densities table")
         self.xlsx_densite.setRowCount(1)
 
 
@@ -74,9 +76,11 @@ class Decomposition(QWidget):
         while i * 5 + j < n and listeNoLongEnough:
             if i * 5 + j >= len(self.Liste_Mat):
                 inputNameMat = QLineEdit()
+                inputNameMat.setText("material " + str(j + i*5))
                 self.layoutRightTwo.addWidget(inputNameMat, 1 + i, 0 + j)
                 self.Liste_Mat.append(inputNameMat)
                 inputNameMat.textChanged.connect(self.ChangColumnName)
+                self.ChangColumnName()
             j = (j + 1) % 5
             if j == 0:
                 i = i + 1
@@ -105,6 +109,7 @@ class Decomposition(QWidget):
         while i * 2 + j < n and listeNoLongEnough:
             if i * 2 + j >= len(self.Liste_Ene):
                 inputNameEne = QLineEdit()
+                inputNameEne.setText("energy " + str(j + i*5))
                 self.layoutRightTwo.addWidget(inputNameEne, 4 + i, 2 * j)
                 self.Liste_Ene.append(inputNameEne)
                 ComboBoxEne = QComboBox(self.father.leftWidget.combobox)
@@ -113,6 +118,7 @@ class Decomposition(QWidget):
                 for k in range(self.father.leftWidget.combobox.count()):
                     ComboBoxEne.addItem(self.father.leftWidget.combobox.itemText(k))
                 inputNameEne.textChanged.connect(self.ChangRowName)
+                self.ChangRowName()
             j = (j + 1) % 2
             if j == 0:
                 i = i + 1
