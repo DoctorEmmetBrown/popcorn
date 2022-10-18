@@ -303,7 +303,6 @@ def save_tif_sequence(image, path, bit=32, header=None):
     Returns:
         None
     """
-    print(path)
     for i in range(image.shape[0]):
         image_path = path + '{:04d}'.format(i)
         save_tif_image(image[i, :, :], image_path, bit, header=header)
