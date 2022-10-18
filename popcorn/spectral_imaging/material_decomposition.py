@@ -3,6 +3,11 @@ import glob
 
 import numpy as np
 
+from pathlib import Path
+path_root = str(Path(__file__).parents[1])
+if path_root not in sys.path:
+    sys.path.append(path_root)
+
 from popcorn import resampling, input_output
 import spekpy as sp
 

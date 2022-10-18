@@ -1,6 +1,12 @@
-import os
+import os, sys
 from math import ceil
 import numpy as np
+
+from pathlib import Path
+path_root = str(Path(__file__).parents[1])
+if path_root not in sys.path:
+    sys.path.append(path_root)
+
 from popcorn.input_output import open_image, save_tif_image
 from popcorn.resampling import conversion_from_float32_to_uint16
 

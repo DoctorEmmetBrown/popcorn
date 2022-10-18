@@ -1,6 +1,10 @@
 import numpy as np
 import glob
-
+import sys
+from pathlib import Path
+path_root = str(Path(__file__).parents[1])
+if path_root not in sys.path:
+    sys.path.append(path_root)
 from popcorn.image_processing import segmentation, mathematical_morphology
 from popcorn.spectral_imaging import registration
 

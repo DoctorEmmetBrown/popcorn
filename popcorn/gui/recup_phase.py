@@ -10,10 +10,12 @@ from input_output import *
 from datetime import datetime
 import xml.etree.cElementTree as ET
 
-
-
 import sys
-sys.path.insert(1,'/Documents/Paul_ANDRE/Git/popcorn/phase_retrieval/')
+
+from pathlib import Path
+path_root = str(Path(__file__).parents[1])
+if path_root not in sys.path:
+    sys.path.append(path_root)
 
 from popcorn.phase_retrieval.saveParameters import saveParameters
 from popcorn.phase_retrieval.PhaseRetrievalClasses import Phase_Retrieval_Experiment

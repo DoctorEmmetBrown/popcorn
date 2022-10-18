@@ -10,6 +10,10 @@ import random
 import fabio
 import multiprocessing
 
+from pathlib import Path
+path_root = str(Path(__file__).parents[1])
+if path_root not in sys.path:
+    sys.path.append(path_root)
 from popcorn.input_output import open_image
 from popcorn.sixteen_bit_converter import conversion_from_list_of_files, multi_threading_conversion
 from popcorn.stitching import stitch_multiple_folders_into_one

@@ -3,9 +3,14 @@ import sys
 import glob
 import shutil
 import time
-
+import sys
 from skimage import filters
 import numpy as np
+
+from pathlib import Path
+path_root = str(Path(__file__).parents[1])
+if path_root not in sys.path:
+    sys.path.append(path_root)
 
 from input_output import open_image, open_sequence, save_tif_image, open_cropped_sequence, save_tif_sequence, \
     open_cropped_image, create_list_of_files

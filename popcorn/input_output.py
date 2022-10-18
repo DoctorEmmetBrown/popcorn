@@ -1,4 +1,4 @@
-import os
+import os, sys
 import glob
 
 import fabio
@@ -7,6 +7,11 @@ import fabio.tifimage as tif
 
 import numpy as np
 import imageio
+
+from pathlib import Path
+path_root = str(Path(__file__).parents[1])
+if path_root not in sys.path:
+    sys.path.append(path_root)
 
 from popcorn.resampling import bin_resize
 

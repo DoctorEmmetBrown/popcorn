@@ -6,6 +6,11 @@ import sys
 from qtrangeslider import QRangeSlider
 from PyQt6.QtCharts import *
 
+from pathlib import Path
+path_root = str(Path(__file__).parents[1])
+if path_root not in sys.path:
+    sys.path.append(path_root)
+
 from popcorn import input_output
 from spectral_imaging.registration import registration_computation
 from spectral_imaging.registration import apply_itk_transformation

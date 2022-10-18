@@ -4,8 +4,6 @@ PyQt6
 qtrangeslider
 """
 
-
-
 import threading
 from PyQt6.QtWidgets import *
 from PyQt6.QtCore import *
@@ -15,14 +13,9 @@ from qtrangeslider import QRangeSlider
 from PyQt6.QtCharts import *
 
 from pathlib import Path
-path_root = Path(__file__).parents[1]
-path_root = str(path_root)
-if str(path_root) not in sys.path :
-    print("a",str(path_root))
-    sys.path.append(str(path_root))
-    sys.path.append(str(path_root)+"phase_retrieval")
-else :
-    print("coucou")
+path_root = str(Path(__file__).parents[1])
+if path_root not in sys.path:
+    sys.path.append(path_root)
 
 from popcorn.input_output import *
 from visualisation import *

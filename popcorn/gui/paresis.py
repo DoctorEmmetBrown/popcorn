@@ -6,17 +6,15 @@ import sys
 from PyQt6.QtCharts import *
 import os
 from pathlib import Path
-path_root = Path(__file__).parents[3]
-path_root = str(path_root)+"/PARESIS-master/CodePython/"
-if str(path_root) not in sys.path :
-    print(str(path_root))
-    sys.path.append(str(path_root))
+
+path_root = str(Path(__file__).parents[1])
+if path_root not in sys.path:
+    sys.path.append(path_root)
+
 import datetime
 import xml.etree.cElementTree as ET
 import time
 import importlib
-
-
 
 class Paresis(QWidget):
     """
@@ -1485,3 +1483,6 @@ class load_thread(QThread):
             self.gui.father.leftWidget.prog_bar.setValue(i*10)
             time.sleep(0.1)
         self.gui.father.leftWidget.prog_bar.setValue(0)
+
+if __name__ == '__main__':
+    pass
