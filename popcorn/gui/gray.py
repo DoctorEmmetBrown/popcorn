@@ -34,11 +34,9 @@ class Gray(QWidget):
         self.layoutRightOne.addWidget(self.Doubleslider, 0, 0, 1, 2)
         self.Doubleslider.sliderReleased.connect(self.niveau_gris)
 
-
         mini=self.father.leftWidget.liste_image[self.father.leftWidget.combobox.currentIndex()].image.min()
         maxi=self.father.leftWidget.liste_image[self.father.leftWidget.combobox.currentIndex()].image.max()
-        
-        
+
         self.labelMinDSlider = QLabel("Minimum:")
         self.layoutRightOne.addWidget(self.labelMinDSlider, 1, 0)
         self.inputMinDSlider = QLineEdit()
