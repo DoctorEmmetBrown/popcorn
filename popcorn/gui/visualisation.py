@@ -15,6 +15,9 @@ from popcorn.input_output import *
 from time import *
 import imagecodecs
 
+INITIAL_WIDTH = 0
+INITIAL_HEIGHT = 0
+
 class Visualisation(QWidget):
     my_signal = pyqtSignal(int)
 
@@ -105,6 +108,8 @@ class Visualisation(QWidget):
         self.angle=0
         self.colorPen=QColor("yellow")
         self.scene = QGraphicsScene()
+        self.scene.setSceneRect(0, 0, self.width() - 70, self.height() - 70)
+
         self.IdImage = None
         self.factor = 1
         self.view = QGV(self.scene, self.my_signal)
@@ -152,14 +157,14 @@ class Visualisation(QWidget):
         self.ajouter_image(name_file, Image_load, color)
         self.changer_Image()
 
+        self.radioA.toggle()
+
         self.radioA.toggled.connect(lambda: self.change_display(0))
         self.radioA.toggled.connect(self.Set_min_max_slider)
         self.radioC.toggled.connect(lambda: self.change_display(0))
         self.radioC.toggled.connect(self.Set_min_max_slider)
         self.radioS.toggled.connect(lambda: self.change_display(0))
         self.radioS.toggled.connect(self.Set_min_max_slider)
-
-        self.radioA.toggle()
 
         self.combobox.currentIndexChanged.connect(self.index_changed)
         self.slider.sliderMoved.connect(self.slider_position)
@@ -179,8 +184,16 @@ class Visualisation(QWidget):
         Open a window to change the color of the pen
         """
         self.clean_display()
-        slider_pos = self.slider.sliderPosition()
-        self.change_display(slider_pos)
+        if self.combobox.currentText() == "no image":
+            self.scene.clear()
+            self.scene.setBackgroundBrush(QBrush(QColor("black")))
+            label = self.scene.addSimpleText("No image opened", QFont('Norasi', 12))
+            label.setY(INITIAL_HEIGHT//2 - 6)
+            label.setX(INITIAL_WIDTH// 2 - 100)
+            label.setBrush(QBrush(QColor("gray")))
+        else:
+            slider_pos = self.slider.sliderPosition()
+            self.change_display(slider_pos)
 
     def save_image(self):
         """
@@ -190,7 +203,20 @@ class Visualisation(QWidget):
         x = self.combobox.currentIndex()
         self.image_3D_np = Image(self.liste_image[x].image, self.liste_image[x].color)
         path=QFileDialog.getExistingDirectory(self, str("Open Directory"))+"/"
-        save_tif_sequence(np.copy(self.liste_image[x].image),path)
+        if path == "/":
+            return
+        try:
+            img = np.copy(self.liste_image[x].image)
+            for i in range(img.shape[0]):
+                image_path = path + '{:04d}'.format(i)
+                save_tif_image(img[i, :, :], image_path, 32)
+                self.prog_bar.setValue(int(100 * i / ((img.shape[0]) - 1)))
+        except Exception as error:
+            print(error)
+            dlg = DialogNoFile(error)
+            ok = dlg.exec()
+            return
+
         if self.combobox.currentText() in self.liste_log:
             file_log= open(path+"log.txt", "x")
             file_log.write(self.liste_log[self.combobox.currentText()])
@@ -296,12 +322,11 @@ class Visualisation(QWidget):
 
         except Exception as error:
             print("error opening the file")
-            dlg = DialogNoFile()
+            dlg = DialogNoFile(error)
             ok = dlg.exec()
             return
         Image_load = np.copy(sequence)
-        self.ajouter_image(name_file, Image_load,color)
-
+        self.ajouter_image(name_file, Image_load, color)
 
         if len(self.liste_image) == 2 and self.combobox.currentText() == "no image":
             self.supprimer_image( 0)
@@ -476,15 +501,21 @@ class Visualisation(QWidget):
         Changes the size of the image allowing to scroll
         self.factor is the current zoom
         """
-        if value == 2:
-            self.factor = self.factor * 1.25
-        else:
-            self.factor = self.factor * 0.8
-        w = self.pixmap.width()
-        h = self.pixmap.height()
-        self.pixmap1 = self.pixmap.scaled(int(w * self.factor), int(h * self.factor))
-        self.clean_display()
-        self.IdImage = self.scene.addPixmap(self.pixmap1)
+        if self.combobox.currentText() != "no image":
+            if value == 2:
+                self.factor = self.factor * 1.25
+            else:
+                self.factor = self.factor * 0.8
+
+            w = self.pixmap.width()
+            h = self.pixmap.height()
+            left = int(self.view.x_pos/600*w * self.factor)
+            top = int(self.view.y_pos/600*h * self.factor)
+            self.scene.setSceneRect(left, top, int(w * self.factor), int(h * self.factor))
+
+            self.pixmap1 = self.pixmap.scaled(int(w * self.factor), int(h * self.factor))
+            self.clean_display()
+            self.IdImage = self.scene.addPixmap(self.pixmap1)
 
 
 class QGV(QGraphicsView):
@@ -499,13 +530,26 @@ class QGV(QGraphicsView):
         """
         super().__init__(x)
         self.scene = x
+        self.x_pos = 0
+        self.y_pos = 0
         self.my_signal2 = my_signal
         self.press = False
         self.setBackgroundBrush(QBrush(QColor("black")))
+
+        label = self.scene.addSimpleText("No image opened", QFont('Norasi', 12))
+        global INITIAL_WIDTH, INITIAL_HEIGHT
+        INITIAL_WIDTH = self.width()
+        INITIAL_HEIGHT = self.height()
+        label.setY(self.height() // 2 - 6)
+        label.setX(self.width() // 2 - 100)
+        label.setBrush(QBrush(QColor("gray")))
+
     def wheelEvent(self, ev):
         """
         emit 2 or 0 when scrolling
         """
+        self.x_pos = ev.position().x()
+        self.y_pos = ev.position().y()
         if ev.angleDelta().y() > 0:  # up Wheel
             self.my_signal2.emit(2)
 
@@ -534,6 +578,8 @@ class QGV(QGraphicsView):
         """
         draw then mouse is move AND self.press=true (<=> mouse is pressed)
         """
+        self.x_pos = event.pos().x()
+        self.y_pos = event.pos().y()
         if self.press:
             point = event.pos()
             x = self.horizontalScrollBar().value()
@@ -541,7 +587,8 @@ class QGV(QGraphicsView):
             if self.rect().contains(point):
                 pen = QPen(self.parent().colorPen)
                 self.scene.addLine(point.x() + x, point.y() + y, point.x() + x, point.y() + y, pen)
-                
+
+
 class Image():
     """
     corresponds to an image. There is a numpy array for the values and a boolean to say if the image is in color or not
@@ -553,7 +600,8 @@ class Image():
         """
         self.image=np.copy(array)
         self.color=color
-        
+
+
 class CustomDialogColor(QDialog):
     """
     QDialog to ask if the image is in color or not
@@ -579,15 +627,15 @@ class DialogNoFile(QDialog):
     QDialog to ask if the image is in color or not
     """
 
-    def __init__(self):
+    def __init__(self, error):
         super().__init__()
-        self.setWindowTitle("Error opening the file")
+        self.setWindowTitle("Error")
         self.setWindowIcon(QIcon('../media/popcorn_logo.png'))
         QBtn = QDialogButtonBox.StandardButton.Ok
         self.buttonBox = QDialogButtonBox(QBtn)
         self.buttonBox.accepted.connect(self.accept)
         self.layout = QVBoxLayout()
-        message = QLabel("Couldn't open image")
+        message = QLabel(str(error))
         self.layout.addWidget(message)
         self.layout.addWidget(self.buttonBox)
         self.setLayout(self.layout)
