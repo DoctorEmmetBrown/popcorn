@@ -103,7 +103,6 @@ QRadioButton {
 
 QToolButton{
     background-color: #3c627b;
-    padding: 2px 10px 2px 5px;
     border-width: 2px;
     border-style: outset;
     color: white;
@@ -121,7 +120,7 @@ QComboBox{
     border-radius: 3px;
 }
 
-QMainWindow::QPushButton {
+QPushButton {
     background-color: #3c627b;
     padding: 2px 2px 2px 2px;
     border-width: 2px;
@@ -131,13 +130,14 @@ QMainWindow::QPushButton {
     border-radius: 3px;
 }
 
-QMainWindow::QLabel {
+QLabel {
     background-color: #d9e7f3;
     color: black;
     padding: 2px
 }
 
-QMainWindow::QPushButton:hover {
+QPushButton:hover {
     background-color: #5989a8;
     color: white;
 }
+
