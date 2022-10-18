@@ -11,12 +11,13 @@ path_root = str(Path(__file__).parents[1])
 if path_root not in sys.path:
     sys.path.append(path_root)
 
-from input_output import *
+from popcorn.input_output import *
 from time import *
 import imagecodecs
 
 class Visualisation(QWidget):
     my_signal = pyqtSignal(int)
+
     def __init__(self, father):
         super().__init__()
         self.liste_image = []
@@ -26,28 +27,43 @@ class Visualisation(QWidget):
         self.setLayout(self.layoutLeft)
 
         # Boutton Load
-        self.buttonLoadImage = QPushButton("Load Image")
+        self.buttonLoadImage = QPushButton("Open Image")
         self.buttonLoadImage.clicked.connect(self.load)
         self.buttonLoadImage.setShortcut(QKeySequence("Ctrl+o"))
-        self.layoutLeft.addWidget(self.buttonLoadImage, 0, 1)
+        self.buttonLoadImage.setStyleSheet("""
+                        QPushButton {
+                                background-color: #314d5f;
+                                padding: 2px 2px 2px 2px;
+                                border-width: 2px;
+                                border-style: outset;
+                                color: white;
+                                border-color: #263742;
+                                border-radius: 3px;
+                            }
+                            
+                        QPushButton:hover {
+                            background-color: #3c627b;
+                            color: white;
+                        }
+                        """)
+        self.layoutLeft.addWidget(self.buttonLoadImage, 1, 0)
 
         # Creation du ComboBox qui permet de changer d'image
         self.combobox = QComboBox()
-
         self.layoutLeft.addWidget(self.combobox, 0, 0)
 
         # Creation de la liste des filtres
         # Creation du menu deroulant lorsqu'on clique dessus
         self.list_filtre = QToolButton(self)
         self.layoutLeft.addWidget(self.list_filtre, 0, 3, 1, 2)
-        self.list_filtre.setText("Filtre")
+        self.list_filtre.setText("Filters")
         self.list_filtre.showMenu()
         self.list_filtre.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
 
         # Menu associe au boutton
         menu = QMenu()
         # boutton 1 du Menu
-        filtre1 = QAction("Seuillage", self)
+        filtre1 = QAction("Threshold", self)
         filtre1.triggered.connect(self.filtre_seuil)
         menu.addAction(filtre1)
         
@@ -62,25 +78,23 @@ class Visualisation(QWidget):
         filtre3.triggered.connect(self.change_color)
         menu.addAction(filtre3)
 
-
         self.buttonSaveImage = QPushButton("Save Image")
         self.buttonSaveImage.clicked.connect(self.save_image)
         self.buttonSaveImage.setShortcut(QKeySequence("Ctrl+s"))
-        self.layoutLeft.addWidget(self.buttonSaveImage, 1, 0)
+        self.layoutLeft.addWidget(self.buttonSaveImage, 1, 1)
 
-
-        self.buttonColor = QPushButton("Change Color")
-        self.buttonColor.clicked.connect(self.changeColor)
+        self.buttonColor = QPushButton("Clear Drawing")
+        self.buttonColor.clicked.connect(self.clearDrawing)
         self.layoutLeft.addWidget(self.buttonColor, 1, 3)
 
-        # Bar de progression
+        # Barre de progression
         self.prog_bar = QProgressBar(self)
         self.prog_bar.setValue(0)
-        self.layoutLeft.addWidget(self.prog_bar, 1, 1, 1, 2)
+        self.layoutLeft.addWidget(self.prog_bar, 0, 1, 1, 2)
 
         # Creation du QGraphicsScene qui prendra l'image
         self.angle=0
-        self.colorPen=QColor("blue")
+        self.colorPen=QColor("yellow")
         self.scene = QGraphicsScene()
         self.IdImage = None
         self.factor = 1
@@ -91,7 +105,7 @@ class Visualisation(QWidget):
         self.view.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
         self.view.wheelEvent
         self.view.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
-        self.view.resize(850, 850)
+        self.view.resize(600, 600)
         self.label = QLabel(self)
         self.layoutLeft.addWidget(self.view, 2, 0, 5, 5)
         self.my_signal.connect(self.scroll)
@@ -99,15 +113,12 @@ class Visualisation(QWidget):
         # Creer 3 boutons radio (= ne peuvent pqs etre coche en meme temps) pour correspondre aux 3 angles de vu differents
 
         self.radioA = QRadioButton("Axial", self)
-
         self.layoutLeft.addWidget(self.radioA, 2, 0)
 
         self.radioC = QRadioButton("Coronal", self)
-
         self.layoutLeft.addWidget(self.radioC, 3, 0)
 
         self.radioS = QRadioButton("Sagittal", self)
-
         self.layoutLeft.addWidget(self.radioS, 4, 0)
 
         # Creation du slider pour visualiser les differentes couches
@@ -123,15 +134,14 @@ class Visualisation(QWidget):
         self.input.setText(str(self.slider.sliderPosition()))
         self.input.returnPressed.connect(self.ChangeSliderPosition)
 
-        # telechqrgement de la premiere image
+        # telechargement de la premiere image
         dr = "Image Default"
         color=False
-        name_file = "No Image"
+        name_file = "no image"
         image = open_sequence(dr)  # On load les images dans un numpy.ndarray
         Image_load = np.copy(image)
-        self.ajouter_image(name_file, Image_load,color)
+        self.ajouter_image(name_file, Image_load, color)
         self.changer_Image()
-
 
         self.radioA.toggled.connect(lambda: self.change_display(0))
         self.radioA.toggled.connect(self.Set_min_max_slider)
@@ -144,6 +154,8 @@ class Visualisation(QWidget):
 
         self.combobox.currentIndexChanged.connect(self.index_changed)
         self.slider.sliderMoved.connect(self.slider_position)
+
+        self.findChildren(QLabel)[0].deleteLater()
         
     def rotation(self):
         """
@@ -153,11 +165,13 @@ class Visualisation(QWidget):
         self.angle=(self.angle+90)%360
         self.change_display(self.slider.sliderPosition())
         
-    def changeColor(self):
+    def clearDrawing(self):
         """
         Open a window to change the color of the pen
         """
-        self.colorPen=QColorDialog.getColor(self.colorPen)
+        self.clean_display()
+        slider_pos = self.slider.sliderPosition()
+        self.change_display(slider_pos)
 
     def save_image(self):
         """
@@ -210,30 +224,77 @@ class Visualisation(QWidget):
             self.father.rightWidgetRecalage.ComboBoxMaskMov.addItems([name])
             self.father.rightWidgetRecalage.ComboBoxMaskRef.addItems([name])
 
+    def supprimer_image(self, nb):
+        """
+        removes an image to the Image list and adds it to the QCombobox with the name given as argument
+        name=str
+        im=np.array
+        color=bool
+        """
+        self.liste_image.pop(nb)
+
+        self.combobox.removeItem(nb)
+        if self.father.rightWidgetTwo != None:
+            for box in self.father.rightWidgetTwo.Liste_Combo:
+                box.removeItem(nb)
+        if self.father.rightWidgetRecalage != None:
+            self.father.rightWidgetRecalage.ComboBoxMov.removeItem(nb)
+            self.father.rightWidgetRecalage.ComboBoxRef.removeItem(nb)
+            self.father.rightWidgetRecalage.ComboBoxMaskMov.removeItem(nb)
+            self.father.rightWidgetRecalage.ComboBoxMaskRef.removeItem(nb)
+
     def load(self):
         """
         Load a image from a directory (edf or tif)
         You have to say if it's in color or not, but it can modify later
         """
-        dr = QFileDialog.getExistingDirectory(self, str("Open Directory"))
-        
+        filenames_or_input_folder = QFileDialog.getExistingDirectory(self, str("Open Directory")) + "/"
+        name_file = filenames_or_input_folder.split("/")[-2]
+        if filenames_or_input_folder == "":
+            return
+
         dlg = CustomDialogColor()
         if dlg.exec():
-            color=True
-            print("succes")
+            color = True
         else:
-            color=False
-        
-        
-        
-        
-        name_file = dr.split("/")[-1]
+            color = False
+        try:
+            # If the given arg is empty, we raise an error
+            if len(filenames_or_input_folder) == 0:
+                raise Exception('Error: no file corresponds to the given path/extension')
+            # We check if the given filenames is a regular expression of input files:
+            if type(filenames_or_input_folder) != list:
+                # We try opening .extension files
+                list_of_files = create_list_of_files(filenames_or_input_folder, ".tif")
+            else:
+                list_of_files = filenames_or_input_folder
+            # If the created list_of_files is empty
+            if len(list_of_files) == 0:
+                raise Exception('Error: no file corresponds to the given path/extension')
 
-        image = open_sequence(dr)  # On load les images dans un numpy.ndarray
-        Image_load = np.copy(image)
+            # Next line is computed iff given regex/list of files correspond to existing files that can be opened
+            if len(list_of_files) > 0:
+                reference_image = open_image(str(list_of_files[0]))
+                height, width, = reference_image.shape[-2:]
+                # We create an empty image sequence
+                sequence = np.zeros((len(list_of_files), height, width), dtype=np.float32)
+                # We fill the created empty sequence
+                for i, file in enumerate(list_of_files):
+                    self.prog_bar.setValue(int(100 * i / (len(list_of_files) - 1)))
+                    image = open_image(str(file))
+                    sequence[i, :, :] = image
 
-
+        except Exception as error:
+            print("error opening the file")
+            dlg = DialogNoFile()
+            ok = dlg.exec()
+            return
+        Image_load = np.copy(sequence)
         self.ajouter_image(name_file, Image_load,color)
+
+
+        if len(self.liste_image) == 2 and self.combobox.currentText() == "no image":
+            self.supprimer_image( 0)
 
         self.changer_Image()
 
@@ -253,11 +314,8 @@ class Visualisation(QWidget):
         elif self.radioS.isChecked():
             im = self.image_3D_np.image[:, :, i]
         im_np = np.copy(im)
-        
         im_np=im_np.astype("uint32")
 
-        
-        
         if self.image_3D_np.color:
             im_np=im_np.astype("uint32")
             qimage = QImage(
@@ -278,8 +336,8 @@ class Visualisation(QWidget):
             )
         t=QTransform()
         qimage=qimage.transformed(t.rotate(self.angle))
-        if qimage.width() > 850 or qimage.height() > 850:
-            qimage = qimage.scaled(850, 850, Qt.AspectRatioMode.KeepAspectRatio)
+        if qimage.width() > 600 or qimage.height() > 600:
+            qimage = qimage.scaled(600, 600, Qt.AspectRatioMode.KeepAspectRatio)
         self.pixmap = QPixmap.fromImage(qimage)
         w = self.pixmap.width()
         h = self.pixmap.height()
@@ -369,7 +427,6 @@ class Visualisation(QWidget):
     
         self.thread = threading.Thread(target=self.filtre_seuil_exec, args=([num]))
         self.thread.start()
-
 
     def filtre_seuil_exec(self, num):
         """
@@ -475,8 +532,6 @@ class QGV(QGraphicsView):
                 pen = QPen(self.parent().colorPen)
                 self.scene.addLine(point.x() + x, point.y() + y, point.x() + x, point.y() + y, pen)
                 
-                
-                
 class Image():
     """
     corresponds to an image. There is a numpy array for the values and a boolean to say if the image is in color or not
@@ -496,11 +551,33 @@ class CustomDialogColor(QDialog):
     def __init__(self):
         super().__init__()
         QBtn = QDialogButtonBox.StandardButton.Yes | QDialogButtonBox.StandardButton.No
+        self.setWindowTitle("RGB Option")
+        self.setWindowIcon(QIcon('../media/popcorn_logo.png'))
         self.buttonBox = QDialogButtonBox(QBtn)
+
         self.buttonBox.accepted.connect(self.accept)
         self.buttonBox.rejected.connect(self.reject)
         self.layout = QVBoxLayout()
-        message = QLabel("Is that image in color?")
+        message = QLabel("Is this image RGB?")
+        self.layout.addWidget(message)
+        self.layout.addWidget(self.buttonBox)
+        self.setLayout(self.layout)
+
+
+class DialogNoFile(QDialog):
+    """
+    QDialog to ask if the image is in color or not
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Error opening the file")
+        self.setWindowIcon(QIcon('../media/popcorn_logo.png'))
+        QBtn = QDialogButtonBox.StandardButton.Ok
+        self.buttonBox = QDialogButtonBox(QBtn)
+        self.buttonBox.accepted.connect(self.accept)
+        self.layout = QVBoxLayout()
+        message = QLabel("Couldn't open image")
         self.layout.addWidget(message)
         self.layout.addWidget(self.buttonBox)
         self.setLayout(self.layout)

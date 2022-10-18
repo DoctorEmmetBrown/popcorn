@@ -25,14 +25,14 @@ from recalage import *
 from recup_phase import *
 from stitching_gui import *
 from paresis import *
+
+
 class MainWindow(QMainWindow):
-
-
 
     def __init__(self):
         super().__init__()  # Constructeur parent
-        self.showMaximized()  # Redimension de la fenetre
-
+        self.setWindowTitle("popcorn")
+        self.setWindowIcon(QIcon('../media/popcorn_logo.png'))
         self.mainWidget = QWidget()  # widget principal
         self.layoutMainW = (
             QGridLayout()
@@ -56,7 +56,9 @@ class MainWindow(QMainWindow):
             self
         )  # widget sur lequel on mettra les elements
         # self.layoutMainW.addWidget(self.leftWidget,0,0) #On place ce nouveau widget sur le main widget
-        app.setStyleSheet("QRadioButton {color: red }")
+        ssFile = "stylesheet.css"
+        with open(ssFile, "r") as fh:
+            app.setStyleSheet(fh.read())
 
         ####Fin du widget de gauche
         """
@@ -73,7 +75,7 @@ class MainWindow(QMainWindow):
 
         self.rightWidgetOne = Gray(self)  # widget sur lequel on mettra les elements
 
-        self.TabW.addTab(self.rightWidgetOne, "Transformation Image")
+        self.TabW.addTab(self.rightWidgetOne, "Histogram")
 
         ####Fin du widget de Droite pour nuance de gris et histogramme
 
@@ -83,7 +85,7 @@ class MainWindow(QMainWindow):
             self
         )  # widget sur lequel on mettra les elements
 
-        self.TabW.addTab(self.rightWidgetTwo, "Decomposition")
+        self.TabW.addTab(self.rightWidgetTwo, "Material Decomposition")
         ####Fin
         
         ####Debut du widget de Droite pour utiliser la fonction de recalage de Popcorn
@@ -91,7 +93,7 @@ class MainWindow(QMainWindow):
             self
         )  # widget sur lequel on mettra les elements
 
-        self.TabW.addTab(self.rightWidgetRecalage, "Recalage")
+        self.TabW.addTab(self.rightWidgetRecalage, "Registration")
         ####Fin
         
         
@@ -101,7 +103,7 @@ class MainWindow(QMainWindow):
             self
         )  # widget sur lequel on mettra les elements
 
-        self.TabW.addTab(self.rightWidgetRecup, "Recuperation de phase")
+        self.TabW.addTab(self.rightWidgetRecup, "Phase Retrieval")
         ####Fin
         
         
@@ -112,7 +114,7 @@ class MainWindow(QMainWindow):
             self
         )  # widget sur lequel on mettra les elements
 
-        self.TabW.addTab(self.rightWidgetStitching, "Stitching")
+        self.TabW.addTab(self.rightWidgetStitching, "Visual Stitching")
         ####Fin
 
         ###########################
@@ -134,5 +136,12 @@ class MainWindow(QMainWindow):
 # Initialisation du GUI
 app = QApplication(sys.argv)
 window = MainWindow()
+screen = app.primaryScreen()
+screen_width, screen_height = screen.size().width(), screen.size().height()
+width = min(int(0.75*screen_width), 1200)
+height = min(int(0.75*screen_height), 900)
+top = screen_width//2 - width//2
+left = screen_height//2 - height//2
+window.setGeometry(top, left, width, height)
 window.show()
 sys.exit(app.exec())
