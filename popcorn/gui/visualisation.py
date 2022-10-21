@@ -5,6 +5,7 @@ from PyQt6.QtGui import *
 import sys
 from qtrangeslider import QRangeSlider
 from PyQt6.QtCharts import *
+from difflib import SequenceMatcher
 
 from pathlib import Path
 path_root = str(Path(__file__).parents[1])
@@ -30,8 +31,8 @@ class Visualisation(QWidget):
         self.setLayout(self.layoutLeft)
 
         # Boutton Load
-        self.buttonLoadImage = QPushButton("Open Image")
-        self.buttonLoadImage.clicked.connect(self.load)
+        self.buttonLoadImage = QPushButton("Open directory")
+        self.buttonLoadImage.clicked.connect(self.load_directory)
         self.buttonLoadImage.setShortcut(QKeySequence("Ctrl+o"))
         self.buttonLoadImage.setStyleSheet("""
                         QPushButton {
@@ -49,16 +50,36 @@ class Visualisation(QWidget):
                             color: white;
                         }
                         """)
-        self.layoutLeft.addWidget(self.buttonLoadImage, 1, 0)
+        self.layoutLeft.addWidget(self.buttonLoadImage, 1, 0, 1, 1)
+
+        self.buttonLoadImage = QPushButton("Open files")
+        self.buttonLoadImage.clicked.connect(self.load_files)
+        self.buttonLoadImage.setStyleSheet("""
+                        QPushButton {
+                                background-color: #314d5f;
+                                padding: 2px 2px 2px 2px;
+                                border-width: 2px;
+                                border-style: outset;
+                                color: white;
+                                border-color: #263742;
+                                border-radius: 3px;
+                            }
+                            
+                        QPushButton:hover {
+                            background-color: #3c627b;
+                            color: white;
+                        }
+                        """)
+        self.layoutLeft.addWidget(self.buttonLoadImage, 1, 1, 1, 1)
 
         # Creation du ComboBox qui permet de changer d'image
         self.combobox = QComboBox()
-        self.layoutLeft.addWidget(self.combobox, 0, 0)
+        self.layoutLeft.addWidget(self.combobox, 0, 0, 1, 2)
 
         # Creation de la liste des filtres
         # Creation du menu deroulant lorsqu'on clique dessus
         self.list_filtre = QToolButton(self)
-        self.layoutLeft.addWidget(self.list_filtre, 0, 3, 1, 2)
+        self.layoutLeft.addWidget(self.list_filtre, 0, 4, 1, 1)
         self.list_filtre.setText("Filters")
         self.list_filtre.setStyleSheet("""QToolButton{
                             background-color: #3c627b;
@@ -93,22 +114,24 @@ class Visualisation(QWidget):
         self.buttonSaveImage = QPushButton("Save Image")
         self.buttonSaveImage.clicked.connect(self.save_image)
         self.buttonSaveImage.setShortcut(QKeySequence("Ctrl+s"))
-        self.layoutLeft.addWidget(self.buttonSaveImage, 1, 1)
+        self.layoutLeft.addWidget(self.buttonSaveImage, 1, 2, 1, 2)
 
         self.buttonColor = QPushButton("Clear Drawing")
         self.buttonColor.clicked.connect(self.clearDrawing)
-        self.layoutLeft.addWidget(self.buttonColor, 1, 3)
+        self.layoutLeft.addWidget(self.buttonColor, 1, 4)
 
         # Barre de progression
         self.prog_bar = QProgressBar(self)
         self.prog_bar.setValue(0)
-        self.layoutLeft.addWidget(self.prog_bar, 0, 1, 1, 2)
+        self.layoutLeft.addWidget(self.prog_bar, 0, 2, 1, 2)
 
         # Creation du QGraphicsScene qui prendra l'image
         self.angle=0
         self.colorPen=QColor("yellow")
         self.scene = QGraphicsScene()
         self.scene.setSceneRect(0, 0, self.width() - 70, self.height() - 70)
+        print(self.width() - 70)
+        print(self.height() - 70)
 
         self.IdImage = None
         self.factor = 1
@@ -121,7 +144,7 @@ class Visualisation(QWidget):
         self.view.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
         self.view.resize(600, 600)
         self.label = QLabel(self)
-        self.layoutLeft.addWidget(self.view, 2, 0, 5, 5)
+        self.layoutLeft.addWidget(self.view, 2, 0, 4, 5)
         self.my_signal.connect(self.scroll)
 
         # Creer 3 boutons radio (= ne peuvent pqs etre coche en meme temps) pour correspondre aux 3 angles de vu differents
@@ -278,7 +301,7 @@ class Visualisation(QWidget):
             self.father.rightWidgetRecalage.ComboBoxMaskMov.removeItem(nb)
             self.father.rightWidgetRecalage.ComboBoxMaskRef.removeItem(nb)
 
-    def load(self):
+    def load_directory(self):
         """
         Load a image from a directory (edf or tif)
         You have to say if it's in color or not, but it can modify later
@@ -326,6 +349,67 @@ class Visualisation(QWidget):
             ok = dlg.exec()
             return
         Image_load = np.copy(sequence)
+        self.ajouter_image(name_file, Image_load, color)
+
+        if len(self.liste_image) == 2 and self.combobox.currentText() == "no image":
+            self.supprimer_image( 0)
+
+        self.changer_Image()
+
+    def load_files(self):
+        """
+        Load a image from a directory (edf or tif)
+        You have to say if it's in color or not, but it can modify later
+        """
+        filenames_or_input_folder = QFileDialog.getOpenFileNames(self, str("Open Files"))[0]
+        print(filenames_or_input_folder)
+        if filenames_or_input_folder == "/":
+            return
+
+        dlg = CustomDialogColor()
+        if dlg.exec():
+            color = True
+        else:
+            color = False
+        try:
+            # If the given arg is empty, we raise an error
+            if len(filenames_or_input_folder) == 0:
+                raise Exception('Error: no file corresponds to the given path/extension')
+            # We check if the given filenames is a regular expression of input files:
+            if type(filenames_or_input_folder) != list:
+                # We try opening .extension files
+                list_of_files = create_list_of_files(filenames_or_input_folder, ".tif")
+            else:
+                list_of_files = filenames_or_input_folder
+            # If the created list_of_files is empty
+            if len(list_of_files) == 0:
+                raise Exception('Error: no file corresponds to the given path/extension')
+
+            # Next line is computed iff given regex/list of files correspond to existing files that can be opened
+            if len(list_of_files) > 0:
+                reference_image = open_image(str(list_of_files[0]))
+                height, width, = reference_image.shape[-2:]
+                # We create an empty image sequence
+                sequence = np.zeros((len(list_of_files), height, width), dtype=np.float32)
+                # We fill the created empty sequence
+                for i, file in enumerate(list_of_files):
+                    self.prog_bar.setValue(int(100 * i / (len(list_of_files) - 1)))
+                    image = open_image(str(file))
+                    sequence[i, :, :] = image
+
+        except Exception as error:
+            print("error opening the file")
+            dlg = DialogNoFile(error)
+            ok = dlg.exec()
+            return
+        Image_load = np.copy(sequence)
+        """ #match finder
+        last_match = filenames_or_input_folder[0]
+        for filename in filenames_or_input_folder:
+            match = SequenceMatcher(None, last_match, filename).find_longest_match()
+            last_match = filename[match.a:match.a + match.size]
+        name_file = last_match.split("/")[-1]"""
+        name_file = filenames_or_input_folder[0].split("/")[-2]
         self.ajouter_image(name_file, Image_load, color)
 
         if len(self.liste_image) == 2 and self.combobox.currentText() == "no image":
