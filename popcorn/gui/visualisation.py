@@ -341,13 +341,23 @@ class Visualisation(QWidget):
         self.clean_display()
 
         if self.radioA.isChecked():
-            im = self.image_3D_np.image[i, :, :]
+            if i < self.image_3D_np.image.shape[0]:
+                im = self.image_3D_np.image[i, :, :]
+            else:
+                return
 
         elif self.radioC.isChecked():
-            im = self.image_3D_np.image[:, i, :]
+            if i < self.image_3D_np.image.shape[1]:
+                im = self.image_3D_np.image[:, i, :]
+            else:
+                return
 
         elif self.radioS.isChecked():
-            im = self.image_3D_np.image[:, :, i]
+            if i < self.image_3D_np.image.shape[2]:
+                im = self.image_3D_np.image[:, :, i]
+            else:
+                return
+
         im_np = np.copy(im)
         im_np=im_np.astype("uint32")
 
@@ -517,9 +527,9 @@ class Visualisation(QWidget):
             #left = int(self.view.x_pos/600*w * self.factor)
             #top = int(self.view.y_pos/600*h * self.factor)
             #top = int(self.view.y_pos/600*h * self.factor)
+            self.pixmap1 = self.pixmap.scaled(int(600 * self.factor), int(600 * self.factor))
             self.scene.setSceneRect(centered_position_x - 600/2, centered_position_y - 600/2, centered_position_x + 600/2, centered_position_y + 600/2)
 
-            self.pixmap1 = self.pixmap.scaled(int(600 * self.factor), int(600 * self.factor))
             self.clean_display()
             self.IdImage = self.scene.addPixmap(self.pixmap1)
 
