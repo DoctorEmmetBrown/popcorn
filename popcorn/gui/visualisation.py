@@ -506,14 +506,20 @@ class Visualisation(QWidget):
                 self.factor = self.factor * 1.25
             else:
                 self.factor = self.factor * 0.8
+            centered_position_x = max(self.view.x_pos, 3/8*600)
+            centered_position_x = min(centered_position_x, 5/8*600)
+            centered_position_y = max(self.view.y_pos, 3/8*600)
+            centered_position_y = min(centered_position_y, 5/8*600)
 
-            w = self.pixmap.width()
-            h = self.pixmap.height()
-            left = int(self.view.x_pos/600*w * self.factor)
-            top = int(self.view.y_pos/600*h * self.factor)
-            self.scene.setSceneRect(left, top, int(w * self.factor), int(h * self.factor))
+            #w = self.pixmap.width()
+            #h = self.pixmap.height()
+            #left = int(self.view.x_pos/600*w * self.factor)
+            #left = int(self.view.x_pos/600*w * self.factor)
+            #top = int(self.view.y_pos/600*h * self.factor)
+            #top = int(self.view.y_pos/600*h * self.factor)
+            self.scene.setSceneRect(centered_position_x - 600/2, centered_position_y - 600/2, centered_position_x + 600/2, centered_position_y + 600/2)
 
-            self.pixmap1 = self.pixmap.scaled(int(w * self.factor), int(h * self.factor))
+            self.pixmap1 = self.pixmap.scaled(int(600 * self.factor), int(600 * self.factor))
             self.clean_display()
             self.IdImage = self.scene.addPixmap(self.pixmap1)
 
