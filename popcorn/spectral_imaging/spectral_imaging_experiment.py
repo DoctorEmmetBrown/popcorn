@@ -1,3 +1,10 @@
+import sys
+
+from pathlib import Path
+path_root = str(Path(__file__).parents[1])
+if path_root not in sys.path:
+    sys.path.append(path_root)
+
 import popcorn.input_output as in_out
 import popcorn.resampling as resampling
 import material_decomposition
@@ -6,7 +13,6 @@ import popcorn.image_processing.segmentation as segmentation
 
 from popcorn.spectral_imaging.pipelines import skull_alignment_pipeline
 
-import sys
 import numpy as np
 import math
 import time

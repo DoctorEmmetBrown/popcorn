@@ -34,11 +34,9 @@ class Gray(QWidget):
         self.layoutRightOne.addWidget(self.Doubleslider, 0, 0, 1, 2)
         self.Doubleslider.sliderReleased.connect(self.niveau_gris)
 
-
         mini=self.father.leftWidget.liste_image[self.father.leftWidget.combobox.currentIndex()].image.min()
         maxi=self.father.leftWidget.liste_image[self.father.leftWidget.combobox.currentIndex()].image.max()
-        
-        
+
         self.labelMinDSlider = QLabel("Minimum:")
         self.layoutRightOne.addWidget(self.labelMinDSlider, 1, 0)
         self.inputMinDSlider = QLineEdit()
@@ -148,55 +146,64 @@ class Gray(QWidget):
 
             if self.father.leftWidget.radioA.isChecked():
                 z = self.father.leftWidget.slider.sliderPosition()
-                self.father.leftWidget.image_3D_np.image[z, :, :][
-                    self.father.leftWidget.image_3D_np.image[z, :, :] < new_min
-                ] = new_min
-                self.father.leftWidget.image_3D_np.image[z, :, :][
-                    self.father.leftWidget.image_3D_np.image[z, :, :] > new_max
-                ] = new_max
-                self.father.leftWidget.image_3D_np.image[z] = (
-                    self.father.leftWidget.image_3D_np.image[z, :, :] - new_min
-                ) * multi_pix
-                self.father.leftWidget.image_3D_np.image[z][
-                    self.father.leftWidget.image_3D_np.image[z] < 0
-                ] = 0
-                self.father.leftWidget.image_3D_np.image[z][
-                    self.father.leftWidget.image_3D_np.image[z] > 65535
-                ] = 65535
+                if z < self.father.leftWidget.image_3D_np.image.shape[0]:
+                    self.father.leftWidget.image_3D_np.image[z, :, :][
+                        self.father.leftWidget.image_3D_np.image[z, :, :] < new_min
+                    ] = new_min
+                    self.father.leftWidget.image_3D_np.image[z, :, :][
+                        self.father.leftWidget.image_3D_np.image[z, :, :] > new_max
+                    ] = new_max
+                    self.father.leftWidget.image_3D_np.image[z] = (
+                        self.father.leftWidget.image_3D_np.image[z, :, :] - new_min
+                    ) * multi_pix
+                    self.father.leftWidget.image_3D_np.image[z][
+                        self.father.leftWidget.image_3D_np.image[z] < 0
+                    ] = 0
+                    self.father.leftWidget.image_3D_np.image[z][
+                        self.father.leftWidget.image_3D_np.image[z] > 65535
+                    ] = 65535
+                else:
+                    return
             elif self.father.leftWidget.radioC.isChecked():
                 y = self.father.leftWidget.slider.sliderPosition()
-                self.father.leftWidget.image_3D_np.image[:, y, :][
-                    self.father.leftWidget.image_3D_np.image[:, y, :] < new_min
-                ] = new_min
-                self.father.leftWidget.image_3D_np.image[:, y, :][
-                    self.father.leftWidget.image_3D_np.image[:, y, :] > new_max
-                ] = new_max
-                self.father.leftWidget.image_3D_np.image[:, y, :] = (
-                    self.father.leftWidget.image_3D_np.image[:, y, :] - new_min
-                ) * multi_pix
-                self.father.leftWidget.image_3D_np.image[:, y, :][
-                    self.father.leftWidget.image_3D_np.image[:, y, :] < 0
-                ] = 0
-                self.father.leftWidget.image_3D_np.image[:, y, :][
-                    self.father.leftWidget.image_3D_np.image[:, y, :] > 65535
-                ] = 65535
+                if y < self.father.leftWidget.image_3D_np.image.shape[1]:
+                    self.father.leftWidget.image_3D_np.image[:, y, :][
+                        self.father.leftWidget.image_3D_np.image[:, y, :] < new_min
+                    ] = new_min
+                    self.father.leftWidget.image_3D_np.image[:, y, :][
+                        self.father.leftWidget.image_3D_np.image[:, y, :] > new_max
+                    ] = new_max
+                    self.father.leftWidget.image_3D_np.image[:, y, :] = (
+                        self.father.leftWidget.image_3D_np.image[:, y, :] - new_min
+                    ) * multi_pix
+                    self.father.leftWidget.image_3D_np.image[:, y, :][
+                        self.father.leftWidget.image_3D_np.image[:, y, :] < 0
+                    ] = 0
+                    self.father.leftWidget.image_3D_np.image[:, y, :][
+                        self.father.leftWidget.image_3D_np.image[:, y, :] > 65535
+                    ] = 65535
+                else:
+                    return
             elif self.father.leftWidget.radioS.isChecked():
                 x = self.father.leftWidget.slider.sliderPosition()
-                self.father.leftWidget.image_3D_np.image[:, :, x][
-                    self.father.leftWidget.image_3D_np.image[:, :, x] < new_min
-                ] = new_min
-                self.father.leftWidget.image_3D_np.image[:, :, x][
-                    self.father.leftWidget.image_3D_np.image[:, :, x] > new_max
-                ] = new_max
-                self.father.leftWidget.image_3D_np.image[:, :, x] = (
-                    self.father.leftWidget.image_3D_np.image[:, :, x] - new_min
-                ) * multi_pix
-                self.father.leftWidget.image_3D_np.image[:, :, x][
-                    self.father.leftWidget.image_3D_np.image[:, :, x] < 0
-                ] = 0
-                self.father.leftWidget.image_3D_np.image[:, :, x][
-                    self.father.leftWidget.image_3D_np.image[:, :, x] > 65535
-                ] = 65535
+                if x < self.father.leftWidget.image_3D_np.image.shape[2]:
+                    self.father.leftWidget.image_3D_np.image[:, :, x][
+                        self.father.leftWidget.image_3D_np.image[:, :, x] < new_min
+                    ] = new_min
+                    self.father.leftWidget.image_3D_np.image[:, :, x][
+                        self.father.leftWidget.image_3D_np.image[:, :, x] > new_max
+                    ] = new_max
+                    self.father.leftWidget.image_3D_np.image[:, :, x] = (
+                        self.father.leftWidget.image_3D_np.image[:, :, x] - new_min
+                    ) * multi_pix
+                    self.father.leftWidget.image_3D_np.image[:, :, x][
+                        self.father.leftWidget.image_3D_np.image[:, :, x] < 0
+                    ] = 0
+                    self.father.leftWidget.image_3D_np.image[:, :, x][
+                        self.father.leftWidget.image_3D_np.image[:, :, x] > 65535
+                    ] = 65535
+                else:
+                    return
             self.father.leftWidget.slider_position()
 
     def SetHistValue(self):
@@ -209,15 +216,24 @@ class Gray(QWidget):
             value=0
             if self.father.leftWidget.radioA.isChecked():
                 z = self.father.leftWidget.slider.sliderPosition()
-                value = self.father.leftWidget.image_3D_np.image[z, :, :]
+                if z < self.father.leftWidget.image_3D_np.image.shape[0]:
+                    value = self.father.leftWidget.image_3D_np.image[z, :, :]
+                else:
+                    return
 
             elif self.father.leftWidget.radioC.isChecked():
                 y = self.father.leftWidget.slider.sliderPosition()
-                value = self.father.leftWidget.image_3D_np.image[:, y, :]
+                if y < self.father.leftWidget.image_3D_np.image.shape[1]:
+                    value = self.father.leftWidget.image_3D_np.image[:, y, :]
+                else:
+                    return
 
             elif self.father.leftWidget.radioS.isChecked():
                 x = self.father.leftWidget.slider.sliderPosition()
-                value = self.father.leftWidget.image_3D_np.image[:, :, x]
+                if x < self.father.leftWidget.image_3D_np.image.shape[2]:
+                    value = self.father.leftWidget.image_3D_np.image[:, :, x]
+                else:
+                    return
 
             ind = value / 512
             for i in range(128):

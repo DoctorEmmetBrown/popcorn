@@ -1,0 +1,143 @@
+QTabWidget::pane {
+    border: 1px solid #01414f;
+    background: white;
+}
+
+QTabWidget::tab-bar:top {
+    top: 1px;
+}
+
+QTabWidget::tab-bar:bottom {
+    bottom: 1px;
+}
+
+QTabWidget::tab-bar:left {
+    right: 1px;
+}
+
+QTabWidget::tab-bar:right {
+    left: 1px;
+}
+
+QTabBar::tab {
+    border: 1px solid #014d4f;
+}
+
+QTabBar::tab:selected {
+    background: #EEEEEE;
+}
+
+QTabBar::tab:!selected {
+    background: #a1c0ca;
+}
+
+QTabBar::tab:!selected:hover {
+    background: #c7dee5;
+}
+
+QTabBar::tab:top:!selected {
+    margin-top: 3px;
+}
+
+QTabBar::tab:bottom:!selected {
+    margin-bottom: 3px;
+}
+
+QTabBar::tab:top, QTabBar::tab:bottom {
+    min-width: 8ex;
+    margin-right: -1px;
+    padding: 5px 10px 5px 10px;
+}
+
+QTabBar::tab:top:selected {
+    border-bottom-color: none;
+}
+
+QTabBar::tab:bottom:selected {
+    border-top-color: none;
+}
+
+QTabBar::tab:top:last, QTabBar::tab:bottom:last,
+QTabBar::tab:top:only-one, QTabBar::tab:bottom:only-one {
+    margin-right: 0;
+}
+
+QTabBar::tab:left:!selected {
+    margin-right: 3px;
+}
+
+QTabBar::tab:right:!selected {
+    margin-left: 3px;
+}
+
+QTabBar::tab:left, QTabBar::tab:right {
+    min-height: 8ex;
+    margin-bottom: -1px;
+    padding: 10px 5px 10px 5px;
+}
+
+QTabBar::tab:left:selected {
+    border-left-color: none;
+}
+
+QTabBar::tab:right:selected {
+    border-right-color: none;
+}
+
+QTabBar::tab:left:last, QTabBar::tab:right:last,
+QTabBar::tab:left:only-one, QTabBar::tab:right:only-one {
+    margin-bottom: 0;
+}
+
+QMainWindow {
+    color: #d2ecef;
+    background-color: #d2ecef
+}
+
+QRadioButton {
+    color: yellow;
+    margin-left: 5px;
+    margin-top: 5px;
+    font-weight: bold;
+}
+
+QToolButton{
+    background-color: #3c627b;
+    border-width: 2px;
+    border-style: outset;
+    color: white;
+    border-color: #263742;
+    border-radius: 3px;
+}
+
+QComboBox{
+    background-color: #3c627b;
+    padding: 2px 2px 2px 2px;
+    border-width: 2px;
+    border-style: outset;
+    color: white;
+    border-color: #263742;
+    border-radius: 3px;
+}
+
+QPushButton {
+    background-color: #3c627b;
+    padding: 2px 2px 2px 2px;
+    border-width: 2px;
+    border-style: outset;
+    color: white;
+    border-color: #263742;
+    border-radius: 3px;
+}
+
+QLabel {
+    background-color: #d9e7f3;
+    color: black;
+    padding: 2px
+}
+
+QPushButton:hover {
+    background-color: #5989a8;
+    color: white;
+}
+
