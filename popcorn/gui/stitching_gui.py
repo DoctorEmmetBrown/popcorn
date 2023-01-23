@@ -382,10 +382,12 @@ class Stitching_window(QWidget):
                 file_name=directory_name.split("__")[0]
                 mid_ind = int(file.shape[1] / 2)
                 for j in range(file.shape[0]):
+                    if not os.path.exists(path + "\\before\\"):
+                        os.makedirs(path + "\\before\\")
                     if len(glob.glob(self.liste_folder[i] + "*tif*")) > 0:
-                        save_tif_image(file[j][[mid_ind],:], path + "before/" + directory_name + "/" + file_name + "__" + str(i+1) + '{:04d}'.format(j))
+                        save_tif_image(file[j][[mid_ind],:], path + "\\before\\" + directory_name + "\\" + file_name + "__" + str(i+1) + '{:04d}'.format(j))
                     if len(glob.glob(self.liste_folder[i] + "*edf*")) > 0:
-                        save_edf_image(file[j][[mid_ind],:], path + "before/" + str(i) + "/" + str(j))
+                        save_edf_image(file[j][[mid_ind],:], path  + "/" + str(i) + "/" + str(j))
 
         deltaZ = int(self.deltaz_value.text())
         flipUD = self.flip_value.isChecked()
