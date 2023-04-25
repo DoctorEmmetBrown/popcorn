@@ -9,8 +9,7 @@ Date: July 2015
 import numpy as np
 from scipy import signal as sig
 import frankoChellappa  as fc
-from OpticalFlow2020 import kottler, LarkinAnissonSheppard
-
+from phase_integration import fourier_integration, ls_integration
 
 def processProjectionUMPA(experiment):
 
@@ -28,24 +27,31 @@ def processProjectionUMPA(experiment):
     f=result['f']
     dphix=dx*(experiment.pixel/experiment.dist_object_detector)*experiment.getk()
     dphiy=dy*(experiment.pixel/experiment.dist_object_detector)*experiment.getk()
-    
-    padForIntegration=True
+
+    #! The padding for the fourier integration is already implemented in fourier_integration (Bon et al. 2015)
+    # This option is deprecated and may be removed in the future.    
+    padForIntegration=False
     padSize=300
     if padForIntegration:
         dphix = np.pad(dphix, ((padSize, padSize), (padSize, padSize)),mode='reflect')  # voir is edge mieux que reflect
         dphiy = np.pad(dphiy, ((padSize, padSize), (padSize, padSize)),mode='reflect')  # voir is edge mieux que reflect
 
     #Compute the phase from phase gradients with 3 different methods (still trying to choose the best one)
-    phiFC = fc.frankotchellappa(dphiy, dphix, True)*experiment.pixel
-    phiK = kottler(dphiy, dphix)*experiment.pixel
-    phiLA = LarkinAnissonSheppard(dphiy, dphix)*experiment.pixel
+    # Compute the phase from phase gradients with 3 different methods (still trying to choose the best one)
+    # The sampling step for the gradient is the magnified pixel size
+    magnificationFactor = (experiment.dist_object_detector + experiment.dist_source_object) / experiment.dist_source_object
+    gradientSampling = experiment.pixel / magnificationFactor    
+
+    phiFC = fc.frankotchellappa(dphix*gradientSampling, dphiy*gradientSampling, True)
+    phiK = fourier_integration.fourier_solver(dphix, dphiy, gradientSampling, gradientSampling, solver='kottler')
+    phiLS = ls_integration.least_squares(dphix, dphiy, gradientSampling, gradientSampling, model='southwell')
     
-    if padSize > 0:
+    if (padForIntegration and padSize > 0):
         phiFC = phiFC[padSize:padSize + Nx, padSize:padSize + Ny]
         phiK = phiK[padSize:padSize + Nx , padSize:padSize + Ny]
-        phiLA = phiLA[padSize:padSize + Nx, padSize:padSize + Ny]
+        phiLS = phiLS[padSize:padSize + Nx, padSize:padSize + Ny]
 
-    return {'dx': dx, 'dy': dy, 'phiFC': phiFC.real, 'phiK': phiK.real,'phiLA': phiLA.real, 'thickness':thickness, 'df':df, 'f':f}
+    return {'dx': dx, 'dy': dy, 'phiFC': phiFC, 'phiK': phiK,'phiLS': phiLS, 'thickness':thickness, 'df':df, 'f':f}
 
 
 def match_speckles(Isample, Iref, Nw, step=1, max_shift=1, df=True, printout=True):
@@ -155,7 +161,7 @@ def match_speckles(Isample, Iref, Nw, step=1, max_shift=1, df=True, printout=Tru
             do[xi, xj] = v[isy, isx]
             MD[xi, xj] = D[isy, isx]
 
-    return {'T': tr, 'dx': tx, 'dy': ty, 'df': do, 'f': MD}
+    return {'T': tr, 'dx': ty, 'dy': tx, 'df': do, 'f': MD}
 
 
 def cc(A, B, mode='same'):
@@ -303,7 +309,7 @@ if __name__ == "__main__":
         l is the wavelength. 
         """
         if w.ndim != 2:
-            raise RunTimeError("A 2-dimensional wave front 'w' was expected")
+            raise RuntimeError("A 2-dimensional wave front 'w' was expected")
 
         sh = w.shape
 

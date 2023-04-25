@@ -6,7 +6,8 @@ from scipy.interpolate import interp2d
 from functools import partial
 from scipy.ndimage.filters import median_filter
 import frankoChellappa as fc
-from OpticalFlow2020 import kottler, LarkinAnissonSheppard
+from phase_integration import fourier_integration, ls_integration
+from OpticalFlow2020 import LarkinAnissonSheppard
 
 
 def processProjectionXSVT(experiment):
@@ -17,44 +18,50 @@ def processProjectionXSVT(experiment):
     :param experiment: gets all the information related to the desired experiment.
 
     Returns:
-        Diff_x: displacement in x (in terms of pixels)
-        Diff_y: displacement in y (in terms of pixels)
+        Diff_x: displacement in x (horizontal)(in terms of pixels)
+        Diff_y: displacement in y (vertical)(in terms of pixels)
         Transmission: the transmission image (I/I0)
         Darkfield: the darkfield image
-        DPhi_x: displacement in x (radians)
-        DPhy_y: displacement in y (radians)
+        DPhi_x: phase shift in x (radians)
+        DPhy_y: phase shift in y (radians)
         phiFC: Frankot-Chelappa integrated phase image
         phiK: Kottler integrated phase image
-        phiLA: Larkin-Anisson-Sheppard integrated phase image
+        phiLS: Least Squares integrated phase image
     """
 
     nb_images, px_rows, px_cols = experiment.sample_images.shape
-    diff_x, diff_y, transmission, darkfield = start_tracking(experiment.sample_images, experiment.reference_images, max_shift=experiment.max_shift, window=1+2*experiment.XSVT_Nw)
+    diff_y, diff_x, transmission, darkfield = start_tracking(experiment.sample_images, experiment.reference_images, max_shift=experiment.max_shift, window=1+2*experiment.XSVT_Nw)
 
     if experiment.XSVT_median_filter != 0:
         diff_x = median_filter(diff_x, size=experiment.XSVT_median_filter)
         diff_y = median_filter(diff_y, size=experiment.XSVT_median_filter)
 
+    # Convert the displacement (pixels) to phase gradient (m-1)
     dphix = diff_x * experiment.getk() * (experiment.pixel / experiment.dist_object_detector)
     dphiy = diff_y * experiment.getk() * (experiment.pixel / experiment.dist_object_detector)
 
-    padForIntegration = True
+    #! The padding for the fourier integration is already implemented in fourier_integration (Bon et al. 2015)
+    # This option is deprecated and may be removed in the future.
+    padForIntegration = False
     padSize = 300
     if padForIntegration:
         dphix = np.pad(dphix, ((padSize, padSize), (padSize, padSize)), mode='reflect')  # voir is edge mieux que reflect
         dphiy = np.pad(dphiy, ((padSize, padSize), (padSize, padSize)), mode='reflect')  # voir is edge mieux que reflect
 
     # Compute the phase from phase gradients with 3 different methods (still trying to choose the best one)
-    phiFC = fc.frankotchellappa(dphiy, dphix, True) * experiment.pixel
-    phiK = kottler(dphiy, dphix) * experiment.pixel
-    phiLA = LarkinAnissonSheppard(dphiy, dphix) * experiment.pixel
+    # The sampling step for the gradient is the magnified pixel size
+    magnificationFactor = (experiment.dist_object_detector + experiment.dist_source_object) / experiment.dist_source_object
+    gradientSampling = experiment.pixel / magnificationFactor    
+    phiFC = fc.frankotchellappa(dphix, dphiy, True) * gradientSampling
+    phiK = fourier_integration.fourier_solver(dphix, dphiy, gradientSampling, gradientSampling, solver='kottler')
+    #phiLS = ls_integration.least_squares(dphix, dphiy, gradientSampling, gradientSampling, model='southwell')
 
-    if padSize > 0:
+    if (padForIntegration and padSize > 0):
         phiFC = phiFC[padSize:padSize + px_rows, padSize:padSize + px_cols]
         phiK = phiK[padSize:padSize + px_rows, padSize:padSize + px_cols]
-        phiLA = phiLA[padSize:padSize + px_rows, padSize:padSize + px_cols]
+        #phiLS = phiLS[padSize:padSize + px_rows, padSize:padSize + px_cols]
 
-    return {"dx": diff_x, "dy": diff_y, "Absorption": transmission, "Deff": darkfield, 'phiFC': phiFC.real, 'phiK': phiK.real, 'phiLA': phiLA.real}#, "DPhi_x": dphix, "DPhi_y": dphiy
+    return {"dx": diff_x, "dy": diff_y, "Absorption": transmission, "Deff": darkfield, 'phiFC': phiFC, 'phiK': phiK} #, 'phiLS': phiLS}#, "DPhi_x": dphix, "DPhi_y": dphiy
 
 
 def start_tracking(Isample, Iref, max_shift, window):

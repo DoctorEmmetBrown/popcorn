@@ -10,8 +10,7 @@ import frankoChellappa  as fc
 from scipy.ndimage.filters import gaussian_filter, median_filter
 from matplotlib import pyplot as plt
 from skimage import color, data, restoration
-from phaseIntegration import kottler, LarkinAnissonSheppard
-
+from phase_integration import fourier_integration, ls_integration
 
 def LCS(experiment):
     """Calculates the displacement images from sample and reference images using the LCS system
@@ -21,27 +20,27 @@ def LCS(experiment):
         experiment (PhaseRetrievalClass): class with all parameters as attributes.
 
     Returns:
-        Dx (NUMPY ARRAY): the displacements along x axis.
-        Dy (NUMPY ARRAY): the displacements along y axis.
+        Dx (NUMPY ARRAY): the displacements along x axis (h).
+        Dy (NUMPY ARRAY): the displacements along y axis (v).
         absoprtion (NUMPY ARRAY): the absorption.
 
     """
 
-    Nz, Nx, Ny=experiment.reference_images.shape
-    LHS=np.ones(((experiment.nb_of_point, Nx, Ny)))
-    RHS=np.ones((((experiment.nb_of_point,3, Nx, Ny))))
-    solution=np.ones(((3, Nx, Ny)))
+    Nz, Ny, Nx=experiment.reference_images.shape
+    LHS=np.ones(((experiment.nb_of_point, Ny, Nx)))
+    RHS=np.ones((((experiment.nb_of_point,3, Ny, Nx))))
+    solution=np.ones(((3, Ny, Nx)))
 
     #Prepare system matrices
     for i in range(experiment.nb_of_point):
         #Right handSide
-        gX_IrIr,gY_IrIr=np.gradient(experiment.reference_images[i])
-        RHS[i]=[experiment.sample_images[i],gX_IrIr, gY_IrIr]
+        gY_IrIr,gX_IrIr=np.gradient(experiment.reference_images[i])
+        RHS[i]=[experiment.sample_images[i],gY_IrIr, gX_IrIr]
         LHS[i]=experiment.reference_images[i]
 
     #Solving system for each pixel 
-    for i in range(Nx):
-        for j in range(Ny):
+    for i in range(Ny):
+        for j in range(Nx):
             a=RHS[:,:,i,j]
             b=LHS[:,i,j]
             Q,R = np.linalg.qr(a) # qr decomposition of A
@@ -54,8 +53,8 @@ def LCS(experiment):
             solution[:,i,j]=temp
         
     absoprtion=1/solution[0]
-    Dx=solution[1]
-    Dy=solution[2]
+    Dy=solution[1]
+    Dx=solution[2]
     
     #Bit of post-processing
     #Limiting displacement to a threshold
@@ -97,23 +96,26 @@ def processProjectionLCS(experiment):
     dphix=dx*(experiment.pixel/experiment.dist_object_detector)*experiment.getk()
     dphiy=dy*(experiment.pixel/experiment.dist_object_detector)*experiment.getk()
     
-    padForIntegration=True
+    padForIntegration=False
     padSize=1000
     if padForIntegration:
         dphix = np.pad(dphix, ((padSize, padSize), (padSize, padSize)),mode='reflect')  # voir is edge mieux que reflect
         dphiy = np.pad(dphiy, ((padSize, padSize), (padSize, padSize)),mode='reflect')  # voir is edge mieux que reflect
     
     # Compute the phase from phase gradients with 3 different methods (still trying to choose the best one)
-    phiFC = fc.frankotchellappa(dphiy, dphix, True)*experiment.pixel
-    phiK = kottler(dphiy, dphix)*experiment.pixel
-    phiLA = LarkinAnissonSheppard(dphiy, dphix)*experiment.pixel
+    # The sampling step for the gradient is the magnified pixel size
+    magnificationFactor = (experiment.dist_object_detector + experiment.dist_source_object) / experiment.dist_source_object
+    gradientSampling = experiment.pixel / magnificationFactor
+    phiFC = fc.frankotchellappa(dphix, dphiy, True)*gradientSampling
+    phiK = fourier_integration.fourier_solver(dphix, dphiy, gradientSampling, gradientSampling, solver='kottler')
+    #phiLS = ls_integration.least_squares(dphix, dphiy, gradientSampling, gradientSampling, model='southwell')
     
-    if padSize > 0:
+    if (padForIntegration and padSize > 0):
         phiFC = phiFC[padSize:padSize + Nx, padSize:padSize + Ny]
         phiK = phiK[padSize:padSize + Nx , padSize:padSize + Ny]
-        phiLA = phiLA[padSize:padSize + Nx, padSize:padSize + Ny]
+        #phiLS = phiLS[padSize:padSize + Nx, padSize:padSize + Ny]
 
-    return {'dx': dx, 'dy': dy, 'phiFC': phiFC.real, 'phiK': phiK.real,'phiLA': phiLA.real, 'absorption':absorption}
+    return {'dx': dx, 'dy': dy, 'phiFC': phiFC.real, 'phiK': phiK, 'absorption':absorption} #,'phiLS': phiLS
             
     
 
