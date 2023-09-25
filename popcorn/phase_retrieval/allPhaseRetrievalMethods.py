@@ -38,18 +38,20 @@ def launchPhaseRetrieval(experiment, do):
 if __name__ == "__main__":
     
     # Parameters to tune
-    studied_case = 'Tomo_md1217' # name of the experiment we want to work on
+    studied_case = ' ' # name of the experiment we want to work on
     
     do={}
-    do['LCS']=False
-    do['LCS_DF']=False
-    do['MISTII_2']=True
-    do['MISTII_1']=True
-    do['MISTI']=False
-    do['UMPA']=False
-    do['OF']=False
-    do['Pavlov']=False
-    do['XSVT']=False
+    do['LCS']=1 
+    do['rLCS']=1 
+    do['LCS_DF']=0
+    do['MISTII_2']=0
+    do['MISTII_1']=0
+    do['MISTI']=0
+    do['UMPA']=0
+    do['OF']=0 
+    do['Pavlov']=0
+    do['XST-XSVT']=1 
+    do['rXST-XSVT']=1 
     save_parameters=True
 
     phase_retrieval_experiment=Phase_Retrieval_Experiment(studied_case, do)

@@ -85,16 +85,27 @@ def saveParameters(expParam, processing_time, do):
     xlsSheet.write(i,0,"Padding type")
     xlsSheet.write(i,1,expParam.pad_type )
     i+=1
-    if do["LCS"]:
+    if do["LCS"] or do["LCS_DF"]:
         xlsSheet.write(i,0,"LCS median filter (pix)")
         xlsSheet.write(i,1,expParam.LCS_median_filter )
-        i+=1
-    if do["XSVT"]:
-        xlsSheet.write(i,0,"XSVT Nw")
+        i+=1   
+    if do["rLCS"]:
+        xlsSheet.write(i,0,"rLCS median filter (pix)")
+        xlsSheet.write(i,1,expParam.rLCS_median_filter )
+        i+=1           
+    if do["XST-XSVT"]:
+        xlsSheet.write(i,0,"XST-XSVT Nw")
         xlsSheet.write(i,1,expParam.XSVT_Nw )
         i+=1
-        xlsSheet.write(i,0,"XSVT median filter")
+        xlsSheet.write(i,0,"XST-XSVT median filter")
         xlsSheet.write(i,1,expParam.XSVT_median_filter )
+        i+=1
+    if do["rXST-XSVT"]:
+        xlsSheet.write(i,0,"rXST-XSVT Nw")
+        xlsSheet.write(i,1,expParam.rXSVT_Nw )
+        i+=1
+        xlsSheet.write(i,0,"rXST-XSVT median filter")
+        xlsSheet.write(i,1,expParam.rXSVT_median_filter )
         i+=1
     if do["UMPA"]:
         xlsSheet.write(i,0,"UMPA Nw")

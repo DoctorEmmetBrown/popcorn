@@ -14,7 +14,7 @@ if str(path_root) not in sys.path :
 else :
     print("coucou")
 
-from pagailleIO import save_image, openSeq, openImage
+from pagailleIO import save_image, openSeq
 import glob
 import random
 import os
@@ -26,8 +26,11 @@ from OpticalFlow2020 import processProjectionOpticalFlow2020
 from Pavlov2020 import tie_Pavlovetal2020 as pavlov2020
 from LCS_DF import processProjectionLCS_DF
 from LCS import processProjectionLCS
+from ReverseFlow_LCS import processProjection_rLCS
 from speckle_matching import processProjectionUMPA
+from XSVT_reference import processProjection_rXSVT
 from XSVT import processProjectionXSVT
+#from demons import processProjectionDemons
 from matplotlib import pyplot as plt
 import numpy as np
 from xml.dom import minidom
@@ -97,9 +100,11 @@ class Phase_Retrieval_Experiment:
         self.define_algorithmic_values(do)
         
         self.methods_functions={'LCS':processProjectionLCS,
+                                'rLCS':processProjection_rLCS,                                
                                 'LCS_DF':processProjectionLCS_DF,
                                 'UMPA':processProjectionUMPA,
-                                'XSVT':processProjectionXSVT,
+                                'XST-XSVT':processProjectionXSVT,
+                                'rXST-XSVT':processProjection_rXSVT,
                                 'MISTI':MISTI,
                                 'MISTII_1':processProjectionMISTII_1,
                                 'MISTII_2':processProjectionMISTII_2,
@@ -144,10 +149,11 @@ class Phase_Retrieval_Experiment:
                 self.source_size=float(self.getText(current_exp.getElementsByTagName("source_size")[0]))
                 self.detector_PSF=float(self.getText(current_exp.getElementsByTagName("detector_PSF")[0]))
                 self.crop_on=self.boolean(self.getText(current_exp.getElementsByTagName("crop_on")[0]))
-                self.cropDebX=int(self.getText(current_exp.getElementsByTagName("cropDebX")[0]))
-                self.cropDebY=int(self.getText(current_exp.getElementsByTagName("cropDebY")[0]))
-                self.cropEndX=int(self.getText(current_exp.getElementsByTagName("cropEndX")[0]))
-                self.cropEndY=int(self.getText(current_exp.getElementsByTagName("cropEndY")[0]))
+                if self.crop_on:
+                    self.cropDebX=int(self.getText(current_exp.getElementsByTagName("cropDebX")[0]))
+                    self.cropDebY=int(self.getText(current_exp.getElementsByTagName("cropDebY")[0]))
+                    self.cropEndX=int(self.getText(current_exp.getElementsByTagName("cropEndX")[0]))
+                    self.cropEndY=int(self.getText(current_exp.getElementsByTagName("cropEndY")[0]))
                 return
         
         raise Exception("Correct experiment not found")
@@ -177,11 +183,16 @@ class Phase_Retrieval_Experiment:
                 self.max_shift=int(self.getText(current_exp.getElementsByTagName("max_shift")[0]))
                 if do["LCS"] or do["LCS_DF"]:
                     self.LCS_median_filter=int(self.getText(current_exp.getElementsByTagName("LCS_median_filter")[0]))
+                if do["rLCS"]:
+                    self.rLCS_median_filter=int(self.getText(current_exp.getElementsByTagName("LCS_median_filter")[0]))
                 if do["UMPA"]:
                     self.umpaNw=int(self.getText(current_exp.getElementsByTagName("umpaNw")[0]))
-                if do["XSVT"]:
+                if do["XST-XSVT"]:
                     self.XSVT_Nw=int(self.getText(current_exp.getElementsByTagName("XSVT_Nw")[0]))
                     self.XSVT_median_filter=int(self.getText(current_exp.getElementsByTagName("XSVT_median_filter")[0]))
+                if do["rXST-XSVT"]:
+                    self.rXSVT_Nw=int(self.getText(current_exp.getElementsByTagName("XSVT_Nw")[0]))
+                    self.rXSVT_median_filter=int(self.getText(current_exp.getElementsByTagName("XSVT_median_filter")[0]))
                 if do["MISTI"] or do["MISTII_1"] or do["MISTII_2"]:
                     self.MIST_median_filter=int(self.getText(current_exp.getElementsByTagName("MIST_median_filter")[0]))
                 self.sigma_regularization=float(self.getText(current_exp.getElementsByTagName("sigma_regularization")[0]))

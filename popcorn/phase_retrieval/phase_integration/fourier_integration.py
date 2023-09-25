@@ -97,13 +97,12 @@ def fourier_solver(gx,gy,px,py,solver='kottler',padding=True):
 
     #Antisymmetrization
     if padding:
-        a_gx, a_gy =antisym(gxn,gyn)
-
+        gxn, gyn =antisym(gxn,gyn)
     #Solution
 
     #globals() retrieves the function required by the user and calls it
     solver_func = globals()[solver]
-    phase_ext = solver_func(a_gx,a_gy)
+    phase_ext = solver_func(gxn,gyn)
     size_x, size_y = np.shape(gx)
     phase = phase_ext[:size_x,:size_y]
     return phase
