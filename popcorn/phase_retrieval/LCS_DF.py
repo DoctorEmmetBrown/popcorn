@@ -7,10 +7,8 @@ Created on Mon Mar 15 13:46:27 2021.
 """
 import numpy as np
 import frankoChellappa  as fc
-from scipy.ndimage.filters import gaussian_filter, median_filter
+from scipy.ndimage.filters import  median_filter
 from scipy.ndimage import laplace
-from matplotlib import pyplot as plt
-from skimage import color, data, restoration
 from phase_integration import fourier_integration, ls_integration
 
 
@@ -112,7 +110,7 @@ def processProjectionLCS_DF(experiment):
     # The sampling step for the gradient is the magnified pixel size
     magnificationFactor = (experiment.dist_object_detector + experiment.dist_source_object) / experiment.dist_source_object
     gradientSampling = experiment.pixel / magnificationFactor
-    phiFC = fc.frankotchellappa(dphiy, dphix, True)*gradientSampling
+    phiFC = fc.frankotchellappa(dphix, dphiy, True)*gradientSampling
     phiK = fourier_integration.fourier_solver(dphix, dphiy, gradientSampling, gradientSampling, solver='kottler')
     #phiLS = ls_integration.least_squares(dphix, dphiy, gradientSampling, gradientSampling, model='southwell')
     

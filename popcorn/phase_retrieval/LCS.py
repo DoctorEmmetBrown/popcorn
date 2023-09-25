@@ -7,9 +7,7 @@ Created on Mon Mar 15 13:46:27 2021.
 """
 import numpy as np
 import frankoChellappa  as fc
-from scipy.ndimage.filters import gaussian_filter, median_filter
-from matplotlib import pyplot as plt
-from skimage import color, data, restoration
+from scipy.ndimage.filters import median_filter
 from phase_integration import fourier_integration, ls_integration
 
 def LCS(experiment):

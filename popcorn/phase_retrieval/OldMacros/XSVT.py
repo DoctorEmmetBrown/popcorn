@@ -1,12 +1,13 @@
 import numpy as np
 import multiprocessing as mp
+import matplotlib.pyplot as plt
 from itertools import product, chain
-from scipy.ndimage import map_coordinates
+from scipy.interpolate import interp2d
 from functools import partial
-from scipy.ndimage import median_filter
+from scipy.ndimage.filters import median_filter
 import frankoChellappa as fc
 from phase_integration import fourier_integration, ls_integration
-from numba import jit
+from OpticalFlow2020 import LarkinAnissonSheppard
 
 
 def processProjectionXSVT(experiment):
@@ -21,8 +22,11 @@ def processProjectionXSVT(experiment):
         Diff_y: displacement in y (vertical)(in terms of pixels)
         Transmission: the transmission image (I/I0)
         Darkfield: the darkfield image
+        DPhi_x: phase shift in x (radians)
+        DPhy_y: phase shift in y (radians)
         phiFC: Frankot-Chelappa integrated phase image
         phiK: Kottler integrated phase image
+        phiLS: Least Squares integrated phase image
     """
 
     nb_images, px_rows, px_cols = experiment.sample_images.shape
@@ -57,7 +61,7 @@ def processProjectionXSVT(experiment):
         phiK = phiK[padSize:padSize + px_rows, padSize:padSize + px_cols]
         #phiLS = phiLS[padSize:padSize + px_rows, padSize:padSize + px_cols]
 
-    return {"dx": diff_x, "dy": diff_y, "Absorption": transmission, "Deff": darkfield, 'phiFC': phiFC, 'phiK': phiK} #, 'phiLS': phiLS}#
+    return {"dx": diff_x, "dy": diff_y, "Absorption": transmission, "Deff": darkfield, 'phiFC': phiFC, 'phiK': phiK} #, 'phiLS': phiLS}#, "DPhi_x": dphix, "DPhi_y": dphiy
 
 
 def start_tracking(Isample, Iref, max_shift, window):
@@ -103,33 +107,30 @@ def start_tracking(Isample, Iref, max_shift, window):
         # Need to create partial function because multiprocessing.map only accepts one input parameter
         pfunc = partial(speckle_vector_tracking, paddedIsample, paddedIref, max_shift, window)
         result = pool.map(pfunc, paramlist)
-        dx = list(chain(*result))[0::2]
-        dy = list(chain(*result))[1::2]
-        #tr = list(chain(*result))[2::4]
-        #df = list(chain(*result))[3::4]
+        dx = list(chain(*result))[0::4]
+        dy = list(chain(*result))[1::4]
+        tr = list(chain(*result))[2::4]
+        df = list(chain(*result))[3::4]
         pool.close()
     # If multiprocessing not used, simple for-loop is used
     else:
         print("Multiprocessing off")
         dx = []
         dy = []
-        #tr = []
-        #df = []
+        tr = []
+        df = []
 
         for a, b in product(i, j):
             results = speckle_vector_tracking(paddedIsample, paddedIref, max_shift, window, [a, b])
             dx.append(results[0])
             dy.append(results[1])
-            #tr.append(results[2])
-            #df.append(results[3])
+            tr.append(results[2])
+            df.append(results[3])
 
     dx = np.array(dx).reshape(px_rows, px_cols)
     dy = np.array(dy).reshape(px_rows, px_cols)
-
-    tr,df = calc_tr_df(Iref,Isample,dy,dx)
-
-    #tr = np.array(tr).reshape(px_rows, px_cols)
-    #df = np.array(df).reshape(px_rows, px_cols)
+    tr = np.array(tr).reshape(px_rows, px_cols)
+    df = np.array(df).reshape(px_rows, px_cols)
 
     print("End of speckle vector tracking")
 
@@ -168,48 +169,75 @@ def speckle_vector_tracking(sample_image, padded_ref_image, shift, w, params):
         except:
             print("Row: " + str(i))
 
+    v_sample = sample_image[:, i+pm, j+pm]
     # Sub-matrix of Isample intensity values with size window**2
     roi_sample = sample_image[:, i:i+w, j:j+w]
     # Sub-matrix of Iref intensity values with size (window+2*shift)**2
     roi_ref = np.array(padded_ref_image[:, i:i+2*pm+roi, j:j+2*pm+roi])
 
     # Determine the correlation between v_sample and each value in v_ref
-    pearson_map = compute_covariance(roi_ref,roi_sample,pm,w)
+    pearson_map = np.zeros((roi_ref.shape[1] - 2*pm, roi_ref.shape[2] - 2*pm))
+    for l, m in product(range(roi_ref.shape[1] - 2*pm), range(roi_ref.shape[2] - 2*pm)):
+        if np.std(roi_ref[:, l:l + w, m:m + w]) == 0 or np.std(roi_sample) == 0:
+            pearson_map[l][m] = 0.
+        else:
+            pearson_map[l][m] = nc(roi_sample, roi_ref[:, l:l + w, m:m + w])
 
     # Fit a polynomial surface to pearson_map and find the maximum correlation peak
-    # To avoid instabilities, the fit is performed only around the maximum, on a 3x3 ROI.
-    # The fine-tuning is limited to one pixel. Larger values imply a failure of the fit. 
-    maxcorr = np.unravel_index(np.argmax(pearson_map, axis=None), pearson_map.shape)
-    roixmin = define_roi(maxcorr[1],shift)
-    roiymin = define_roi(maxcorr[0],shift)
-    cropped_pearson = pearson_map[roiymin:roiymin+3,roixmin:roixmin+3]
-    
-    fit_params = polyfit2d(cropped_pearson)
-    dy_fit, dx_fit = find_max(fit_params) - (maxcorr-np.array([roiymin,roixmin]))
-    dy_fit, dx_fit = np.minimum([dy_fit, dx_fit],[0.55,0.55])
-    dy_fit, dx_fit = np.maximum([dy_fit, dx_fit],[-0.55,-0.55])
-    diffy = dy_fit  + maxcorr[0]
-    diffx = dx_fit  + maxcorr[1]
+    fit_params = polyfit2d(pearson_map)
+    diffy, diffx = find_max(fit_params)
 
     # Give the shift in terms of displacement (in terms of pixels) of v_sample relative to v_ref
     diff_x = ((pearson_map.shape[0]-1)/2. - diffx)
     diff_y = ((pearson_map.shape[0]-1)/2. - diffy)
 
-    return diff_x, diff_y #, transn, dark
+    plot = False
+
+    if plot and i > 0 and j > 0:
+        a = fit_params
+        interp_points = 10
+
+        i0 = j0 = np.linspace(0, pearson_map.shape[0] - 1, pearson_map.shape[0])
+        is0 = js0 = np.linspace(0, pearson_map.shape[0] - 1, interp_points * (pearson_map.shape[0] - 1) + 1)
+
+        print(i0, is0)
+
+        imesh, jmesh = np.meshgrid(i0, j0)
+        iss, jss = np.meshgrid(is0, js0)
+
+        IS = iss.flatten()
+        JS = jss.flatten()
+
+        fit = a[0] * IS ** 2 + a[1] * JS ** 2 + a[2] * IS * JS + a[3] * IS + a[4] * JS + a[5]
+        fit = fit.reshape((len(is0), len(js0)))
+
+        imesh = [(i0[-1]/2 - v) for v in imesh]
+        jmesh = [(j0[-1]/2 - v) for v in jmesh]
+        iss = [(is0[-1]/2 - v) for v in iss]
+        jss = [(js0[-1]/2 - v) for v in jss]
+
+        fig = plt.figure()
+        ax = fig.gca(projection='3d')
+        ax.scatter(imesh, jmesh, pearson_map, zorder=2)
+        surf = ax.plot_surface(iss, jss, fit, cmap='plasma', vmin=0.9, vmax=1, zorder=-10, alpha = 0.8)
+        ax.scatter(diff_x, diff_y, np.amax(fit), color='k', zorder=3)
+        ax.set_zlim(0, 1.2)
+        ax.set_xlabel(r'$\Delta$ x')
+        ax.set_ylabel(r'$\Delta$ y')
+        ax.set_zlabel('p')
+        plt.colorbar(surf)
+        plt.show()
+
+    # We need to interpolate roi_ref in order to obtain Iref vector corresponding to max correlation
+    r = c = np.linspace(0, 2*shift+2*pm, roi+2*pm)
+    px2subpx = [interp2d(c, r, roi_ref[n, :, :]) for n in range(nb)]
+    v_ref_shifted = [f((diffy+pm, diffx+pm)) for f in px2subpx]
+    transn = calc_transmission(v_sample, v_ref_shifted)
+    dark = calc_df(transn, v_sample, v_ref_shifted)
+
+    return diff_x, diff_y, transn, dark
 
 
-@jit(nopython=True)
-def compute_covariance(roi_ref,roi_sample,pm,w):
-    pearson_map = np.zeros((roi_ref.shape[1] - 2*pm, roi_ref.shape[2] - 2*pm))
-    for l in range(roi_ref.shape[1] - 2*pm):
-        for m in range(roi_ref.shape[2] - 2*pm):
-            if np.std(roi_ref[:, l:l + w, m:m + w]) == 0 or np.std(roi_sample) == 0:
-                pearson_map[l][m] = 0.
-            else:
-                pearson_map[l][m] = nc(roi_sample, roi_ref[:, l:l + w, m:m + w])
-    return pearson_map
-
-@jit(nopython=True)
 def nc(x, y):
     """
     Calculate the Pearson correlation of two matrices, x and y. The Pearson correlation
@@ -225,7 +253,7 @@ def nc(x, y):
     xv = x - np.mean(x)
     yv = y - np.mean(y)
 
-    r = np.sum(xv * yv) / np.sqrt(np.sum(xv**2) * np.sum(yv**2))
+    r = (np.inner(xv.ravel(), yv.ravel()) / np.sqrt(np.outer(np.sum(xv**2), np.sum(yv**2))))
     return r
 
 
@@ -249,7 +277,7 @@ def polyfit2d(pmap):
     mf = pmap.flatten()
 
     M = np.array([I ** 2, J ** 2, I * J, I, J, I * 0 + 1]).T
-    result = np.linalg.lstsq(M, mf,rcond=None)
+    result = np.linalg.lstsq(M, mf)
     a = result[0]
 
     return a
@@ -258,23 +286,17 @@ def polyfit2d(pmap):
 def find_max(a):
     """
     Find the coordinates (i0, j0) in terms of pixels of the maximum correlation peak from
-    the polynomial surface fit parameters.
+    the polynomial surface fit parameters
 
     :param a: List of polynomial surface fit parameters returned by polyfit2d()
 
     Returns i0, j0
     """
 
-    #If the quadratic terms are zero, the fit won't find a stationary point.
-    #We set the maximum to (1,1) to introduce no correction to argmax.
-    denominator = (4*a[0]*a[1] - a[2]**2)
-    if(denominator==0):
-        i0 = j0 = 1
-    else:    
-        j0 = ((a[2]*a[3]) - (2*a[0]*a[4])) / denominator
-        i0 = ((a[2] * a[4]) - (2 * a[1] * a[3])) / denominator
+    j0 = ((a[2]*a[3]) - (2*a[0]*a[4])) / (4*a[0]*a[1] - a[2]**2)
+    i0 = ((a[2] * a[4]) - (2 * a[1] * a[3])) / (4 * a[0] * a[1] - a[2] ** 2)
 
-    return i0, j0
+    return np.maximum(i0,0), np.maximum(j0,0)
 
 def calc_transmission(vs, vr):
     """
@@ -302,29 +324,6 @@ def calc_df(tr, vs, vr):
 
     return (1/tr) * np.std(vs) / np.std(vr)
 
-
-
-def calc_tr_df(Iref,Isample,dy,dx):
-
-    nb, rows, cols = Iref.shape
-    gpx,gpy = np.meshgrid(np.arange(cols),np.arange(rows))
-    coordinates = np.array([gpy-dy,gpx-dx])
-    Iref_shifted = [map_coordinates(Iref[i],coordinates) for i in np.arange(nb)]
-
-    tr = np.sum(Isample,axis=0)/np.sum(Iref_shifted,axis=0)
-    df = (1/tr) *np.std(Isample,axis=0) / np.std(Iref_shifted,axis=0)
-
-    return tr,df
-
-def define_roi(index,shift):
-
-    if index==0:
-        ind_min=0
-    elif index == (2*shift):
-        ind_min = 2*(shift-1)
-    else:
-        ind_min = index-1
-    return ind_min
 
 def plot_pmap():
     return

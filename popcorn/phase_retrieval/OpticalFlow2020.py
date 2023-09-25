@@ -4,9 +4,13 @@
 Created on Mon Mar 15 13:46:27 2021.
 
 @author: quenot
+
+Modified by Fardin on 25th Sep 2023: 
+                    Corrected frequencies in the Fourier filter
+                    Removed for loop on the number of images
+                    Added new gradient integration methods
 """
 
-import glob
 from numpy.fft import fftshift as fftshift
 from numpy.fft import ifftshift as ifftshift
 from numpy.fft import fft2 as fft2
@@ -14,49 +18,57 @@ from numpy.fft import ifft2 as ifft2
 from numpy.fft import fftfreq as fftfreq
 import numpy as np
 from math import pi as pi
-from math import floor as floor
 import frankoChellappa  as fc
 from scipy.ndimage import gaussian_filter
 from phase_integration import fourier_integration, ls_integration
-from phaseIntegration_old import LarkinAnissonSheppard
 
 def derivativesByOpticalflow(intensityImage,derivative,sig_scale=0):
 
-    
+    # Optical flow (OF) algorithm as described in Paganin et al., 2018.
+    # A gaussian shaped high pass filter is implemented, to reduce the low frequency artefacts introduced by
+    # the OF algorithm. The gaussian filter should be asymmetric, but here the same width (cut-off frequency) is used for X and Y.
+    # The width is controlled by two parameters: dqx (frequency sampling) and sig_scale (selected by the user).
+    # An asymmetric gaussian filter would require one sig_scale per dimension, to better control the cut-off frequencies: dqy
+    # is in fact not always equal to dqx.
+
+
     epsilon=np.finfo(float).eps
     Nim, Ny, Nx = derivative.shape #Image size
     dImX=np.zeros((Nim,Ny,Nx),dtype='complex')
     dImY=np.zeros((Nim,Ny,Nx),dtype='complex')
-    intensityImage[intensityImage<=0] = epsilon
-    
-    for i in range(Nim):
-        # fourier transform of the derivative
-        ftdI = fft2(derivative[i,:,:])
-        # calculate frequency sampling
-        dqx = 2 * pi / (Nx)
-        dqy = 2 * pi / (Ny)
 
-        kx = 2*np.pi*fftfreq(Nx) 
-        ky = 2*np.pi*fftfreq(Ny) 
 
-        Qx, Qy = np.meshgrid(kx,ky)
-    
-        #building filters in frequency space
-        if(sig_scale!=0):
-            sigmaX = 2 * (dqx*sig_scale)**2 
-            sigmaY = 2 * (dqy*sig_scale)**2      
-            g = np.exp(-((Qx**2) / sigmaX + (Qy**2) / sigmaY))
-            beta = 1 - g
-        else:
-            beta = 1 
+    # fourier transform of the derivative
+    ftdI = fft2(derivative)
+    # calculate frequency sampling
+    dqx = 2 * pi / (Nx)
+    dqy = 2 * pi / (Ny)
 
-        # fourier filters
-        ftfiltX = (beta * Qx / (Qx**2 + Qy**2 + epsilon))
-        ftfiltY = (beta * Qy/ (Qx**2 + Qy**2 + epsilon))
+    kx = 2*np.pi*fftfreq(Nx) 
+    ky = 2*np.pi*fftfreq(Ny) 
+
+    Qx, Qy = np.meshgrid(kx,ky)
+    Qx2,Qy2 = np.meshgrid(kx**2,ky**2)
+
+    #building filter in frequency space
+    if(sig_scale!=0):
+        sigmaX = 2 * (dqx*sig_scale)**2 
+        sigmaY = sigmaX
+        #sigmaY = 2 * (dqy*sig_scale)**2      
+        g = np.exp(-((Qx2) / sigmaX + (Qy2) / sigmaY))
+        beta = 1 - g
+    else:
+        beta = 1 
+
+    # fourier filters
+    ftfiltX = (beta * Qx / (Qx2 + Qy2 + epsilon))
+    ftfiltX[0,0]=0
+    ftfiltY = (beta * Qy/ (Qx2 + Qy2 + epsilon))
+    ftfiltY[0,0]=0
     
-        # output calculation
-        dImX[i] = (1j / intensityImage[i,:,:]) * ifft2(ftfiltX * ftdI) #Displacement field
-        dImY[i] = (1j / intensityImage[i,:,:]) * ifft2(ftfiltY * ftdI)
+    # output calculation
+    dImX = (1j / intensityImage) * ifft2(np.array([ftfiltX,]*Nim) * ftdI) #Displacement field
+    dImY = (1j / intensityImage) * ifft2(np.array([ftfiltY,]*Nim) * ftdI)
     dX=np.median(dImX.real, axis=0)
     dY=np.median(dImY.real, axis=0)
 
