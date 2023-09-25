@@ -30,7 +30,6 @@ from ReverseFlow_LCS import processProjection_rLCS
 from speckle_matching import processProjectionUMPA
 from XSVT_reference import processProjection_rXSVT
 from XSVT import processProjectionXSVT
-#from demons import processProjectionDemons
 from matplotlib import pyplot as plt
 import numpy as np
 from xml.dom import minidom
